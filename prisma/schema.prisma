@@ -1,0 +1,14 @@
+generator client {
+  provider = "prisma-client"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+
+}
+
+enum Role {
+  FARMER
+  ADMIN
+}
