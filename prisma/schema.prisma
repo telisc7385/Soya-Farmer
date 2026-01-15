@@ -4,11 +4,327 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
-
 }
 
+// =====================
+// ENUMS
+// =====================
 enum Role {
-  FARMER
   ADMIN
+  VENDOR
+}
+
+enum DocumentType {
+  AADHAAR
+  BANK
+  LAND_712
+  BLOOD_RELATION_712
+}
+
+enum LandType {
+  OWN
+  BLOOD_RELATION
+}
+
+enum ProductType {
+  KATTA
+  PRODUCT
+}
+
+enum BillStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  PENDING
+  PAID
+  FAILED
+}
+
+// =====================
+// USER (ADMIN / VENDOR)
+// =====================
+model User {
+  id        String   @id @default(uuid())
+  name      String
+  phone     String   @unique
+  password  String
+  role      Role
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  vendorFarmers VendorFarmer[]
+  bills         Bill[]
+  stocks        Stock[]
+}
+
+// =====================
+// FARMER (GLOBAL IDENTITY)
+// =====================
+model Farmer {
+  id        String   @id @default(uuid())
+  name      String
+  aadhaarNo String   @unique
+  phone     String
+  createdAt DateTime @default(now())
+
+  documents   FarmerDocument[]
+  lands       FarmerLand[]
+  vendors     VendorFarmer[]
+  stocks      Stock[]
+  bills       Bill[]
+  banks       FarmerBank[]
+  payments    FarmerPayment[]
+  overrides   StockOverride[]
+}
+
+// =====================
+// VENDOR ↔ FARMER MAPPING
+// =====================
+model VendorFarmer {
+  id        String   @id @default(uuid())
+  vendorId  String
+  farmerId  String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  vendor User   @relation(fields: [vendorId], references: [id])
+  farmer Farmer @relation(fields: [farmerId], references: [id])
+
+  @@unique([vendorId, farmerId])
+}
+
+// =====================
+// FARMER DOCUMENTS (KYC)
+// =====================
+model FarmerDocument {
+  id        String       @id @default(uuid())
+  farmerId  String
+  type      DocumentType
+  imageUrl  String
+  createdAt DateTime     @default(now())
+
+  farmer Farmer @relation(fields: [farmerId], references: [id])
+}
+
+// =====================
+// LOCATION (ADMIN RULE)
+// =====================
+model Location {
+  id           String   @id @default(uuid())
+  name         String   @unique
+  quintalLimit Float    // per acre
+  createdAt    DateTime @default(now())
+
+  lands FarmerLand[]
+}
+
+// =====================
+// FARMER LAND
+// =====================
+model FarmerLand {
+  id          String   @id @default(uuid())
+  farmerId    String
+  locationId  String
+  landType    LandType
+  area        Float
+  documentUrl String
+  createdAt   DateTime @default(now())
+
+  farmer   Farmer   @relation(fields: [farmerId], references: [id])
+  location Location @relation(fields: [locationId], references: [id])
+}
+
+// =====================
+// PRODUCT
+// =====================
+model Product {
+  id        String      @id @default(uuid())
+  name      String
+  type      ProductType
+  createdAt DateTime    @default(now())
+
+  stocks Stock[]
+  bills  Bill[]
+}
+
+// =====================
+// STOCK
+// =====================
+model Stock {
+  id        String   @id @default(uuid())
+  vendorId  String
+  farmerId  String
+  productId String
+  quantity  Float
+  createdAt DateTime @default(now())
+
+  vendor  User    @relation(fields: [vendorId], references: [id])
+  farmer  Farmer  @relation(fields: [farmerId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
+}
+
+// =====================
+// MILL / PLANT
+// =====================
+model Mill {
+  id        String   @id @default(uuid())
+  name      String
+  address   String?
+  createdAt DateTime @default(now())
+
+  bills Bill[]
+}
+
+// =====================
+// VEHICLE
+// =====================
+model Vehicle {
+  id        String   @id @default(uuid())
+  vehicleNo String   @unique
+  createdAt DateTime @default(now())
+
+  bills Bill[]
+}
+
+// =====================
+// BILL (MAIN)
+// =====================
+model Bill {
+  id         String     @id @default(uuid())
+  billNo     String
+  billDate   DateTime
+  vendorId   String
+  farmerId   String
+  productId String
+  millId     String
+  vehicleId  String
+
+  bagCount  Int
+  rate      Float
+  amount    Float
+  status    BillStatus @default(PENDING)
+
+  createdAt DateTime @default(now())
+
+  vendor   User    @relation(fields: [vendorId], references: [id])
+  farmer   Farmer  @relation(fields: [farmerId], references: [id])
+  product  Product @relation(fields: [productId], references: [id])
+  mill     Mill    @relation(fields: [millId], references: [id])
+  vehicle  Vehicle @relation(fields: [vehicleId], references: [id])
+
+  weight     BillWeight?
+  slips      WeighSlip[]
+  deductions BillDeduction[]
+  payment    FarmerPayment?
+  invoice    Invoice?
+}
+
+// =====================
+// BILL WEIGHT SUMMARY
+// =====================
+model BillWeight {
+  id      String @id @default(uuid())
+  billId String @unique
+
+  gross Float
+  tare  Float
+  net   Float
+
+  bill Bill @relation(fields: [billId], references: [id])
+}
+
+// =====================
+// WEIGH SLIP
+// =====================
+model WeighSlip {
+  id        String   @id @default(uuid())
+  billId    String
+  slipNo    String
+  createdAt DateTime @default(now())
+
+  bill    Bill             @relation(fields: [billId], references: [id])
+  entries WeighSlipEntry[]
+}
+
+model WeighSlipEntry {
+  id      String @id @default(uuid())
+  slipId String
+  srNo   Int
+  gross  Float
+  tare   Float
+  net    Float
+
+  slip WeighSlip @relation(fields: [slipId], references: [id])
+}
+
+// =====================
+// BILL DEDUCTIONS
+// =====================
+model BillDeduction {
+  id      String @id @default(uuid())
+  billId String
+  label  String
+  value  Float
+
+  bill Bill @relation(fields: [billId], references: [id])
+}
+
+// =====================
+// FARMER BANK DETAILS
+// =====================
+model FarmerBank {
+  id          String  @id @default(uuid())
+  farmerId    String
+  bankName    String
+  accountNo   String
+  ifsc        String
+  holderName String
+  isPrimary   Boolean @default(true)
+
+  farmer Farmer @relation(fields: [farmerId], references: [id])
+}
+
+// =====================
+// FARMER PAYMENT (ADMIN)
+// =====================
+model FarmerPayment {
+  id        String        @id @default(uuid())
+  billId   String        @unique
+  farmerId String
+  amount   Float
+  status   PaymentStatus
+  paidDate DateTime?
+  reference String?
+
+  bill   Bill   @relation(fields: [billId], references: [id])
+  farmer Farmer @relation(fields: [farmerId], references: [id])
+}
+
+// =====================
+// INVOICE
+// =====================
+model Invoice {
+  id        String   @id @default(uuid())
+  billId   String   @unique
+  invoiceNo String
+  pdfUrl   String?
+  createdAt DateTime @default(now())
+
+  bill Bill @relation(fields: [billId], references: [id])
+}
+
+// =====================
+// STOCK LIMIT OVERRIDE
+// =====================
+model StockOverride {
+  id        String   @id @default(uuid())
+  farmerId  String
+  maxLimit  Float
+  reason    String?
+  createdAt DateTime @default(now())
+
+  farmer Farmer @relation(fields: [farmerId], references: [id])
 }
