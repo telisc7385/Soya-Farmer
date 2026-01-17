@@ -1,11 +1,17 @@
 import express from "express";
 import dotenv from "dotenv";
 import authRoutes from "./routes/auth.routes";
+import farmerRoutes from "./routes/farmer.routes";
+import locationRoutes from "./routes/location.routes";
 import { errorHandler } from "./core/errorHandler";
+import path from "path";
+import { routeNotFoundError } from "./core/routeNotFoundError";
 
 dotenv.config();
 
 const app = express();
+
+app.use("/uploads", express.static(path.join(process.cwd(), "public/uploads")));
 
 // Middlewares
 app.use(express.json());
@@ -17,8 +23,11 @@ app.get("/", (req, res) => {
 
 // routes
 app.use("/api/auth", authRoutes);
+app.use("/api/farmer", farmerRoutes);
+app.use("/api/location", locationRoutes);
 
 // error handler
+app.use(routeNotFoundError);
 app.use(errorHandler);
 
 export default app;

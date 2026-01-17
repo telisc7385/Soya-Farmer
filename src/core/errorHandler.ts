@@ -1,16 +1,25 @@
-import { Request, Response, NextFunction } from 'express';
-import { AppError } from './appError';
+import { Request, Response, NextFunction } from "express";
+import { AppError } from "./appError";
 
 export const errorHandler = (
-  err: Error | AppError,
+  err: Error | AppError | any,
   _req: Request,
   res: Response,
-  _next: NextFunction // ✅ REQUIRED
+  _next: NextFunction, // ✅ REQUIRED
 ) => {
   if (err instanceof AppError) {
     res.status(err.statusCode).json({
       success: false,
       message: err.message,
+    });
+    return;
+  }
+
+  if (err.code === "P2025") {
+    // Prisma "Record not found" error
+    res.status(404).json({
+      success: false,
+      message: "Record not found",
     });
     return;
   }

@@ -1,0 +1,80 @@
+// src/routes/farmer.routes.ts
+import { Router } from "express";
+import * as farmerControllers from "../controllers/farmer.controller";
+import { validateRequest } from "../middleware/validateRequest.middleware";
+import { authMiddleware } from "../middleware/auth.middleware";
+import * as farmerValidation from "../validations/farmer.validation";
+import { upload } from "../middleware/multer.middleware";
+
+const router = Router();
+
+// Farmer Controllers
+router.post(
+  "/create-farmer",
+  authMiddleware,
+  validateRequest(farmerValidation.createFarmerSchema),
+  farmerControllers.createFarmer,
+);
+
+router.get("/list", authMiddleware, farmerControllers.getFarmers);
+router.get("/:farmerId", authMiddleware, farmerControllers.getFarmerById);
+
+router.put("/update/:farmerId", authMiddleware, farmerControllers.updateFarmer);
+
+// Farmer Documents
+router.post(
+  "/document",
+  authMiddleware,
+  upload.single("document"), // 👈 file field name
+  validateRequest(farmerValidation.farmerDocumentSchema),
+  farmerControllers.addFarmerDocument,
+);
+router.get(
+  "/document/:farmerId",
+  authMiddleware,
+  farmerControllers.getFarmerDocuments,
+);
+router.put(
+  "/document/:documentId",
+  authMiddleware,
+  upload.single("document"),
+  farmerControllers.updateFarmerDocument,
+);
+
+// Farmer Lands
+router.post(
+  "/:farmerId/lands",
+  authMiddleware,
+  upload.single("land"),
+  validateRequest(farmerValidation.farmerLandSchema),
+  farmerControllers.addFarmerLand,
+);
+
+router.get(
+  "/:farmerId/lands",
+  authMiddleware,
+  farmerControllers.getFarmerLands,
+);
+router.put(
+  "/land/:landId",
+  authMiddleware,
+  upload.single("land"),
+  farmerControllers.updateFarmerLand,
+);
+
+router.post(
+  "/:farmerId/bank",
+  authMiddleware,
+  validateRequest(farmerValidation.farmerBankSchema),
+  farmerControllers.addFarmerBank,
+);
+
+router.get("/:farmerId/bank", authMiddleware, farmerControllers.getFarmerBanks);
+router.put(
+  "/:farmerId/bank/:bankId",
+  authMiddleware,
+  validateRequest(farmerValidation.farmerBankSchema),
+  farmerControllers.updateFarmerBank,
+);
+
+export default router;
