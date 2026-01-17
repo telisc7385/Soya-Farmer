@@ -1,4 +1,5 @@
 import jwt, { JwtPayload } from "jsonwebtoken";
+import { envConfig } from "../config/jwt";
 
 export interface AuthTokenPayload extends JwtPayload {
   userId: string;
@@ -6,7 +7,7 @@ export interface AuthTokenPayload extends JwtPayload {
 }
 
 export const generateToken = (payload: AuthTokenPayload): string => {
-  return jwt.sign(payload, process.env.JWT_SECRET as string, {
+  return jwt.sign(payload, envConfig.accessSecret, {
     expiresIn: "7d",
   });
 };
@@ -14,6 +15,6 @@ export const generateToken = (payload: AuthTokenPayload): string => {
 export const verifyToken = (token: string): AuthTokenPayload => {
   return jwt.verify(
     token,
-    process.env.JWT_SECRET as string
+    envConfig.accessSecret
   ) as AuthTokenPayload;
 };

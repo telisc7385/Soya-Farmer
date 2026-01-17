@@ -1,8 +1,9 @@
 // prisma.config.ts
 import { defineConfig } from "prisma/config";
+import { envConfig } from "./config/jwt";
 
 export default defineConfig({
   datasource: {
-    url: process.env.DATABASE_URL,
+    url: envConfig.dbUrl,
   },
 });

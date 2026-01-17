@@ -1,7 +1,8 @@
 import { createServer } from "http";
 import app from "./app";
+import { envConfig } from "./config/jwt";
 
-const PORT = Number(process.env.PORT) || 5000;
+const PORT = Number(envConfig.port) || 5000;
 
 const server = createServer(app);
 
