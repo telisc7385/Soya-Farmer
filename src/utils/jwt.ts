@@ -1,5 +1,5 @@
 import jwt from "jsonwebtoken";
-import { envConfig } from "../config/jwt";
+import { envConfig } from "../config/env";
 
 export interface JwtPayload {
   userId: string;
@@ -7,9 +7,5 @@ export interface JwtPayload {
 }
 
 export function generateAccessToken(payload: JwtPayload): string {
-  return jwt.sign(
-    payload,
-    envConfig.accessSecret,
-    { expiresIn: "7d" }
-  );
+  return jwt.sign(payload, envConfig.accessSecret, { expiresIn: "7d" });
 }

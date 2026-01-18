@@ -69,7 +69,11 @@ export const register = async (
 
     const { password: _, ...safeUser } = user;
 
-    createdResponse(res, safeUser, "User registered successfully");
+    createdResponse(
+      res,
+      safeUser,
+      `${role === "VENDOR" ? "Vendor" : "Admin"} Created successfully`,
+    );
   } catch (error) {
     next(error);
   }

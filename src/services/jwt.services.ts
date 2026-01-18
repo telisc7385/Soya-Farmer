@@ -1,5 +1,5 @@
 import jwt, { JwtPayload } from "jsonwebtoken";
-import { envConfig } from "../config/jwt";
+import { envConfig } from "../config/env";
 
 export interface AuthTokenPayload extends JwtPayload {
   userId: string;
@@ -13,8 +13,5 @@ export const generateToken = (payload: AuthTokenPayload): string => {
 };
 
 export const verifyToken = (token: string): AuthTokenPayload => {
-  return jwt.verify(
-    token,
-    envConfig.accessSecret
-  ) as AuthTokenPayload;
+  return jwt.verify(token, envConfig.accessSecret) as AuthTokenPayload;
 };

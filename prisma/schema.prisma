@@ -28,8 +28,15 @@ enum LandType {
 
 enum ProductType {
   KATTA
-  PRODUCT
+  SOYAPRODUCT
 }
+
+enum StockMovementType {
+  IN
+  OUT
+  ADJUSTMENT
+}
+
 
 enum BillStatus {
   PENDING
@@ -145,6 +152,7 @@ model Product {
   id        String      @id @default(uuid())
   name      String
   type      ProductType
+  isActive  Boolean     @default(true)
   createdAt DateTime    @default(now())
 
   stocks Stock[]
@@ -159,13 +167,31 @@ model Stock {
   vendorId  String
   farmerId  String
   productId String
-  quantity  Float
-  createdAt DateTime @default(now())
+
+  quantity  Float        // ✅ CURRENT AVAILABLE STOCK
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
 
   vendor  User    @relation(fields: [vendorId], references: [id])
   farmer  Farmer  @relation(fields: [farmerId], references: [id])
   product Product @relation(fields: [productId], references: [id])
+
+  movements StockMovement[]
+
+  @@unique([vendorId, farmerId, productId]) // ✅ VERY IMPORTANT
 }
+
+model StockMovement {
+  id        String   @id @default(uuid())
+  stockId  String
+  type     StockMovementType
+  quantity Float
+  reference String?   // billId / manual note / admin reason
+  createdAt DateTime  @default(now())
+
+  stock Stock @relation(fields: [stockId], references: [id])
+}
+
 
 // =====================
 // MILL / PLANT
@@ -322,7 +348,7 @@ model Invoice {
 // =====================
 model StockOverride {
   id        String   @id @default(uuid())
-  farmerId  String
+  farmerId  String   @unique
   maxLimit  Float
   reason    String?
   createdAt DateTime @default(now())
