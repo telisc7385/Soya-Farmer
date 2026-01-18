@@ -5,6 +5,9 @@ import farmerRoutes from "./routes/farmer.routes";
 import locationRoutes from "./routes/location.routes";
 import productRoutes from "./routes/product.routes";
 import stocksRoutes from "./routes/stock.routes";
+import vehicleRoutes from "./routes/vehicle.routes";
+import millRoutes from "./routes/mill.routes";
+import billingRoutes from "./routes/bill.routes";
 import { errorHandler } from "./core/errorHandler";
 import path from "path";
 import { routeNotFoundError } from "./core/routeNotFoundError";
@@ -27,9 +30,11 @@ app.get("/", (req, res) => {
 app.use("/api/auth", authRoutes);
 app.use("/api/farmer", farmerRoutes);
 app.use("/api/location", locationRoutes);
-app.use("/api/location", locationRoutes);
 app.use("/api/product", productRoutes);
 app.use("/api/stock", stocksRoutes);
+app.use("/api/vehicle", vehicleRoutes);
+app.use("/api/mill", millRoutes);
+app.use("/api/bill", billingRoutes);
 
 // error handler
 app.use(routeNotFoundError);

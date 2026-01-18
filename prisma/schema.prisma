@@ -37,8 +37,13 @@ enum StockMovementType {
   ADJUSTMENT
 }
 
+enum QuantityUnit {
+  KG
+  QTL
+}
 
 enum BillStatus {
+  DRAFT
   PENDING
   COMPLETED
   CANCELLED
@@ -57,7 +62,7 @@ model User {
   id        String   @id @default(uuid())
   name      String
   phone     String
-  email     String    @unique
+  email     String   @unique
   password  String
   role      Role
   isActive  Boolean  @default(true)
@@ -78,14 +83,14 @@ model Farmer {
   phone     String
   createdAt DateTime @default(now())
 
-  documents   FarmerDocument[]
-  lands       FarmerLand[]
-  vendors     VendorFarmer[]
-  stocks      Stock[]
-  bills       Bill[]
-  banks       FarmerBank[]
-  payments    FarmerPayment[]
-  overrides   StockOverride[]
+  documents FarmerDocument[]
+  lands     FarmerLand[]
+  vendors   VendorFarmer[]
+  stocks    Stock[]
+  bills     Bill[]
+  banks     FarmerBank[]
+  payments  FarmerPayment[]
+  overrides StockOverride[]
 }
 
 // =====================
@@ -123,7 +128,7 @@ model FarmerDocument {
 model Location {
   id           String   @id @default(uuid())
   name         String   @unique
-  quintalLimit Float    // per acre
+  quintalLimit Float // per acre
   createdAt    DateTime @default(now())
 
   lands FarmerLand[]
@@ -155,22 +160,23 @@ model Product {
   isActive  Boolean     @default(true)
   createdAt DateTime    @default(now())
 
-  stocks Stock[]
-  bills  Bill[]
+  stocks    Stock[]
+  bills     Bill[]
+  billItems BillItem[]
 }
 
 // =====================
 // STOCK
 // =====================
 model Stock {
-  id        String   @id @default(uuid())
+  id        String @id @default(uuid())
   vendorId  String
   farmerId  String
   productId String
 
-  quantity  Float        // ✅ CURRENT AVAILABLE STOCK
-  createdAt DateTime     @default(now())
-  updatedAt DateTime     @updatedAt
+  quantity  Float // ✅ CURRENT AVAILABLE STOCK
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   vendor  User    @relation(fields: [vendorId], references: [id])
   farmer  Farmer  @relation(fields: [farmerId], references: [id])
@@ -182,16 +188,15 @@ model Stock {
 }
 
 model StockMovement {
-  id        String   @id @default(uuid())
-  stockId  String
-  type     StockMovementType
-  quantity Float
-  reference String?   // billId / manual note / admin reason
-  createdAt DateTime  @default(now())
+  id        String            @id @default(uuid())
+  stockId   String
+  type      StockMovementType
+  quantity  Float
+  reference String? // billId / manual note / admin reason
+  createdAt DateTime          @default(now())
 
   stock Stock @relation(fields: [stockId], references: [id])
 }
-
 
 // =====================
 // MILL / PLANT
@@ -220,40 +225,53 @@ model Vehicle {
 // BILL (MAIN)
 // =====================
 model Bill {
-  id         String     @id @default(uuid())
-  billNo     String
-  billDate   DateTime
-  vendorId   String
-  farmerId   String
-  productId String
-  millId     String
-  vehicleId  String
+  id        String   @id @default(uuid())
+  billNo    String
+  billDate  DateTime
+  vendorId  String
+  farmerId  String
+  millId    String
+  vehicleId String
 
-  bagCount  Int
-  rate      Float
-  amount    Float
-  status    BillStatus @default(PENDING)
+  totalAmount Float
+  status      BillStatus @default(PENDING)
 
   createdAt DateTime @default(now())
 
-  vendor   User    @relation(fields: [vendorId], references: [id])
-  farmer   Farmer  @relation(fields: [farmerId], references: [id])
-  product  Product @relation(fields: [productId], references: [id])
-  mill     Mill    @relation(fields: [millId], references: [id])
-  vehicle  Vehicle @relation(fields: [vehicleId], references: [id])
+  vendor  User    @relation(fields: [vendorId], references: [id])
+  farmer  Farmer  @relation(fields: [farmerId], references: [id])
+  mill    Mill    @relation(fields: [millId], references: [id])
+  vehicle Vehicle @relation(fields: [vehicleId], references: [id])
 
   weight     BillWeight?
   slips      WeighSlip[]
+  items      BillItem[]
   deductions BillDeduction[]
   payment    FarmerPayment?
   invoice    Invoice?
+  product    Product?        @relation(fields: [productId], references: [id])
+  productId  String?
+}
+
+model BillItem {
+  id        String       @id @default(uuid())
+  billId    String
+  productId String
+  bagCount  Int
+  unit      QuantityUnit
+  quantity  Float
+  rate      Float
+  amount    Float
+
+  bill    Bill    @relation(fields: [billId], references: [id])
+  product Product @relation(fields: [productId], references: [id])
 }
 
 // =====================
 // BILL WEIGHT SUMMARY
 // =====================
 model BillWeight {
-  id      String @id @default(uuid())
+  id     String @id @default(uuid())
   billId String @unique
 
   gross Float
@@ -277,7 +295,7 @@ model WeighSlip {
 }
 
 model WeighSlipEntry {
-  id      String @id @default(uuid())
+  id     String @id @default(uuid())
   slipId String
   srNo   Int
   gross  Float
@@ -291,7 +309,7 @@ model WeighSlipEntry {
 // BILL DEDUCTIONS
 // =====================
 model BillDeduction {
-  id      String @id @default(uuid())
+  id     String @id @default(uuid())
   billId String
   label  String
   value  Float
@@ -303,13 +321,13 @@ model BillDeduction {
 // FARMER BANK DETAILS
 // =====================
 model FarmerBank {
-  id          String  @id @default(uuid())
-  farmerId    String
-  bankName    String
-  accountNo   String
-  ifsc        String
+  id         String  @id @default(uuid())
+  farmerId   String
+  bankName   String
+  accountNo  String
+  ifsc       String
   holderName String
-  isPrimary   Boolean @default(true)
+  isPrimary  Boolean @default(true)
 
   farmer Farmer @relation(fields: [farmerId], references: [id])
 }
@@ -319,11 +337,11 @@ model FarmerBank {
 // =====================
 model FarmerPayment {
   id        String        @id @default(uuid())
-  billId   String        @unique
-  farmerId String
-  amount   Float
-  status   PaymentStatus
-  paidDate DateTime?
+  billId    String        @unique
+  farmerId  String
+  amount    Float
+  status    PaymentStatus
+  paidDate  DateTime?
   reference String?
 
   bill   Bill   @relation(fields: [billId], references: [id])
@@ -335,9 +353,9 @@ model FarmerPayment {
 // =====================
 model Invoice {
   id        String   @id @default(uuid())
-  billId   String   @unique
+  billId    String   @unique
   invoiceNo String
-  pdfUrl   String?
+  pdfUrl    String?
   createdAt DateTime @default(now())
 
   bill Bill @relation(fields: [billId], references: [id])
