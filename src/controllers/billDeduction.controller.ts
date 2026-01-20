@@ -51,6 +51,47 @@ export const addBillDeductions = async (
   }
 };
 
+// Update Deduction
+export const updateBillDeduction = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { deductionId } = req.params;
+    const { label, value } = req.body;
+
+    const deduction = await prisma.billDeduction.findUnique({
+      where: { id: deductionId },
+      include: { bill: true },
+    });
+
+    if (!deduction) throw new AppError("Deduction not found", 404);
+    if (deduction.bill.status !== "DRAFT")
+      throw new AppError("Bill already finalized", 400);
+
+    const diff = value - deduction.value;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.billDeduction.update({
+        where: { id: deductionId },
+        data: { label, value },
+      });
+
+      await tx.bill.update({
+        where: { id: deduction.billId },
+        data: {
+          totalAmount: { decrement: diff },
+        },
+      });
+    });
+
+    successResponse(res, null, "Deduction updated");
+  } catch (error) {
+    next(error);
+  }
+};
+
 /**
  * Get Bill Deductions
  */
@@ -65,6 +106,40 @@ export const getBillDeductions = async (
     });
 
     successResponse(res, deductions, "Deductions fetched");
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteBillDeduction = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { deductionId } = req.params;
+
+    const deduction = await prisma.billDeduction.findUnique({
+      where: { id: deductionId },
+      include: { bill: true },
+    });
+
+    if (!deduction) throw new AppError("Deduction not found", 404);
+    if (deduction.bill.status !== "DRAFT")
+      throw new AppError("Bill already finalized", 400);
+
+    await prisma.$transaction(async (tx) => {
+      await tx.billDeduction.delete({ where: { id: deductionId } });
+
+      await tx.bill.update({
+        where: { id: deduction.billId },
+        data: {
+          totalAmount: { increment: deduction.value },
+        },
+      });
+    });
+
+    successResponse(res, null, "Deduction deleted");
   } catch (error) {
     next(error);
   }

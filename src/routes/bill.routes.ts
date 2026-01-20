@@ -8,6 +8,7 @@ import {
 } from "../validations/bill.validation";
 import weighSlipsRoutes from "./weighSlip.routes";
 import billDeductionsRoutes from "./billDeduction.routes";
+import { finalizeBill } from "../controllers/billFinalize.controller";
 
 const router = Router();
 
@@ -32,6 +33,9 @@ router.get("/", authMiddleware, billController.getBills);
 
 // Get bill by ID
 router.get("/:billId", authMiddleware, billController.getBillById);
+
+// Get bill by ID
+router.post("/:billId/finalize", authMiddleware, finalizeBill);
 
 // weight Slips Routes
 router.use("/weight-slips", authMiddleware, weighSlipsRoutes);
