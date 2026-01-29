@@ -1,43 +1,39 @@
+// npx ts-node prisma/seed.ts
 import bcrypt from "bcrypt";
 import prisma from "../src/database/prisma";
 
 async function main() {
-  const adminEmail = "admin@example.com";
+  const email = "admin@gmail.com";
+  const password = "admin@123";
 
-  // Check if admin already exists
-  const existingAdmin = await prisma.user.findFirst({
-    where: { email: adminEmail },
+  // check if admin already exists
+  const existingAdmin = await prisma.user.findUnique({
+    where: { email },
   });
-
-  console.log("existingAdmin", existingAdmin);
 
   if (existingAdmin) {
     console.log("✅ Admin already exists");
     return;
   }
 
-  const hashedPassword = await bcrypt.hash("Admin@123", 10);
+  const hashedPassword = await bcrypt.hash(password, 10);
 
   const admin = await prisma.user.create({
     data: {
-      name: "System Admin",
-      email: adminEmail,
-      phone: "9999999999",
+      name: "Admin",
+      email,
       password: hashedPassword,
       role: "ADMIN",
+      phone: "0000000000", // required? keep or remove based on schema
     },
   });
 
-  console.log("🚀 Admin user created:", {
-    id: admin.id,
-    email: admin.email,
-    role: admin.role,
-  });
+  console.log("🚀 Admin created successfully:", admin.email);
 }
 
 main()
   .catch((e) => {
-    console.error("❌ Seed failed", e);
+    console.error("❌ Seeding error:", e);
     process.exit(1);
   })
   .finally(async () => {
