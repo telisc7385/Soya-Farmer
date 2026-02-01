@@ -6,6 +6,12 @@ export const createFarmerSchema = Joi.object({
     .pattern(/^[0-9]{10,15}$/)
     .required(),
   aadhaarNo: Joi.string().length(12).required(),
+  email: Joi.string().email().required(),
+
+  villageAdd: Joi.string().optional(),
+  gutNumber: Joi.string().optional(),
+  taluka: Joi.string().optional(),
+  district: Joi.string().optional(),
 });
 
 export const farmerDocumentSchema = Joi.object({
