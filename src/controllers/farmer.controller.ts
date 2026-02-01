@@ -12,7 +12,17 @@ export const createFarmer = async (
   next: NextFunction,
 ) => {
   try {
-    const { name, phone, aadhaarNo } = req.body;
+    const {
+      name,
+      phone,
+      aadhaarNo,
+      email,
+      villageAdd,
+      gutNumber,
+      taluka,
+      district,
+    } = req.body;
+    const vendorId = req?.user?.id as string;
 
     const existingFarmer = await prisma.farmer.findFirst({
       where: {
@@ -29,13 +39,18 @@ export const createFarmer = async (
         name,
         phone,
         aadhaarNo,
+        email,
+        villageAdd,
+        gutNumber,
+        taluka,
+        district,
       },
     });
 
     // map farmer to vendor
     await prisma.vendorFarmer.create({
       data: {
-        vendorId: req?.user?.id,
+        vendorId: vendorId,
         farmerId: farmer.id,
       },
     });

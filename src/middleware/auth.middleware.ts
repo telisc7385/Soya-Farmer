@@ -13,45 +13,57 @@ export interface AuthRequest extends Request {
 export const authMiddleware = async (
   req: AuthRequest,
   _res: Response,
-  next: NextFunction
+  next: NextFunction,
 ) => {
-  const authHeader = req.headers.authorization;
+  try {
+    const authHeader = req.headers.authorization;
 
-  if (!authHeader?.startsWith("Bearer ")) {
-     throw new AppError("Token missing", 401);
-  }
+    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+      throw new AppError("Token missing", 401);
+    }
 
-  const token = authHeader.split(" ")[1];
+    const token = authHeader.split(" ")[1];
 
-  // 1️⃣ Verify JWT
-  const decoded = verifyToken(token); // { userId, role }
+    // 1️⃣ Verify JWT (this can throw)
+    const decoded = verifyToken(token); // { userId, role }
 
-  // 2️⃣ Fetch user from DB
-  const user = await prisma.user.findUnique({
-    where: { id: decoded.userId },
-    select: {
-      id: true,
-      role: true,
-      isActive: true,
-    },
-  });
+    // 2️⃣ Fetch user
+    const user = await prisma.user.findUnique({
+      where: { id: decoded.userId },
+      select: {
+        id: true,
+        role: true,
+        isActive: true,
+      },
+    });
 
-  if (!user) {
-    throw new AppError("Invalid token", 401);
-  }
+    if (!user) {
+      throw new AppError("Invalid token", 401);
+    }
 
-  if (!user.isActive) {
-    throw new AppError(
+    if (!user.isActive) {
+      throw new AppError(
         "Your account is temporarily deactivated. Please contact support.",
-        401
-      )
+        401,
+      );
+    }
+
+    // 3️⃣ Attach trusted user to request
+    req.user = {
+      id: user.id,
+      role: user.role,
+    };
+
+    next();
+  } catch (error: any) {
+    // JWT-specific errors
+    if (
+      error.name === "TokenExpiredError" ||
+      error.name === "NotBeforeError" ||
+      error.name === "JsonWebTokenError"
+    ) {
+      throw new AppError("Invalid or expired token", 401);
+    }
+    throw new AppError(error.message, 401);
   }
-
-  // 3️⃣ Attach trusted user to request
-  req.user = {
-    id: user.id,
-    role: user.role,
-  };
-
-  next();
 };
