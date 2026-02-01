@@ -81,11 +81,11 @@ model Farmer {
   name       String
   aadhaarNo  String   @unique
   phone      String
-  email      String
-  villageAdd String
-  gutNumber  String
-  taluka     String
-  district   String
+  email      String?
+  villageAdd String?
+  gutNumber  String?
+  taluka     String?
+  district   String?
   createdAt  DateTime @default(now())
 
   documents FarmerDocument[]
