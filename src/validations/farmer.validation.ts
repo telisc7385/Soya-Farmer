@@ -17,8 +17,18 @@ export const createFarmerSchema = Joi.object({
 export const farmerDocumentSchema = Joi.object({
   farmerId: Joi.string().uuid().required(),
   type: Joi.string()
-    .valid("AADHAAR", "BANK", "LAND_712", "BLOOD_RELATION_712")
+    .valid(
+      "AADHAAR",
+      "PAN",
+      "DRIVING_LICENSE",
+      "LAND_712",
+      "BLOOD_RELATION_712",
+    )
     .required(),
+});
+
+export const farmerAllDocumentsSchema = Joi.object({
+  farmerId: Joi.string().uuid().required(),
 });
 
 export const farmerLandSchema = Joi.object({
@@ -32,5 +42,4 @@ export const farmerBankSchema = Joi.object({
   accountNo: Joi.string().required(),
   ifsc: Joi.string().required(),
   holderName: Joi.string().required(),
-  isPrimary: Joi.boolean().required(),
 });

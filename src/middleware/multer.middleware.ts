@@ -7,9 +7,8 @@ const uploadPath = path.join(process.cwd(), "public/uploads");
 
 const storage = multer.diskStorage({
   destination: (req, file, cb) => {
-    const folder = file.fieldname === "document"
-      ? "farmers/documents"
-      : "farmers/lands";
+    const folder =
+      file.fieldname === "land" ? "farmers/lands" : "farmers/documents";
 
     const fullPath = path.join(uploadPath, folder);
     fs.mkdirSync(fullPath, { recursive: true });
