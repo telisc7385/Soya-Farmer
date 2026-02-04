@@ -23,6 +23,18 @@ router.put("/update/:farmerId", authMiddleware, farmerControllers.updateFarmer);
 
 // Farmer Documents
 router.post(
+  "/documents",
+  authMiddleware,
+  upload.fields([
+    { name: "AADHAAR", maxCount: 1 },
+    { name: "PAN", maxCount: 1 },
+    { name: "DRIVING_LICENSE", maxCount: 1 },
+  ]),
+  validateRequest(farmerValidation.farmerAllDocumentsSchema),
+  farmerControllers.addFarmerAllDocuments,
+);
+
+router.post(
   "/document",
   authMiddleware,
   upload.single("document"), // 👈 file field name
@@ -65,6 +77,7 @@ router.put(
 router.post(
   "/:farmerId/bank",
   authMiddleware,
+  upload.single("document"),
   validateRequest(farmerValidation.farmerBankSchema),
   farmerControllers.addFarmerBank,
 );
@@ -73,6 +86,7 @@ router.get("/:farmerId/bank", authMiddleware, farmerControllers.getFarmerBanks);
 router.put(
   "/:farmerId/bank/:bankId",
   authMiddleware,
+  upload.single("document"),
   validateRequest(farmerValidation.farmerBankSchema),
   farmerControllers.updateFarmerBank,
 );

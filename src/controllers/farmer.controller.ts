@@ -22,36 +22,69 @@ export const createFarmer = async (
       taluka,
       district,
     } = req.body;
-    const vendorId = req?.user?.id as string;
 
+    const vendorId = req.user?.id as string;
+
+    // 🔍 check existing farmer with document count
     const existingFarmer = await prisma.farmer.findFirst({
       where: {
         OR: [{ phone }, { aadhaarNo }],
       },
-    });
-
-    if (existingFarmer) {
-      throw new AppError("Farmer already exists", 409);
-    }
-
-    const farmer = await prisma.farmer.create({
-      data: {
-        name,
-        phone,
-        aadhaarNo,
-        email,
-        villageAdd,
-        gutNumber,
-        taluka,
-        district,
+      include: {
+        _count: {
+          select: { documents: true, banks: true },
+        },
       },
     });
 
-    // map farmer to vendor
-    await prisma.vendorFarmer.create({
-      data: {
-        vendorId: vendorId,
-        farmerId: farmer.id,
+    if (
+      existingFarmer &&
+      existingFarmer._count.documents > 0 &&
+      existingFarmer._count.banks > 0
+    ) {
+      console.log(
+        "Existing Farmer DOc count:",
+        existingFarmer?._count?.documents,
+        existingFarmer?._count?.banks,
+      );
+      throw new AppError("Farmer already exists", 409);
+    }
+
+    let farmer;
+
+    // ✅ create only if not exists
+    if (!existingFarmer) {
+      farmer = await prisma.farmer.create({
+        data: {
+          name,
+          phone,
+          aadhaarNo,
+          email,
+          villageAdd,
+          gutNumber,
+          taluka,
+          district,
+        },
+      });
+    } else {
+      // reuse existing farmer (without _count)
+      farmer = await prisma.farmer.findUnique({
+        where: { id: existingFarmer.id },
+      });
+    }
+
+    // 🔗 vendor-farmer mapping
+    await prisma.vendorFarmer.upsert({
+      where: {
+        vendorId_farmerId: {
+          vendorId,
+          farmerId: farmer!.id,
+        },
+      },
+      update: {},
+      create: {
+        vendorId,
+        farmerId: farmer!.id,
       },
     });
 
@@ -150,6 +183,50 @@ export const addFarmerDocument = async (
     });
 
     createdResponse(res, doc, "Farmer document uploaded");
+  } catch (error) {
+    next(error);
+  }
+};
+
+const REQUIRED_DOCS = ["AADHAAR", "PAN", "DRIVING_LICENSE"] as const;
+
+export const addFarmerAllDocuments = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { farmerId } = req.body;
+    const files = req.files as Record<string, Express.Multer.File[]>;
+
+    if (!files) {
+      throw new AppError("All documents are required", 400);
+    }
+
+    // 🔒 Ensure all required docs are present
+    for (const doc of REQUIRED_DOCS) {
+      if (!files[doc] || files[doc].length === 0) {
+        throw new AppError(`${doc} document is required`, 400);
+      }
+    }
+
+    await checkFarmer(farmerId);
+
+    const data = REQUIRED_DOCS.map((type) => ({
+      farmerId,
+      type,
+      imageUrl: `/uploads/farmers/documents/${files[type][0].filename}`,
+    }));
+
+    const createdDocs = await prisma.farmerDocument.createMany({
+      data,
+    });
+
+    createdResponse(
+      res,
+      createdDocs,
+      "All farmer documents uploaded successfully",
+    );
   } catch (error) {
     next(error);
   }
@@ -292,18 +369,20 @@ export const addFarmerBank = async (
     const { farmerId } = req.params;
     const { bankName, accountNo, ifsc, holderName, isPrimary } = req.body;
 
+    if (!req.file) {
+      throw new AppError("Document image is required", 400);
+    }
+
     await checkFarmer(farmerId);
 
-    if (isPrimary) {
-      await prisma.farmerBank.updateMany({
-        where: {
-          farmerId,
-          isPrimary: true,
-        },
-        data: {
-          isPrimary: false,
-        },
-      });
+    const passbookImage = `/uploads/farmers/documents/${req.file.filename}`;
+
+    const existingBank = await prisma.farmerBank.findFirst({
+      where: { farmerId, accountNo },
+    });
+
+    if (existingBank) {
+      throw new AppError("Bank account already exists for this farmer", 400);
     }
 
     const bank = await prisma.farmerBank.create({
@@ -314,6 +393,7 @@ export const addFarmerBank = async (
         ifsc,
         holderName,
         isPrimary,
+        passbookImage,
       },
     });
 
@@ -350,28 +430,21 @@ export const updateFarmerBank = async (
 ) => {
   try {
     const { bankId, farmerId } = req.params;
-    const { bankName, accountNo, ifsc, holderName, isPrimary } = req.body;
+    const { bankName, accountNo, ifsc, holderName } = req.body;
+    let passbookImage;
 
-    if (isPrimary) {
-      await prisma.farmerBank.updateMany({
-        where: {
-          farmerId,
-          isPrimary: true,
-        },
-        data: {
-          isPrimary: false,
-        },
-      });
+    if (req.file) {
+      passbookImage = `/uploads/farmers/documents/${req.file.filename}`;
     }
 
     const bank = await prisma.farmerBank.update({
-      where: { id: bankId },
+      where: { id: bankId, farmerId },
       data: {
         bankName,
         accountNo,
         ifsc,
         holderName,
-        isPrimary,
+        ...(passbookImage && { passbookImage }),
       },
     });
 

@@ -17,6 +17,8 @@ enum Role {
 enum DocumentType {
   AADHAAR
   BANK
+  PAN
+  DRIVING_LICENSE
   LAND_712
   BLOOD_RELATION_712
 }
@@ -326,13 +328,14 @@ model BillDeduction {
 // FARMER BANK DETAILS
 // =====================
 model FarmerBank {
-  id         String  @id @default(uuid())
-  farmerId   String
-  bankName   String
-  accountNo  String
-  ifsc       String
-  holderName String
-  isPrimary  Boolean @default(true)
+  id            String  @id @default(uuid())
+  farmerId      String
+  bankName      String
+  accountNo     String
+  ifsc          String
+  holderName    String
+  isPrimary     Boolean @default(true)
+  passbookImage String  @default("")
 
   farmer Farmer @relation(fields: [farmerId], references: [id])
 }
