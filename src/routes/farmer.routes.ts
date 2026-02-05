@@ -23,14 +23,14 @@ router.put("/update/:farmerId", authMiddleware, farmerControllers.updateFarmer);
 
 // Farmer Documents
 router.post(
-  "/documents",
+  "/documents/:farmerId",
   authMiddleware,
+  farmerControllers.checkDocumentsExistence,
   upload.fields([
     { name: "AADHAAR", maxCount: 1 },
     { name: "PAN", maxCount: 1 },
     { name: "DRIVING_LICENSE", maxCount: 1 },
   ]),
-  validateRequest(farmerValidation.farmerAllDocumentsSchema),
   farmerControllers.addFarmerAllDocuments,
 );
 
