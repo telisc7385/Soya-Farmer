@@ -188,6 +188,29 @@ export const addFarmerDocument = async (
   }
 };
 
+export const checkDocumentsExistence = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { farmerId } = req.params;
+    await checkFarmer(farmerId);
+
+    const docCount = await prisma.farmerDocument.count({
+      where: { farmerId },
+    });
+
+    if (docCount > 0) {
+      throw new AppError("Documents already exist for this farmer", 400);
+    }
+
+    next();
+  } catch (error) {
+    throw new AppError((error as Error).message, 400);
+  }
+};
+
 const REQUIRED_DOCS = ["AADHAAR", "PAN", "DRIVING_LICENSE"] as const;
 
 export const addFarmerAllDocuments = async (
@@ -222,11 +245,7 @@ export const addFarmerAllDocuments = async (
       data,
     });
 
-    createdResponse(
-      res,
-      createdDocs,
-      "All farmer documents uploaded successfully",
-    );
+    createdResponse(res, createdDocs, "All documents uploaded successfully");
   } catch (error) {
     next(error);
   }
