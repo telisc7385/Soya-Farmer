@@ -6,30 +6,15 @@ import * as stockValidation from "../validations/stock.validation";
 
 const router = Router();
 
-// Vendor adds stock
-router.post(
-  "/add",
-  authMiddleware,
-  validateRequest(stockValidation.addStockSchema),
-  stockController.addStock,
-);
-
 // Get all stocks of logged-in vendor
 router.get("/", authMiddleware, stockController.getVendorStocks);
 
-// Get stock by farmer
-router.get(
-  "/farmer/:farmerId",
-  authMiddleware,
-  stockController.getStocksByFarmer,
-);
-
-// Admin / Vendor adjustment (optional)
+// Transfer stock to admin
 router.post(
-  "/adjust",
+  "/transfer-to-admin",
   authMiddleware,
-  validateRequest(stockValidation.adjustStockSchema),
-  stockController.adjustStock,
+  validateRequest(stockValidation.transferStockToAdminSchema),
+  stockController.transferStockToAdmin,
 );
 
 export default router;

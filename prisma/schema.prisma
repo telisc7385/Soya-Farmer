@@ -97,7 +97,6 @@ model Farmer {
   bills     Bill[]
   banks     FarmerBank[]
   payments  FarmerPayment[]
-  overrides StockOverride[]
 }
 
 // =====================
@@ -168,7 +167,6 @@ model Product {
   createdAt DateTime    @default(now())
 
   stocks    Stock[]
-  bills     Bill[]
   billItems BillItem[]
 }
 
@@ -213,8 +211,6 @@ model Mill {
   name      String
   address   String?
   createdAt DateTime @default(now())
-
-  bills Bill[]
 }
 
 // =====================
@@ -224,8 +220,6 @@ model Vehicle {
   id        String   @id @default(uuid())
   vehicleNo String   @unique
   createdAt DateTime @default(now())
-
-  bills Bill[]
 }
 
 // =====================
@@ -237,8 +231,6 @@ model Bill {
   billDate  DateTime
   vendorId  String
   farmerId  String
-  millId    String
-  vehicleId String
 
   totalAmount Float
   status      BillStatus @default(PENDING)
@@ -247,17 +239,12 @@ model Bill {
 
   vendor  User    @relation(fields: [vendorId], references: [id])
   farmer  Farmer  @relation(fields: [farmerId], references: [id])
-  mill    Mill    @relation(fields: [millId], references: [id])
-  vehicle Vehicle @relation(fields: [vehicleId], references: [id])
 
   weight     BillWeight?
   slips      WeighSlip[]
   items      BillItem[]
   deductions BillDeduction[]
   payment    FarmerPayment?
-  invoice    Invoice?
-  product    Product?        @relation(fields: [productId], references: [id])
-  productId  String?
 }
 
 model BillItem {
@@ -353,31 +340,5 @@ model FarmerPayment {
   reference String?
 
   bill   Bill   @relation(fields: [billId], references: [id])
-  farmer Farmer @relation(fields: [farmerId], references: [id])
-}
-
-// =====================
-// INVOICE
-// =====================
-model Invoice {
-  id        String   @id @default(uuid())
-  billId    String   @unique
-  invoiceNo String
-  pdfUrl    String?
-  createdAt DateTime @default(now())
-
-  bill Bill @relation(fields: [billId], references: [id])
-}
-
-// =====================
-// STOCK LIMIT OVERRIDE
-// =====================
-model StockOverride {
-  id        String   @id @default(uuid())
-  farmerId  String   @unique
-  maxLimit  Float
-  reason    String?
-  createdAt DateTime @default(now())
-
   farmer Farmer @relation(fields: [farmerId], references: [id])
 }

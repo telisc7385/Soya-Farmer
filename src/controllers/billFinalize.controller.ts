@@ -14,7 +14,9 @@ export const finalizeBill = async (
     const bill = await prisma.bill.findUnique({
       where: { id: billId },
       include: {
-        items: true,
+        items: {
+          include: { product: true },
+        },
         weight: true,
       },
     });
@@ -29,11 +31,47 @@ export const finalizeBill = async (
 
     if (bill.totalAmount <= 0) throw new AppError("Invalid bill amount", 400);
 
-    await prisma.bill.update({
-      where: { id: billId },
-      data: {
-        status: "PENDING",
-      },
+    await prisma.$transaction(async (tx) => {
+      // Increase vendor stock for all bill items
+      for (const item of bill.items) {
+        const stockDelta =
+          item.product.type === "KATTA" ? item.bagCount : item.quantity;
+
+        const stock = await tx.stock.upsert({
+          where: {
+            vendorId_farmerId_productId: {
+              vendorId: bill.vendorId,
+              farmerId: bill.farmerId,
+              productId: item.productId,
+            },
+          },
+          update: {
+            quantity: { increment: stockDelta },
+          },
+          create: {
+            vendorId: bill.vendorId,
+            farmerId: bill.farmerId,
+            productId: item.productId,
+            quantity: stockDelta,
+          },
+        });
+
+        await tx.stockMovement.create({
+          data: {
+            stockId: stock.id,
+            type: "IN",
+            quantity: stockDelta,
+            reference: billId,
+          },
+        });
+      }
+
+      await tx.bill.update({
+        where: { id: billId },
+        data: {
+          status: "PENDING",
+        },
+      });
     });
 
     successResponse(res, null, "Bill finalized successfully");
