@@ -69,6 +69,8 @@ model User {
   role      Role
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
+  totalKattaStock Int   @default(0)
+  totalSoyaKg     Float @default(0)
 
   vendorFarmers VendorFarmer[]
   bills         Bill[]

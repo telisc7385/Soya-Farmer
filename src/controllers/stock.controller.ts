@@ -28,7 +28,6 @@ export const getVendorStocks = async (
 };
 
 // Manual Stock Adjustment (Admin / Vendor)
- 
 
 // Transfer vendor stock to admin
 export const transferStockToAdmin = async (
@@ -44,6 +43,7 @@ export const transferStockToAdmin = async (
 
     const stock = await prisma.stock.findFirst({
       where: { id: stockId, vendorId },
+      include: { product: true },
     });
     if (!stock) throw new AppError("Stock not found", 404);
     if (stock.quantity < quantity) {
@@ -102,6 +102,27 @@ export const transferStockToAdmin = async (
           reference: `TRANSFER_FROM_VENDOR:${vendorId}`,
         },
       });
+
+      // Update vendor/admin total summaries
+      if (stock.product.type === "KATTA") {
+        await tx.user.update({
+          where: { id: vendorId },
+          data: { totalKattaStock: { decrement: quantity } },
+        });
+        await tx.user.update({
+          where: { id: admin.id },
+          data: { totalKattaStock: { increment: quantity } },
+        });
+      } else {
+        await tx.user.update({
+          where: { id: vendorId },
+          data: { totalSoyaKg: { decrement: quantity } },
+        });
+        await tx.user.update({
+          where: { id: admin.id },
+          data: { totalSoyaKg: { increment: quantity } },
+        });
+      }
 
       return { updatedVendorStock, adminStock };
     });

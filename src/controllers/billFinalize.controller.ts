@@ -32,10 +32,17 @@ export const finalizeBill = async (
     if (bill.totalAmount <= 0) throw new AppError("Invalid bill amount", 400);
 
     await prisma.$transaction(async (tx) => {
+      let totalKattaBags = 0;
+      let totalSoyaKg = 0;
+
       // Increase vendor stock for all bill items
       for (const item of bill.items) {
-        const stockDelta =
-          item.product.type === "KATTA" ? item.bagCount : item.quantity;
+        let stockDelta = 0;
+
+        stockDelta = item.bagCount;
+        totalKattaBags += stockDelta;
+        stockDelta = item.unit === "QTL" ? item.quantity * 100 : item.quantity;
+        totalSoyaKg += stockDelta;
 
         const stock = await tx.stock.upsert({
           where: {
@@ -62,6 +69,16 @@ export const finalizeBill = async (
             type: "IN",
             quantity: stockDelta,
             reference: billId,
+          },
+        });
+      }
+
+      if (totalKattaBags > 0 || totalSoyaKg > 0) {
+        await tx.user.update({
+          where: { id: bill.vendorId },
+          data: {
+            totalKattaStock: { increment: totalKattaBags },
+            totalSoyaKg: { increment: totalSoyaKg },
           },
         });
       }
