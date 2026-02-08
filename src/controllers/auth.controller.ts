@@ -201,3 +201,33 @@ export const getVendorList = async (
     next(error);
   }
 };
+
+export const getVendorById = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { id } = req.params;
+
+    const vendor = await prisma.user.findFirst({
+      where: { id, role: "VENDOR" },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        isActive: true,
+        createdAt: true,
+        totalKattaStock: true,
+        totalSoyaKg: true,
+      },
+    });
+
+    if (!vendor) throw new AppError("Vendor not found", 404);
+
+    successResponse(res, vendor, "Vendor fetched successfully");
+  } catch (error) {
+    next(error);
+  }
+};

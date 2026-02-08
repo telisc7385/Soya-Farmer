@@ -4,62 +4,6 @@ import { AppError } from "../core/appError";
 import { createdResponse, successResponse } from "../utils/response";
 import { AuthRequest } from "../middleware/auth.middleware";
 
-export const addStock = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const vendorId = req?.user?.id as string;
-    const { farmerId, productId, quantity } = req.body;
-
-    const product = await prisma.product.findUnique({
-      where: { id: productId },
-    });
-    if (!product || !product.isActive) {
-      throw new AppError("Product is inactive or not found", 400);
-    }
-
-    let stock = await prisma.stock.findUnique({
-      where: {
-        vendorId_farmerId_productId: {
-          vendorId,
-          farmerId,
-          productId,
-        },
-      },
-    });
-
-    if (!stock) {
-      stock = await prisma.stock.create({
-        data: {
-          vendorId,
-          farmerId,
-          productId,
-          quantity,
-        },
-      });
-    } else {
-      stock = await prisma.stock.update({
-        where: { id: stock.id },
-        data: { quantity: stock.quantity + quantity },
-      });
-    }
-
-    await prisma.stockMovement.create({
-      data: {
-        stockId: stock.id,
-        type: "IN",
-        quantity,
-      },
-    });
-
-    createdResponse(res, stock, "Stock added successfully");
-  } catch (error) {
-    next(error);
-  }
-};
-
 // get Stocks
 export const getVendorStocks = async (
   req: AuthRequest,
@@ -83,64 +27,107 @@ export const getVendorStocks = async (
   }
 };
 
-// Get Stocks by Farmer
-export const getStocksByFarmer = async (
+// Manual Stock Adjustment (Admin / Vendor)
+
+// Transfer vendor stock to admin
+export const transferStockToAdmin = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction,
 ) => {
   try {
     const vendorId = req?.user?.id as string;
-    const { farmerId } = req.params;
+    const { stockId, quantity } = req.body;
 
-    const stocks = await prisma.stock.findMany({
-      where: {
-        vendorId,
-        farmerId,
-      },
-      include: {
-        product: true,
-      },
+    if (quantity <= 0) throw new AppError("Quantity must be positive", 400);
+
+    const stock = await prisma.stock.findFirst({
+      where: { id: stockId, vendorId },
+      include: { product: true },
     });
-
-    successResponse(res, stocks, "Farmer stocks fetched");
-  } catch (error) {
-    next(error);
-  }
-};
-
-// Manual Stock Adjustment (Admin / Vendor)
-export const adjustStock = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const { stockId, quantity, reason } = req.body;
-
-    const stock = await prisma.stock.findUnique({ where: { id: stockId } });
     if (!stock) throw new AppError("Stock not found", 404);
-
-    const updatedQty = stock.quantity + quantity;
-    if (updatedQty < 0) {
-      throw new AppError("Stock cannot be negative", 400);
+    if (stock.quantity < quantity) {
+      throw new AppError("Insufficient stock", 400);
     }
 
-    const updatedStock = await prisma.stock.update({
-      where: { id: stockId },
-      data: { quantity: updatedQty },
+    const admin = await prisma.user.findFirst({
+      where: { role: "ADMIN", isActive: true },
+    });
+    if (!admin) throw new AppError("Admin not found", 404);
+
+    const result = await prisma.$transaction(async (tx) => {
+      const updatedVendorStock = await tx.stock.update({
+        where: { id: stock.id },
+        data: { quantity: { decrement: quantity } },
+      });
+
+      await tx.stockMovement.create({
+        data: {
+          stockId: stock.id,
+          type: "OUT",
+          quantity,
+          reference: `TRANSFER_TO_ADMIN:${admin.id}`,
+        },
+      });
+
+      let adminStock = await tx.stock.findFirst({
+        where: {
+          vendorId: admin.id,
+          farmerId: stock.farmerId,
+          productId: stock.productId,
+        },
+      });
+
+      if (!adminStock) {
+        adminStock = await tx.stock.create({
+          data: {
+            vendorId: admin.id,
+            farmerId: stock.farmerId,
+            productId: stock.productId,
+            quantity,
+          },
+        });
+      } else {
+        adminStock = await tx.stock.update({
+          where: { id: adminStock.id },
+          data: { quantity: { increment: quantity } },
+        });
+      }
+
+      await tx.stockMovement.create({
+        data: {
+          stockId: adminStock.id,
+          type: "IN",
+          quantity,
+          reference: `TRANSFER_FROM_VENDOR:${vendorId}`,
+        },
+      });
+
+      // Update vendor/admin total summaries
+      if (stock.product.type === "KATTA") {
+        await tx.user.update({
+          where: { id: vendorId },
+          data: { totalKattaStock: { decrement: quantity } },
+        });
+        await tx.user.update({
+          where: { id: admin.id },
+          data: { totalKattaStock: { increment: quantity } },
+        });
+      } else {
+        await tx.user.update({
+          where: { id: vendorId },
+          data: { totalSoyaKg: { decrement: quantity } },
+        });
+        await tx.user.update({
+          where: { id: admin.id },
+          data: { totalSoyaKg: { increment: quantity } },
+        });
+      }
+
+      return { updatedVendorStock, adminStock };
     });
 
-    await prisma.stockMovement.create({
-      data: {
-        stockId,
-        type: "ADJUSTMENT",
-        quantity,
-        reference: reason,
-      },
-    });
-
-    successResponse(res, updatedStock, "Stock adjusted successfully");
+    successResponse(res, result, "Stock transferred to admin");
   } catch (error) {
     next(error);
   }

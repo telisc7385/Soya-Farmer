@@ -7,115 +7,192 @@ import { AuthRequest } from "../middleware/auth.middleware";
 import { checkFarmer } from "../repositories/checkFarmer.repository";
 
 /**
- * Create Bill (DRAFT)
+ * Create/Update Bill with Items, Deductions, Weigh Slips (DRAFT)
  */
-export const createBill = async (
+export const saveBill = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction,
 ) => {
   try {
     const vendorId = req?.user?.id as string;
-    const { farmerId, millId, vehicleId, billDate } = req.body;
+    const {
+      billId,
+      farmerId,
+      billDate,
+      items = [],
+      deductions = [],
+      slips = [],
+    } = req.body;
 
-    await checkFarmer(farmerId);
+    let existingBill = null as null | { id: string; vendorId: string; farmerId: string; billDate: Date; status: string };
 
-    const billNo = await generateBillNo();
-
-    const bill = await prisma.bill.create({
-      data: {
-        billNo,
-        billDate: new Date(billDate),
-        vendorId,
-        farmerId,
-        millId,
-        vehicleId,
-        status: "DRAFT",
-        totalAmount: 0,
-      },
-    });
-
-    createdResponse(res, bill, "Bill created successfully");
-  } catch (error) {
-    next(error);
-  }
-};
-
-/**
- * Add Bill Item + Stock OUT
- */
-export const addBillItem = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const { billId } = req.params;
-    const { productId, quantity, unit, rate, bagCount } = req.body;
-
-    const bill = await prisma.bill.findUnique({
-      where: { id: billId },
-    });
-
-    if (!bill) throw new AppError("Bill not found", 404);
-    if (bill.status !== "DRAFT")
-      throw new AppError("Bill already finalized", 400);
-
-    const amount = quantity * rate;
-
-    await prisma.$transaction(async (tx) => {
-      // Add bill item
-      await tx.billItem.create({
-        data: {
-          billId,
-          productId,
-          quantity,
-          unit,
-          rate,
-          amount,
-          bagCount,
-        },
-      });
-
-      // Update bill total
-      await tx.bill.update({
+    if (billId) {
+      existingBill = await prisma.bill.findUnique({
         where: { id: billId },
-        data: {
-          totalAmount: { increment: amount },
-        },
       });
+      if (!existingBill) throw new AppError("Bill not found", 404);
+      if (existingBill.vendorId !== vendorId)
+        throw new AppError("Unauthorized", 403);
+      if (existingBill.status !== "DRAFT")
+        throw new AppError("Bill already finalized", 400);
+    }
 
-      // Reduce stock
-      const stock = await tx.stock.findFirst({
-        where: {
-          vendorId: bill.vendorId,
-          farmerId: bill.farmerId,
-          productId,
-        },
+    if (!billId) {
+      if (!farmerId || !billDate) {
+        throw new AppError("Missing required bill fields", 400);
+      }
+      await checkFarmer(farmerId);
+    } else if (farmerId) {
+      await checkFarmer(farmerId);
+    }
+
+    const computedItems: any[] = [];
+    let totalItems = 0;
+    for (const i of items || []) {
+      const amount = i.quantity * i.rate;
+      computedItems.push({
+        productId: i.productId,
+        quantity: i.quantity,
+        unit: i.unit,
+        rate: i.rate,
+        bagCount: i.bagCount,
+        amount,
       });
+      totalItems += amount;
+    }
 
-      if (!stock || stock.quantity < quantity) {
-        throw new AppError("Insufficient stock", 400);
+    let totalDeductions = 0;
+    const computedDeductions: any[] = [];
+    for (const d of deductions || []) {
+      computedDeductions.push({ label: d.label, value: d.value });
+      totalDeductions += d.value;
+    }
+
+    let totalGross = 0;
+    let totalTare = 0;
+    let totalNet = 0;
+    const computedSlips = (slips || []).map((s: any) => {
+      const entries = (s.entries || []).map((e: any) => {
+        const net = e.gross - e.tare;
+        totalGross += e.gross;
+        totalTare += e.tare;
+        totalNet += net;
+        return {
+          srNo: e.srNo,
+          gross: e.gross,
+          tare: e.tare,
+          net,
+        };
+      });
+      return { slipNo: s.slipNo, entries };
+    });
+
+    const result = await prisma.$transaction(async (tx) => {
+      let bill = existingBill as any;
+
+      if (billId) {
+        await Promise.all([
+          tx.weighSlipEntry.deleteMany({ where: { slip: { billId } } }),
+          tx.weighSlip.deleteMany({ where: { billId } }),
+          tx.billWeight.deleteMany({ where: { billId } }),
+          tx.billItem.deleteMany({ where: { billId } }),
+          tx.billDeduction.deleteMany({ where: { billId } }),
+        ]);
+
+        bill = await tx.bill.update({
+          where: { id: billId },
+          data: {
+            farmerId: farmerId ?? existingBill!.farmerId,
+            billDate: billDate ? new Date(billDate) : existingBill!.billDate,
+          },
+        });
+      } else {
+        const billNo = await generateBillNo();
+        bill = await tx.bill.create({
+          data: {
+            billNo,
+            billDate: new Date(billDate),
+            vendorId,
+            farmerId,
+            status: "DRAFT",
+            totalAmount: 0,
+          },
+        });
       }
 
-      await tx.stock.update({
-        where: { id: stock.id },
-        data: {
-          quantity: { decrement: quantity },
-        },
+      if (computedItems.length) {
+        await tx.billItem.createMany({
+          data: computedItems.map((i: any) => ({
+            billId: bill.id,
+            productId: i.productId,
+            quantity: i.quantity,
+            unit: i.unit,
+            rate: i.rate,
+            amount: i.amount,
+            bagCount: i.bagCount,
+          })),
+        });
+      }
+
+      if (computedDeductions.length) {
+        await tx.billDeduction.createMany({
+          data: computedDeductions.map((d: any) => ({
+            billId: bill.id,
+            label: d.label,
+            value: d.value,
+          })),
+        });
+      }
+
+      if (computedSlips.length) {
+        await Promise.all(
+          computedSlips.map(async (slip: any) => {
+            const createdSlip = await tx.weighSlip.create({
+              data: {
+                billId: bill.id,
+                slipNo: slip.slipNo,
+              },
+            });
+
+            if (slip.entries.length) {
+              await tx.weighSlipEntry.createMany({
+                data: slip.entries.map((e: any) => ({
+                  slipId: createdSlip.id,
+                  srNo: e.srNo,
+                  gross: e.gross,
+                  tare: e.tare,
+                  net: e.net,
+                })),
+              });
+            }
+          }),
+        );
+
+        await tx.billWeight.create({
+          data: {
+            billId: bill.id,
+            gross: totalGross,
+            tare: totalTare,
+            net: totalNet,
+          },
+        });
+      }
+
+      const totalAmount = totalItems - totalDeductions;
+      await tx.bill.update({
+        where: { id: bill.id },
+        data: { totalAmount },
       });
 
-      await tx.stockMovement.create({
-        data: {
-          stockId: stock.id,
-          type: "OUT",
-          quantity,
-          reference: billId,
-        },
-      });
+      return bill;
     });
 
-    successResponse(res, null, "Item added to bill");
+    if (billId) {
+      successResponse(res, result, "Bill updated successfully");
+    } else {
+      createdResponse(res, result, "Bill created successfully");
+    }
   } catch (error) {
     next(error);
   }

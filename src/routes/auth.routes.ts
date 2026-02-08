@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+  getVendorById,
   getVendorList,
   login,
   register,
@@ -24,5 +25,6 @@ router.patch(
   updateVendorStatus,
 );
 router.get("/vendor/list", authMiddleware, authorize("ADMIN"), getVendorList);
+router.get("/vendor/:id", authMiddleware, authorize("ADMIN"), getVendorById);
 
 export default router;
