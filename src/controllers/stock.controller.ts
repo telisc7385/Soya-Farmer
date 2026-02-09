@@ -104,25 +104,20 @@ export const transferStockToAdmin = async (
       });
 
       // Update vendor/admin total summaries
-      if (stock.product.type === "KATTA") {
-        await tx.user.update({
-          where: { id: vendorId },
-          data: { totalKattaStock: { decrement: quantity } },
-        });
-        await tx.user.update({
-          where: { id: admin.id },
-          data: { totalKattaStock: { increment: quantity } },
-        });
-      } else {
-        await tx.user.update({
-          where: { id: vendorId },
-          data: { totalSoyaKg: { decrement: quantity } },
-        });
-        await tx.user.update({
-          where: { id: admin.id },
-          data: { totalSoyaKg: { increment: quantity } },
-        });
-      }
+      await tx.user.update({
+        where: { id: vendorId },
+        data: {
+          totalKattaStock: { decrement: quantity },
+          totalSoyaKg: { decrement: quantity },
+        },
+      });
+      await tx.user.update({
+        where: { id: admin.id },
+        data: {
+          totalKattaStock: { increment: quantity },
+          totalSoyaKg: { increment: quantity },
+        },
+      });
 
       return { updatedVendorStock, adminStock };
     });

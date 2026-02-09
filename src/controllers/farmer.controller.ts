@@ -311,6 +311,14 @@ export const addFarmerLand = async (
     }
 
     await checkFarmer(farmerId);
+    if (landType === "OWN") {
+      const existingOwnedLand = await prisma.farmerLand.findFirst({
+        where: { farmerId, landType: "OWN" },
+      });
+      if (existingOwnedLand) {
+        throw new AppError("Farmer already has an owned land", 400);
+      }
+    }
 
     const documentUrl = `/uploads/farmers/lands/${req.file.filename}`;
 
@@ -481,40 +489,58 @@ export const getFarmers = async (
 ) => {
   try {
     const { page = "1", limit = "10", search } = req.query;
-
     const take = Number(limit);
     const skip = (Number(page) - 1) * take;
 
-    // Build where clause
-    const where: any = {};
+    // 1️⃣ Get only KYC-complete farmer IDs
+    const kycFarmers = await prisma.farmerDocument.groupBy({
+      by: ["farmerId"],
+      having: {
+        farmerId: {
+          _count: { gte: 1 },
+        },
+      },
+    });
 
-    // Search filter
-    if (search) {
-      where.OR = [
-        { name: { contains: String(search), mode: "insensitive" } },
-        { phone: { contains: String(search), mode: "insensitive" } },
-      ];
-    }
+    const farmerIds = kycFarmers.map((f) => f.farmerId);
 
-    // Fetch farmers
+    // 2️⃣ Fetch paginated farmers
     const farmers = await prisma.farmer.findMany({
-      where,
+      where: {
+        id: { in: farmerIds },
+        ...(search && {
+          OR: [
+            { name: { contains: String(search), mode: "insensitive" } },
+            { phone: { contains: String(search), mode: "insensitive" } },
+          ],
+        }),
+      },
       skip,
       take,
       orderBy: { createdAt: "desc" },
       include: {
-        banks: true,
-        documents: true,
-        lands: {
-          include: {
-            location: true,
+        banks: {
+          select: {
+            id: true,
+            bankName: true,
+            accountNo: true,
+            ifsc: true,
+            holderName: true,
+            passbookImage: true,
+          },
+        },
+        _count: {
+          select: {
+            documents: true,
+            lands: true,
           },
         },
       },
     });
 
-    // Total count for pagination
-    const total = await prisma.farmer.count({ where });
+    const total = await prisma.farmer.count({
+      where: { id: { in: farmerIds } },
+    });
 
     successResponse(
       res,
@@ -524,7 +550,7 @@ export const getFarmers = async (
         page: Number(page),
         limit: take,
       },
-      "Farmers fetched successfully",
+      "KYC-complete farmers fetched successfully",
     );
   } catch (error) {
     next(error);

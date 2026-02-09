@@ -216,15 +216,6 @@ model Mill {
 }
 
 // =====================
-// VEHICLE
-// =====================
-model Vehicle {
-  id        String   @id @default(uuid())
-  vehicleNo String   @unique
-  createdAt DateTime @default(now())
-}
-
-// =====================
 // BILL (MAIN)
 // =====================
 model Bill {
