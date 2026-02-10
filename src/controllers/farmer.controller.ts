@@ -529,6 +529,18 @@ export const getFarmers = async (
             passbookImage: true,
           },
         },
+        // 👇 fetch only FIRST vendor
+        vendors: {
+          take: 1,
+          orderBy: { createdAt: "asc" }, // first linked vendor
+          select: {
+            vendor: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
         _count: {
           select: {
             documents: true,
@@ -538,6 +550,13 @@ export const getFarmers = async (
       },
     });
 
+    const formattedFarmers = farmers.map(({ vendors, _count, ...farmer }) => ({
+      ...farmer,
+      vendorName: vendors?.[0]?.vendor?.name ?? null,
+      totalKycDocuments: _count.documents,
+      totalLands: _count.lands,
+    }));
+
     const total = await prisma.farmer.count({
       where: { id: { in: farmerIds } },
     });
@@ -545,7 +564,7 @@ export const getFarmers = async (
     successResponse(
       res,
       {
-        farmers,
+        farmers: formattedFarmers,
         total,
         page: Number(page),
         limit: take,
