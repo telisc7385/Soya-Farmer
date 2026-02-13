@@ -116,8 +116,6 @@ export const getFarmerById = async (
                 name: true,
                 email: true,
                 phone: true,
-                isActive: true,
-                role: true,
               },
             },
           },
@@ -304,7 +302,7 @@ export const addFarmerLand = async (
 ) => {
   try {
     const { farmerId } = req.params;
-    const { locationId, landType, area } = req.body;
+    const { landType, area } = req.body;
 
     if (!req.file) {
       throw new AppError("Land document is required", 400);
@@ -325,7 +323,6 @@ export const addFarmerLand = async (
     const land = await prisma.farmerLand.create({
       data: {
         farmerId,
-        locationId,
         landType,
         area: Number(area),
         documentUrl,
@@ -512,6 +509,7 @@ export const getFarmers = async (
           OR: [
             { name: { contains: String(search), mode: "insensitive" } },
             { phone: { contains: String(search), mode: "insensitive" } },
+            { aadhaarNo: { contains: String(search), mode: "insensitive" } },
           ],
         }),
       },

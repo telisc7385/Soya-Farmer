@@ -130,17 +130,6 @@ model FarmerDocument {
   farmer Farmer @relation(fields: [farmerId], references: [id])
 }
 
-// =====================
-// LOCATION (ADMIN RULE)
-// =====================
-model Location {
-  id           String   @id @default(uuid())
-  name         String   @unique
-  quintalLimit Float // per acre
-  createdAt    DateTime @default(now())
-
-  lands FarmerLand[]
-}
 
 // =====================
 // FARMER LAND
@@ -148,14 +137,12 @@ model Location {
 model FarmerLand {
   id          String   @id @default(uuid())
   farmerId    String
-  locationId  String
   landType    LandType
   area        Float
   documentUrl String
   createdAt   DateTime @default(now())
 
   farmer   Farmer   @relation(fields: [farmerId], references: [id])
-  location Location @relation(fields: [locationId], references: [id])
 }
 
 // =====================
