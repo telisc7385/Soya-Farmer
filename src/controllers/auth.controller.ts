@@ -45,7 +45,16 @@ export const register = async (
   next: NextFunction,
 ) => {
   try {
-    const { phone, password, role = "VENDOR", name, email } = req.body;
+    const {
+      phone,
+      password,
+      role = "VENDOR",
+      name,
+      email,
+      villageAdd,
+      taluka,
+      district,
+    } = req.body;
 
     const existingUser = await prisma.user.findUnique({
       where: { email },
@@ -62,6 +71,9 @@ export const register = async (
         name,
         email,
         phone,
+        villageAdd,
+        taluka,
+        district,
         password: hashedPassword,
         role,
       },
@@ -86,18 +98,21 @@ export const updateVendor = async (
 ) => {
   try {
     const { id } = req.params; // vendor id
-    const { phone, name } = req.body;
+    const { phone, name, villageAdd, taluka, district } = req.body;
 
     // Check if vendor exists
-    const existingVendor = await prisma.user.findUnique({ where: { id } });
-    if (!existingVendor) {
+    const existingVendor = await prisma.user.findUnique({
+      where: { id },
+      select: { id: true, role: true },
+    });
+    if (!existingVendor || existingVendor.role !== "VENDOR") {
       throw new AppError("Vendor not found", 404);
     }
 
     // Update vendor
     const updatedVendor = await prisma.user.update({
       where: { id },
-      data: { name, phone },
+      data: { name, phone, villageAdd, taluka, district },
     });
 
     // Remove password from response
@@ -178,6 +193,9 @@ export const getVendorList = async (
         name: true,
         email: true,
         phone: true,
+        villageAdd: true,
+        taluka: true,
+        district: true,
         isActive: true,
         createdAt: true,
       },
@@ -217,6 +235,9 @@ export const getVendorById = async (
         name: true,
         email: true,
         phone: true,
+        villageAdd: true,
+        taluka: true,
+        district: true,
         isActive: true,
         createdAt: true,
         totalKattaStock: true,

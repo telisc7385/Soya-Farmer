@@ -2,19 +2,28 @@
 CREATE TYPE "Role" AS ENUM ('ADMIN', 'VENDOR');
 
 -- CreateEnum
-CREATE TYPE "DocumentType" AS ENUM ('AADHAAR', 'BANK', 'LAND_712', 'BLOOD_RELATION_712');
+CREATE TYPE "DocumentType" AS ENUM ('AADHAAR', 'BANK', 'PAN', 'DRIVING_LICENSE', 'LAND_712', 'BLOOD_RELATION_712');
 
 -- CreateEnum
 CREATE TYPE "LandType" AS ENUM ('OWN', 'BLOOD_RELATION');
 
 -- CreateEnum
-CREATE TYPE "ProductType" AS ENUM ('KATTA', 'PRODUCT');
+CREATE TYPE "ProductType" AS ENUM ('KATTA', 'SOYAPRODUCT');
 
 -- CreateEnum
-CREATE TYPE "BillStatus" AS ENUM ('PENDING', 'COMPLETED', 'CANCELLED');
+CREATE TYPE "StockMovementType" AS ENUM ('IN', 'OUT', 'ADJUSTMENT');
+
+-- CreateEnum
+CREATE TYPE "QuantityUnit" AS ENUM ('QTL', 'MT');
+
+-- CreateEnum
+CREATE TYPE "BillStatus" AS ENUM ('DRAFT', 'PENDING', 'COMPLETED', 'CANCELLED');
 
 -- CreateEnum
 CREATE TYPE "PaymentStatus" AS ENUM ('PENDING', 'PAID', 'FAILED');
+
+-- CreateEnum
+CREATE TYPE "DeductionType" AS ENUM ('FIXED', 'FORMULA');
 
 -- CreateTable
 CREATE TABLE "User" (
@@ -26,6 +35,11 @@ CREATE TABLE "User" (
     "role" "Role" NOT NULL,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "villageAdd" TEXT,
+    "taluka" TEXT,
+    "district" TEXT,
+    "totalKattaStock" INTEGER NOT NULL DEFAULT 0,
+    "totalSoyaKg" DOUBLE PRECISION NOT NULL DEFAULT 0,
 
     CONSTRAINT "User_pkey" PRIMARY KEY ("id")
 );
@@ -36,6 +50,11 @@ CREATE TABLE "Farmer" (
     "name" TEXT NOT NULL,
     "aadhaarNo" TEXT NOT NULL,
     "phone" TEXT NOT NULL,
+    "email" TEXT,
+    "villageAdd" TEXT,
+    "gutNumber" TEXT,
+    "taluka" TEXT,
+    "district" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "Farmer_pkey" PRIMARY KEY ("id")
@@ -64,20 +83,9 @@ CREATE TABLE "FarmerDocument" (
 );
 
 -- CreateTable
-CREATE TABLE "Location" (
-    "id" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "quintalLimit" DOUBLE PRECISION NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "Location_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
 CREATE TABLE "FarmerLand" (
     "id" TEXT NOT NULL,
     "farmerId" TEXT NOT NULL,
-    "locationId" TEXT NOT NULL,
     "landType" "LandType" NOT NULL,
     "area" DOUBLE PRECISION NOT NULL,
     "documentUrl" TEXT NOT NULL,
@@ -91,6 +99,7 @@ CREATE TABLE "Product" (
     "id" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "type" "ProductType" NOT NULL,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "Product_pkey" PRIMARY KEY ("id")
@@ -104,27 +113,21 @@ CREATE TABLE "Stock" (
     "productId" TEXT NOT NULL,
     "quantity" DOUBLE PRECISION NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "Stock_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "Mill" (
+CREATE TABLE "StockMovement" (
     "id" TEXT NOT NULL,
-    "name" TEXT NOT NULL,
-    "address" TEXT,
+    "stockId" TEXT NOT NULL,
+    "type" "StockMovementType" NOT NULL,
+    "quantity" DOUBLE PRECISION NOT NULL,
+    "reference" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "Mill_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "Vehicle" (
-    "id" TEXT NOT NULL,
-    "vehicleNo" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "Vehicle_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "StockMovement_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -134,57 +137,43 @@ CREATE TABLE "Bill" (
     "billDate" TIMESTAMP(3) NOT NULL,
     "vendorId" TEXT NOT NULL,
     "farmerId" TEXT NOT NULL,
-    "productId" TEXT NOT NULL,
-    "millId" TEXT NOT NULL,
-    "vehicleId" TEXT NOT NULL,
-    "bagCount" INTEGER NOT NULL,
-    "rate" DOUBLE PRECISION NOT NULL,
-    "amount" DOUBLE PRECISION NOT NULL,
+    "totalAmount" DOUBLE PRECISION NOT NULL,
     "status" "BillStatus" NOT NULL DEFAULT 'PENDING',
+    "primaryQuantity" DOUBLE PRECISION,
+    "primaryUnit" "QuantityUnit",
+    "ratePerUnit" DOUBLE PRECISION,
+    "grossAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "goniTypeId" TEXT,
+    "bagCount" INTEGER NOT NULL DEFAULT 0,
+    "goniWeight" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "netPayable" DOUBLE PRECISION NOT NULL DEFAULT 0,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
     CONSTRAINT "Bill_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "BillWeight" (
+CREATE TABLE "BillItem" (
     "id" TEXT NOT NULL,
     "billId" TEXT NOT NULL,
-    "gross" DOUBLE PRECISION NOT NULL,
-    "tare" DOUBLE PRECISION NOT NULL,
-    "net" DOUBLE PRECISION NOT NULL,
+    "productId" TEXT NOT NULL,
+    "bagCount" INTEGER NOT NULL,
+    "unit" "QuantityUnit" NOT NULL,
+    "quantity" DOUBLE PRECISION NOT NULL,
+    "rate" DOUBLE PRECISION NOT NULL,
+    "amount" DOUBLE PRECISION NOT NULL,
 
-    CONSTRAINT "BillWeight_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "WeighSlip" (
-    "id" TEXT NOT NULL,
-    "billId" TEXT NOT NULL,
-    "slipNo" TEXT NOT NULL,
-    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-
-    CONSTRAINT "WeighSlip_pkey" PRIMARY KEY ("id")
-);
-
--- CreateTable
-CREATE TABLE "WeighSlipEntry" (
-    "id" TEXT NOT NULL,
-    "slipId" TEXT NOT NULL,
-    "srNo" INTEGER NOT NULL,
-    "gross" DOUBLE PRECISION NOT NULL,
-    "tare" DOUBLE PRECISION NOT NULL,
-    "net" DOUBLE PRECISION NOT NULL,
-
-    CONSTRAINT "WeighSlipEntry_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "BillItem_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
 CREATE TABLE "BillDeduction" (
     "id" TEXT NOT NULL,
     "billId" TEXT NOT NULL,
+    "masterId" TEXT,
     "label" TEXT NOT NULL,
     "value" DOUBLE PRECISION NOT NULL,
+    "payload" JSONB,
 
     CONSTRAINT "BillDeduction_pkey" PRIMARY KEY ("id")
 );
@@ -198,6 +187,7 @@ CREATE TABLE "FarmerBank" (
     "ifsc" TEXT NOT NULL,
     "holderName" TEXT NOT NULL,
     "isPrimary" BOOLEAN NOT NULL DEFAULT true,
+    "passbookImage" TEXT NOT NULL DEFAULT '',
 
     CONSTRAINT "FarmerBank_pkey" PRIMARY KEY ("id")
 );
@@ -216,25 +206,43 @@ CREATE TABLE "FarmerPayment" (
 );
 
 -- CreateTable
-CREATE TABLE "Invoice" (
+CREATE TABLE "DeductionMaster" (
     "id" TEXT NOT NULL,
-    "billId" TEXT NOT NULL,
-    "invoiceNo" TEXT NOT NULL,
-    "pdfUrl" TEXT,
+    "name" TEXT NOT NULL,
+    "type" "DeductionType" NOT NULL,
+    "baseAmount" DOUBLE PRECISION,
+    "formulaExpression" TEXT,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdBy" TEXT NOT NULL,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "Invoice_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "DeductionMaster_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
-CREATE TABLE "StockOverride" (
+CREATE TABLE "DeductionVariable" (
     "id" TEXT NOT NULL,
-    "farmerId" TEXT NOT NULL,
-    "maxLimit" DOUBLE PRECISION NOT NULL,
-    "reason" TEXT,
+    "masterId" TEXT NOT NULL,
+    "code" TEXT NOT NULL,
+    "label" TEXT NOT NULL,
+    "unitHint" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT "StockOverride_pkey" PRIMARY KEY ("id")
+    CONSTRAINT "DeductionVariable_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "GoniType" (
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "weightPerBag" DOUBLE PRECISION NOT NULL,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
+    "createdBy" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "GoniType_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateIndex
@@ -247,19 +255,13 @@ CREATE UNIQUE INDEX "Farmer_aadhaarNo_key" ON "Farmer"("aadhaarNo");
 CREATE UNIQUE INDEX "VendorFarmer_vendorId_farmerId_key" ON "VendorFarmer"("vendorId", "farmerId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Location_name_key" ON "Location"("name");
-
--- CreateIndex
-CREATE UNIQUE INDEX "Vehicle_vehicleNo_key" ON "Vehicle"("vehicleNo");
-
--- CreateIndex
-CREATE UNIQUE INDEX "BillWeight_billId_key" ON "BillWeight"("billId");
+CREATE UNIQUE INDEX "Stock_vendorId_farmerId_productId_key" ON "Stock"("vendorId", "farmerId", "productId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "FarmerPayment_billId_key" ON "FarmerPayment"("billId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "Invoice_billId_key" ON "Invoice"("billId");
+CREATE UNIQUE INDEX "DeductionVariable_masterId_code_key" ON "DeductionVariable"("masterId", "code");
 
 -- AddForeignKey
 ALTER TABLE "VendorFarmer" ADD CONSTRAINT "VendorFarmer_vendorId_fkey" FOREIGN KEY ("vendorId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -274,9 +276,6 @@ ALTER TABLE "FarmerDocument" ADD CONSTRAINT "FarmerDocument_farmerId_fkey" FOREI
 ALTER TABLE "FarmerLand" ADD CONSTRAINT "FarmerLand_farmerId_fkey" FOREIGN KEY ("farmerId") REFERENCES "Farmer"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "FarmerLand" ADD CONSTRAINT "FarmerLand_locationId_fkey" FOREIGN KEY ("locationId") REFERENCES "Location"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
 ALTER TABLE "Stock" ADD CONSTRAINT "Stock_vendorId_fkey" FOREIGN KEY ("vendorId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
@@ -286,31 +285,28 @@ ALTER TABLE "Stock" ADD CONSTRAINT "Stock_farmerId_fkey" FOREIGN KEY ("farmerId"
 ALTER TABLE "Stock" ADD CONSTRAINT "Stock_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "StockMovement" ADD CONSTRAINT "StockMovement_stockId_fkey" FOREIGN KEY ("stockId") REFERENCES "Stock"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "Bill" ADD CONSTRAINT "Bill_vendorId_fkey" FOREIGN KEY ("vendorId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Bill" ADD CONSTRAINT "Bill_farmerId_fkey" FOREIGN KEY ("farmerId") REFERENCES "Farmer"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Bill" ADD CONSTRAINT "Bill_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "Bill" ADD CONSTRAINT "Bill_goniTypeId_fkey" FOREIGN KEY ("goniTypeId") REFERENCES "GoniType"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Bill" ADD CONSTRAINT "Bill_millId_fkey" FOREIGN KEY ("millId") REFERENCES "Mill"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "BillItem" ADD CONSTRAINT "BillItem_billId_fkey" FOREIGN KEY ("billId") REFERENCES "Bill"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Bill" ADD CONSTRAINT "Bill_vehicleId_fkey" FOREIGN KEY ("vehicleId") REFERENCES "Vehicle"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "BillWeight" ADD CONSTRAINT "BillWeight_billId_fkey" FOREIGN KEY ("billId") REFERENCES "Bill"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "WeighSlip" ADD CONSTRAINT "WeighSlip_billId_fkey" FOREIGN KEY ("billId") REFERENCES "Bill"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
-
--- AddForeignKey
-ALTER TABLE "WeighSlipEntry" ADD CONSTRAINT "WeighSlipEntry_slipId_fkey" FOREIGN KEY ("slipId") REFERENCES "WeighSlip"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "BillItem" ADD CONSTRAINT "BillItem_productId_fkey" FOREIGN KEY ("productId") REFERENCES "Product"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "BillDeduction" ADD CONSTRAINT "BillDeduction_billId_fkey" FOREIGN KEY ("billId") REFERENCES "Bill"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "BillDeduction" ADD CONSTRAINT "BillDeduction_masterId_fkey" FOREIGN KEY ("masterId") REFERENCES "DeductionMaster"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "FarmerBank" ADD CONSTRAINT "FarmerBank_farmerId_fkey" FOREIGN KEY ("farmerId") REFERENCES "Farmer"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -322,7 +318,10 @@ ALTER TABLE "FarmerPayment" ADD CONSTRAINT "FarmerPayment_billId_fkey" FOREIGN K
 ALTER TABLE "FarmerPayment" ADD CONSTRAINT "FarmerPayment_farmerId_fkey" FOREIGN KEY ("farmerId") REFERENCES "Farmer"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "Invoice" ADD CONSTRAINT "Invoice_billId_fkey" FOREIGN KEY ("billId") REFERENCES "Bill"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "DeductionMaster" ADD CONSTRAINT "DeductionMaster_createdBy_fkey" FOREIGN KEY ("createdBy") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
-ALTER TABLE "StockOverride" ADD CONSTRAINT "StockOverride_farmerId_fkey" FOREIGN KEY ("farmerId") REFERENCES "Farmer"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+ALTER TABLE "DeductionVariable" ADD CONSTRAINT "DeductionVariable_masterId_fkey" FOREIGN KEY ("masterId") REFERENCES "DeductionMaster"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "GoniType" ADD CONSTRAINT "GoniType_createdBy_fkey" FOREIGN KEY ("createdBy") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;

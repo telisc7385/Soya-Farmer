@@ -28,9 +28,11 @@ export const farmerDocumentSchema = Joi.object({
 });
 
 export const farmerLandSchema = Joi.object({
-  locationId: Joi.string().uuid().required(),
   landType: Joi.string().valid("OWN", "BLOOD_RELATION").required(),
   area: Joi.number().positive().required(),
+  villageAdd: Joi.string().optional(),
+  taluka: Joi.string().optional(),
+  district: Joi.string().optional(),
 });
 
 export const farmerBankSchema = Joi.object({

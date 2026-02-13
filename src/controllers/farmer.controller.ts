@@ -107,7 +107,7 @@ export const getFarmerById = async (
       include: {
         banks: true,
         documents: true,
-        lands: { include: { location: true } },
+        lands: true,
         vendors: {
           include: {
             vendor: {
@@ -116,8 +116,6 @@ export const getFarmerById = async (
                 name: true,
                 email: true,
                 phone: true,
-                isActive: true,
-                role: true,
               },
             },
           },
@@ -142,13 +140,20 @@ export const updateFarmer = async (
 ) => {
   try {
     const { farmerId } = req.params;
-    const { name, phone } = req.body;
+    const { name, phone, villageAdd, district, taluka, gutNumber } = req.body;
 
     await checkFarmer(farmerId);
 
     const farmer = await prisma.farmer.update({
       where: { id: farmerId },
-      data: { name, phone },
+      data: {
+        name,
+        phone,
+        villageAdd,
+        district,
+        taluka,
+        gutNumber,
+      },
     });
 
     successResponse(res, farmer, "Farmer updated successfully");
@@ -219,7 +224,7 @@ export const addFarmerAllDocuments = async (
   next: NextFunction,
 ) => {
   try {
-    const { farmerId } = req.body;
+    const { farmerId } = req.params;
     const files = req.files as Record<string, Express.Multer.File[]>;
 
     if (!files) {
@@ -304,7 +309,7 @@ export const addFarmerLand = async (
 ) => {
   try {
     const { farmerId } = req.params;
-    const { locationId, landType, area } = req.body;
+    const { landType, area, villageAdd, taluka, district } = req.body;
 
     if (!req.file) {
       throw new AppError("Land document is required", 400);
@@ -325,10 +330,12 @@ export const addFarmerLand = async (
     const land = await prisma.farmerLand.create({
       data: {
         farmerId,
-        locationId,
         landType,
         area: Number(area),
         documentUrl,
+        villageAdd,
+        taluka,
+        district,
       },
     });
 
@@ -350,7 +357,6 @@ export const getFarmerLands = async (
 
     const lands = await prisma.farmerLand.findMany({
       where: { farmerId },
-      include: { location: true },
     });
 
     successResponse(res, lands, "Farmer lands fetched");
@@ -366,10 +372,13 @@ export const updateFarmerLand = async (
 ) => {
   try {
     const { landId } = req.params;
-    const { area } = req.body;
+    const { area, villageAdd, taluka, district } = req.body;
 
     const updateData: any = {};
     if (area) updateData.area = Number(area);
+    if (villageAdd !== undefined) updateData.villageAdd = villageAdd;
+    if (taluka !== undefined) updateData.taluka = taluka;
+    if (district !== undefined) updateData.district = district;
 
     if (req.file) {
       updateData.documentUrl = `/uploads/farmers/lands/${req.file.filename}`;
@@ -394,7 +403,7 @@ export const addFarmerBank = async (
 ) => {
   try {
     const { farmerId } = req.params;
-    const { bankName, accountNo, ifsc, holderName, isPrimary } = req.body;
+    const { bankName, accountNo, ifsc, holderName } = req.body;
 
     if (!req.file) {
       throw new AppError("Document image is required", 400);
@@ -419,7 +428,6 @@ export const addFarmerBank = async (
         accountNo,
         ifsc,
         holderName,
-        isPrimary,
         passbookImage,
       },
     });
@@ -512,6 +520,7 @@ export const getFarmers = async (
           OR: [
             { name: { contains: String(search), mode: "insensitive" } },
             { phone: { contains: String(search), mode: "insensitive" } },
+            { aadhaarNo: { contains: String(search), mode: "insensitive" } },
           ],
         }),
       },
