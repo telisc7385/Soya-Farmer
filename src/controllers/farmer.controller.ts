@@ -107,7 +107,7 @@ export const getFarmerById = async (
       include: {
         banks: true,
         documents: true,
-        lands: { include: { location: true } },
+        lands: true,
         vendors: {
           include: {
             vendor: {
@@ -140,13 +140,20 @@ export const updateFarmer = async (
 ) => {
   try {
     const { farmerId } = req.params;
-    const { name, phone } = req.body;
+    const { name, phone, villageAdd, district, taluka, gutNumber } = req.body;
 
     await checkFarmer(farmerId);
 
     const farmer = await prisma.farmer.update({
       where: { id: farmerId },
-      data: { name, phone },
+      data: {
+        name,
+        phone,
+        villageAdd,
+        district,
+        taluka,
+        gutNumber,
+      },
     });
 
     successResponse(res, farmer, "Farmer updated successfully");
@@ -347,7 +354,6 @@ export const getFarmerLands = async (
 
     const lands = await prisma.farmerLand.findMany({
       where: { farmerId },
-      include: { location: true },
     });
 
     successResponse(res, lands, "Farmer lands fetched");

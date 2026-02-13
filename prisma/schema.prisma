@@ -69,6 +69,9 @@ model User {
   role      Role
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
+  villageAdd String?
+  taluka     String?
+  district   String?
   totalKattaStock Int   @default(0)
   totalSoyaKg     Float @default(0)
 
@@ -190,16 +193,6 @@ model StockMovement {
   createdAt DateTime          @default(now())
 
   stock Stock @relation(fields: [stockId], references: [id])
-}
-
-// =====================
-// MILL / PLANT
-// =====================
-model Mill {
-  id        String   @id @default(uuid())
-  name      String
-  address   String?
-  createdAt DateTime @default(now())
 }
 
 // =====================
