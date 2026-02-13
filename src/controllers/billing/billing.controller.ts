@@ -14,8 +14,10 @@ const ensureDraftBill = async (billId: string, vendorId: string) => {
     include: { deductions: true, goniType: true },
   });
   if (!bill) throw new AppError("Bill not found", 404);
-  if (bill.vendorId !== vendorId) throw new AppError("Unauthorized bill access", 403);
-  if (bill.status !== "DRAFT") throw new AppError("Bill already finalized", 400);
+  if (bill.vendorId !== vendorId)
+    throw new AppError("Unauthorized bill access", 403);
+  if (bill.status !== "DRAFT")
+    throw new AppError("Bill already finalized", 400);
   return bill;
 };
 
@@ -38,10 +40,15 @@ const recalcTotals = async (billId: string) => {
     },
   });
 
-  return { grossAmount: gross, totalDeductions: deductionTotal, goniWeight, netPayable: net };
+  return {
+    grossAmount: gross,
+    totalDeductions: deductionTotal,
+    goniWeight,
+    netPayable: net,
+  };
 };
 
-export const createDraft = async (
+export const createDraftBill = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction,
@@ -49,9 +56,10 @@ export const createDraft = async (
   try {
     const vendorId = req.user?.id;
     if (!vendorId) throw new AppError("Unauthorized", 401);
+    const { farmerId, billDate, quantity, unit, rate } = req.body;
 
-    const { farmerId, billDate } = req.body;
     await checkFarmer(farmerId);
+    const grossAmount = roundTo(quantity * rate);
 
     const billNo = await generateBillNo();
     const draft = await prisma.bill.create({
@@ -61,46 +69,25 @@ export const createDraft = async (
         vendorId,
         farmerId,
         status: "DRAFT",
-        totalAmount: 0,
-        grossAmount: 0,
-        netPayable: 0,
-      },
-    });
-
-    createdResponse(res, draft, "Bill draft created");
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const captureQuantity = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const vendorId = req.user?.id;
-    if (!vendorId) throw new AppError("Unauthorized", 401);
-    const { billId } = req.params;
-    const { quantity, unit, rate } = req.body;
-
-    await ensureDraftBill(billId, vendorId);
-
-    const grossAmount = roundTo(quantity * rate);
-
-    const bill = await prisma.bill.update({
-      where: { id: billId },
-      data: {
         primaryQuantity: quantity,
         primaryUnit: unit,
         ratePerUnit: rate,
         grossAmount,
+        totalAmount: grossAmount,
+        netPayable: grossAmount,
       },
     });
+    const totals = await recalcTotals(draft.id);
+    const hydrated = await prisma.bill.findUnique({
+      where: { id: draft.id },
+      include: { farmer: true, deductions: true, goniType: true },
+    });
 
-    const totals = await recalcTotals(billId);
-
-    successResponse(res, { bill, totals }, "Quantity captured");
+    createdResponse(
+      res,
+      { bill: hydrated, totals },
+      "Bill draft created with quantity",
+    );
   } catch (error) {
     next(error);
   }

@@ -3,9 +3,6 @@ import Joi from "joi";
 export const createDraftSchema = Joi.object({
   farmerId: Joi.string().uuid().required(),
   billDate: Joi.date().optional(),
-});
-
-export const captureQuantitySchema = Joi.object({
   quantity: Joi.number().positive().required(),
   unit: Joi.string().valid("QTL", "MT").required(),
   rate: Joi.number().positive().required(),
@@ -28,8 +25,4 @@ export const calculateDeductionSchema = Joi.object({
 export const applyGoniSchema = Joi.object({
   goniTypeId: Joi.string().uuid().required(),
   bagCount: Joi.number().integer().min(0).required(),
-});
-
-export const confirmBillSchema = Joi.object({
-  notes: Joi.string().max(500).optional(),
 });

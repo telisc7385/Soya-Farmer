@@ -6,8 +6,6 @@ import { validateRequest } from "../middleware/validateRequest.middleware";
 import {
   applyGoniSchema,
   calculateDeductionSchema,
-  captureQuantitySchema,
-  confirmBillSchema,
   createDraftSchema,
 } from "../validations/bill.validation";
 
@@ -17,14 +15,7 @@ router.post(
   "/draft",
   authMiddleware,
   validateRequest(createDraftSchema),
-  billingFlow.createDraft,
-);
-
-router.post(
-  "/:billId/quantity",
-  authMiddleware,
-  validateRequest(captureQuantitySchema),
-  billingFlow.captureQuantity,
+  billingFlow.createDraftBill,
 );
 
 router.post(
@@ -41,18 +32,9 @@ router.post(
   billingFlow.applyGoniDeduction,
 );
 
-router.get(
-  "/:billId/preview",
-  authMiddleware,
-  billingFlow.previewDraft,
-);
+router.get("/:billId/preview", authMiddleware, billingFlow.previewDraft);
 
-router.post(
-  "/:billId/confirm",
-  authMiddleware,
-  validateRequest(confirmBillSchema),
-  billingFlow.confirmDraft,
-);
+router.post("/:billId/confirm", authMiddleware, billingFlow.confirmDraft);
 
 // Get bills
 router.get("/", authMiddleware, billController.getBills);

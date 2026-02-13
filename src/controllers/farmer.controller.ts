@@ -224,7 +224,7 @@ export const addFarmerAllDocuments = async (
   next: NextFunction,
 ) => {
   try {
-    const { farmerId } = req.body;
+    const { farmerId } = req.params;
     const files = req.files as Record<string, Express.Multer.File[]>;
 
     if (!files) {
@@ -309,7 +309,7 @@ export const addFarmerLand = async (
 ) => {
   try {
     const { farmerId } = req.params;
-    const { landType, area } = req.body;
+    const { landType, area, villageAdd, taluka, district } = req.body;
 
     if (!req.file) {
       throw new AppError("Land document is required", 400);
@@ -333,6 +333,9 @@ export const addFarmerLand = async (
         landType,
         area: Number(area),
         documentUrl,
+        villageAdd,
+        taluka,
+        district,
       },
     });
 
@@ -369,10 +372,13 @@ export const updateFarmerLand = async (
 ) => {
   try {
     const { landId } = req.params;
-    const { area } = req.body;
+    const { area, villageAdd, taluka, district } = req.body;
 
     const updateData: any = {};
     if (area) updateData.area = Number(area);
+    if (villageAdd !== undefined) updateData.villageAdd = villageAdd;
+    if (taluka !== undefined) updateData.taluka = taluka;
+    if (district !== undefined) updateData.district = district;
 
     if (req.file) {
       updateData.documentUrl = `/uploads/farmers/lands/${req.file.filename}`;
@@ -397,7 +403,7 @@ export const addFarmerBank = async (
 ) => {
   try {
     const { farmerId } = req.params;
-    const { bankName, accountNo, ifsc, holderName, isPrimary } = req.body;
+    const { bankName, accountNo, ifsc, holderName } = req.body;
 
     if (!req.file) {
       throw new AppError("Document image is required", 400);
@@ -422,7 +428,6 @@ export const addFarmerBank = async (
         accountNo,
         ifsc,
         holderName,
-        isPrimary,
         passbookImage,
       },
     });
