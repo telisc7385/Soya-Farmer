@@ -240,8 +240,6 @@ export const getVendorById = async (
         district: true,
         isActive: true,
         createdAt: true,
-        totalKattaStock: true,
-        totalSoyaKg: true,
       },
     });
 

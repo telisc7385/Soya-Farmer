@@ -51,6 +51,17 @@ enum DeductionType {
   FORMULA
 }
 
+enum StockStatus {
+  AVAILABLE
+  TRANSFERRED
+}
+
+enum StockTransferStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
 // =====================
 // USER (ADMIN / VENDOR)
 // =====================
@@ -71,6 +82,8 @@ model User {
   bills            Bill[]
   deductionMasters DeductionMaster[] @relation("UserDeductionMasters")
   goniTypes        GoniType[]        @relation("UserGoniTypes")
+  stocks           Stock[]           @relation("VendorStock")
+  vendorTransfers  StockTransfer[]   @relation("VendorTransfers")
 }
 
 // =====================
@@ -170,6 +183,7 @@ model Bill {
   goniType   GoniType?       @relation(fields: [goniTypeId], references: [id])
   deductions BillDeduction[]
   payment    FarmerPayment?
+  stock      Stock?
 }
 
 // =====================
@@ -262,6 +276,50 @@ model GoniType {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  createdByUser User?  @relation("UserGoniTypes", fields: [createdBy], references: [id])
+  createdByUser User?           @relation("UserGoniTypes", fields: [createdBy], references: [id])
   bills         Bill[]
+  stocks        Stock[]         @relation("StockGoniType")
+  transfers     StockTransfer[]
+}
+
+// =====================
+// STOCK (VENDOR INVENTORY)
+// =====================
+model Stock {
+  id         String       @id @default(uuid())
+  vendorId   String
+  billId     String       @unique
+  weight     Float
+  unit       QuantityUnit
+  bagCount   Int
+  goniTypeId String?
+  status     StockStatus  @default(AVAILABLE)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  vendor   User      @relation("VendorStock", fields: [vendorId], references: [id])
+  bill     Bill      @relation(fields: [billId], references: [id])
+  goniType GoniType? @relation("StockGoniType", fields: [goniTypeId], references: [id])
+}
+
+// =====================
+// STOCK TRANSFER (VENDOR → ADMIN)
+// =====================
+model StockTransfer {
+  id            String              @id @default(uuid())
+  transferNo    String              @unique
+  vendorId      String
+  goniTypeId    String?
+  weight        Float?
+  unit          QuantityUnit?
+  shopName      String?
+  shopLocation  String
+  vehicalNumber String
+  bagCount      Int
+  status        StockTransferStatus @default(PENDING)
+  createdAt     DateTime            @default(now())
+  completedAt   DateTime?
+
+  vendor   User      @relation("VendorTransfers", fields: [vendorId], references: [id])
+  goniType GoniType? @relation(fields: [goniTypeId], references: [id])
 }
