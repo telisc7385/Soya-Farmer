@@ -14,6 +14,7 @@ import {
   listGoniTypes,
   updateGoniType,
 } from "../controllers/admin/goniType.controller";
+import * as transferController from "../controllers/stockTransfer.controller";
 import { validateRequest } from "../middleware/validateRequest.middleware";
 import {
   payFarmerSchema,
@@ -26,7 +27,7 @@ import {
   createGoniTypeSchema,
   updateGoniTypeSchema,
 } from "../validations/admin.validation";
-
+import { updateTransferSchema } from "../validations/stock.validation";
 const router = Router();
 
 router.post(
@@ -68,12 +69,7 @@ router.patch(
   toggleDeductionMaster,
 );
 
-router.get(
-  "/deductions",
-  authMiddleware,
-  authorize("ADMIN"),
-  listDeductionMasters,
-);
+router.get("/deductions", authMiddleware, listDeductionMasters);
 
 router.post(
   "/goni-types",
@@ -91,11 +87,52 @@ router.put(
   updateGoniType,
 );
 
+router.get("/goni-types", authMiddleware, listGoniTypes);
+
+// =====================
+// STOCK TRANSFER ROUTES (ADMIN)
+// =====================
+
+// Get all transfers
 router.get(
-  "/goni-types",
+  "/transfers",
   authMiddleware,
   authorize("ADMIN"),
-  listGoniTypes,
+  transferController.getAdminTransfers,
+);
+
+// update transfer
+router.put(
+  "/transfers/:transferId/update",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateRequest(updateTransferSchema),
+  transferController.completeTransfer,
+);
+
+// Complete transfer
+router.put(
+  "/transfers/:transferId/complete",
+  authMiddleware,
+  authorize("ADMIN"),
+  transferController.completeTransfer,
+);
+
+// Update transfer (only weight and unit)
+router.put(
+  "/transfers/:transferId/update",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateRequest(updateTransferSchema),
+  transferController.updateTransfer,
+);
+
+// Get admin stock summary
+router.get(
+  "/stock/summary",
+  authMiddleware,
+  authorize("ADMIN"),
+  transferController.getAdminStockSummary,
 );
 
 export default router;

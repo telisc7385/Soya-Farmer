@@ -2,10 +2,9 @@ import express from "express";
 import dotenv from "dotenv";
 import authRoutes from "./routes/auth.routes";
 import farmerRoutes from "./routes/farmer.routes";
-import productRoutes from "./routes/product.routes";
-import stocksRoutes from "./routes/stock.routes";
 import billingRoutes from "./routes/bill.routes";
 import adminRoutes from "./routes/admin.route";
+import stockRoutes from "./routes/stock.routes";
 import { errorHandler } from "./core/errorHandler";
 import path from "path";
 import { routeNotFoundError } from "./core/routeNotFoundError";
@@ -27,10 +26,9 @@ app.get("/", (req, res) => {
 // routes
 app.use("/api/auth", authRoutes);
 app.use("/api/farmer", farmerRoutes);
-app.use("/api/product", productRoutes);
-app.use("/api/stock", stocksRoutes);
 app.use("/api/bill", billingRoutes);
 app.use("/api/admin", adminRoutes);
+app.use("/api/stock", stockRoutes);
 
 // error handler
 app.use(routeNotFoundError);

@@ -206,7 +206,7 @@ export const previewDraft = async (
     if (!vendorId) throw new AppError("Unauthorized", 401);
 
     const { billId } = req.params;
-    const bill = await ensureDraftBill(billId, vendorId);
+    await ensureDraftBill(billId, vendorId);
     const totals = await recalcTotals(billId);
 
     const response = await prisma.bill.findUnique({
@@ -243,14 +243,31 @@ export const confirmDraft = async (
       throw new AppError("Net payable must be positive", 400);
     }
 
-    await prisma.bill.update({
-      where: { id: billId },
-      data: {
-        status: "PENDING",
-      },
+    // Use transaction to update bill and create stock atomically
+    await prisma.$transaction(async (tx) => {
+      // Update bill status to PENDING
+      await tx.bill.update({
+        where: { id: billId },
+        data: {
+          status: "PENDING",
+        },
+      });
+
+      // Auto-create stock entry for vendor
+      await tx.stock.create({
+        data: {
+          vendorId,
+          billId,
+          weight: bill.primaryQuantity!,
+          unit: bill.primaryUnit!,
+          bagCount: bill.bagCount ?? 0,
+          goniTypeId: bill.goniTypeId,
+          status: "AVAILABLE",
+        },
+      });
     });
 
-    successResponse(res, null, "Bill confirmed");
+    successResponse(res, null, "Bill confirmed and stock added");
   } catch (error) {
     next(error);
   }

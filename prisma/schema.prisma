@@ -28,17 +28,6 @@ enum LandType {
   BLOOD_RELATION
 }
 
-enum ProductType {
-  KATTA
-  SOYAPRODUCT
-}
-
-enum StockMovementType {
-  IN
-  OUT
-  ADJUSTMENT
-}
-
 enum QuantityUnit {
   QTL
   MT
@@ -62,29 +51,39 @@ enum DeductionType {
   FORMULA
 }
 
+enum StockStatus {
+  AVAILABLE
+  TRANSFERRED
+}
+
+enum StockTransferStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
 // =====================
 // USER (ADMIN / VENDOR)
 // =====================
 model User {
-  id        String   @id @default(uuid())
-  name      String
-  phone     String
-  email     String   @unique
-  password  String
-  role      Role
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
+  id         String   @id @default(uuid())
+  name       String
+  phone      String
+  email      String   @unique
+  password   String
+  role       Role
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
   villageAdd String?
   taluka     String?
   district   String?
-  totalKattaStock Int   @default(0)
-  totalSoyaKg     Float @default(0)
 
-  vendorFarmers VendorFarmer[]
-  bills         Bill[]
-  stocks        Stock[]
+  vendorFarmers    VendorFarmer[]
+  bills            Bill[]
   deductionMasters DeductionMaster[] @relation("UserDeductionMasters")
   goniTypes        GoniType[]        @relation("UserGoniTypes")
+  stocks           Stock[]           @relation("VendorStock")
+  vendorTransfers  StockTransfer[]   @relation("VendorTransfers")
 }
 
 // =====================
@@ -105,7 +104,6 @@ model Farmer {
   documents FarmerDocument[]
   lands     FarmerLand[]
   vendors   VendorFarmer[]
-  stocks    Stock[]
   bills     Bill[]
   banks     FarmerBank[]
   payments  FarmerPayment[]
@@ -140,7 +138,6 @@ model FarmerDocument {
   farmer Farmer @relation(fields: [farmerId], references: [id])
 }
 
-
 // =====================
 // FARMER LAND
 // =====================
@@ -155,118 +152,52 @@ model FarmerLand {
   district    String?
   createdAt   DateTime @default(now())
 
-  farmer   Farmer   @relation(fields: [farmerId], references: [id])
-}
-
-// =====================
-// PRODUCT
-// =====================
-model Product {
-  id        String      @id @default(uuid())
-  name      String
-  type      ProductType
-  isActive  Boolean     @default(true)
-  createdAt DateTime    @default(now())
-
-  stocks    Stock[]
-  billItems BillItem[]
-}
-
-// =====================
-// STOCK
-// =====================
-model Stock {
-  id        String @id @default(uuid())
-  vendorId  String
-  farmerId  String
-  productId String
-
-  quantity  Float // ✅ CURRENT AVAILABLE STOCK
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  vendor  User    @relation(fields: [vendorId], references: [id])
-  farmer  Farmer  @relation(fields: [farmerId], references: [id])
-  product Product @relation(fields: [productId], references: [id])
-
-  movements StockMovement[]
-
-  @@unique([vendorId, farmerId, productId]) // ✅ VERY IMPORTANT
-}
-
-model StockMovement {
-  id        String            @id @default(uuid())
-  stockId   String
-  type      StockMovementType
-  quantity  Float
-  reference String? // billId / manual note / admin reason
-  createdAt DateTime          @default(now())
-
-  stock Stock @relation(fields: [stockId], references: [id])
+  farmer Farmer @relation(fields: [farmerId], references: [id])
 }
 
 // =====================
 // BILL (MAIN)
 // =====================
 model Bill {
-  id        String   @id @default(uuid())
-  billNo    String
-  billDate  DateTime
-  vendorId  String
-  farmerId  String
+  id       String   @id @default(uuid())
+  billNo   String
+  billDate DateTime
+  vendorId String
+  farmerId String
 
-  totalAmount Float
-  status      BillStatus @default(PENDING)
+  totalAmount     Float
+  status          BillStatus    @default(PENDING)
   primaryQuantity Float?
-  primaryUnit    QuantityUnit?
-  ratePerUnit    Float?
-  grossAmount    Float @default(0)
-  goniTypeId     String?
-  bagCount       Int @default(0)
-  goniWeight     Float @default(0)
-  netPayable     Float @default(0)
+  primaryUnit     QuantityUnit?
+  ratePerUnit     Float?
+  grossAmount     Float         @default(0)
+  goniTypeId      String?
+  bagCount        Int           @default(0)
+  goniWeight      Float         @default(0)
+  netPayable      Float         @default(0)
 
   createdAt DateTime @default(now())
 
-  vendor  User    @relation(fields: [vendorId], references: [id])
-  farmer  Farmer  @relation(fields: [farmerId], references: [id])
-  goniType GoniType? @relation(fields: [goniTypeId], references: [id])
-  items      BillItem[]
+  vendor     User            @relation(fields: [vendorId], references: [id])
+  farmer     Farmer          @relation(fields: [farmerId], references: [id])
+  goniType   GoniType?       @relation(fields: [goniTypeId], references: [id])
   deductions BillDeduction[]
   payment    FarmerPayment?
+  stock      Stock?
 }
-
-model BillItem {
-  id        String       @id @default(uuid())
-  billId    String
-  productId String
-  bagCount  Int
-  unit      QuantityUnit
-  quantity  Float
-  rate      Float
-  amount    Float
-
-  bill    Bill    @relation(fields: [billId], references: [id])
-  product Product @relation(fields: [productId], references: [id])
-}
-
-// =====================
-// BILL WEIGHT SUMMARY
-// =====================
-// (BillWeight and WeighSlip models removed in favor of direct billing quantities)
 
 // =====================
 // BILL DEDUCTIONS
 // =====================
 model BillDeduction {
-  id     String @id @default(uuid())
-  billId String
+  id       String  @id @default(uuid())
+  billId   String
   masterId String?
-  label  String
-  value  Float
-  payload Json?
+  label    String
+  value    Float
+  payload  Json?
 
-  bill Bill @relation(fields: [billId], references: [id])
+  bill   Bill             @relation(fields: [billId], references: [id])
   master DeductionMaster? @relation(fields: [masterId], references: [id])
 }
 
@@ -274,13 +205,13 @@ model BillDeduction {
 // FARMER BANK DETAILS
 // =====================
 model FarmerBank {
-  id            String  @id @default(uuid())
+  id            String @id @default(uuid())
   farmerId      String
   bankName      String
   accountNo     String
   ifsc          String
   holderName    String
-  passbookImage String  @default("")
+  passbookImage String @default("")
 
   farmer Farmer @relation(fields: [farmerId], references: [id])
 }
@@ -305,27 +236,27 @@ model FarmerPayment {
 // DEDUCTION MASTER DATA
 // =====================
 model DeductionMaster {
-  id        String        @id @default(uuid())
-  name      String
-  type      DeductionType
-  baseAmount Float?
+  id                String        @id @default(uuid())
+  name              String
+  type              DeductionType
+  baseAmount        Float?
   formulaExpression String?
-  isActive  Boolean @default(true)
-  createdBy String
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  isActive          Boolean       @default(true)
+  createdBy         String
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
 
-  createdByUser User @relation("UserDeductionMasters", fields: [createdBy], references: [id])
-  variables DeductionVariable[]
+  createdByUser  User                @relation("UserDeductionMasters", fields: [createdBy], references: [id])
+  variables      DeductionVariable[]
   billDeductions BillDeduction[]
 }
 
 model DeductionVariable {
-  id       String @id @default(uuid())
-  masterId String
-  code     String
-  label    String
-  unitHint String?
+  id        String   @id @default(uuid())
+  masterId  String
+  code      String
+  label     String
+  unitHint  String?
   createdAt DateTime @default(now())
 
   master DeductionMaster @relation(fields: [masterId], references: [id])
@@ -337,14 +268,58 @@ model DeductionVariable {
 // GONI TYPES
 // =====================
 model GoniType {
-  id          String   @id @default(uuid())
-  name        String
+  id           String   @id @default(uuid())
+  name         String
   weightPerBag Float
-  isActive    Boolean  @default(true)
-  createdBy   String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  isActive     Boolean  @default(true)
+  createdBy    String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-  createdByUser User? @relation("UserGoniTypes", fields: [createdBy], references: [id])
-  bills Bill[]
+  createdByUser User?           @relation("UserGoniTypes", fields: [createdBy], references: [id])
+  bills         Bill[]
+  stocks        Stock[]         @relation("StockGoniType")
+  transfers     StockTransfer[]
+}
+
+// =====================
+// STOCK (VENDOR INVENTORY)
+// =====================
+model Stock {
+  id         String       @id @default(uuid())
+  vendorId   String
+  billId     String       @unique
+  weight     Float
+  unit       QuantityUnit
+  bagCount   Int
+  goniTypeId String?
+  status     StockStatus  @default(AVAILABLE)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  vendor   User      @relation("VendorStock", fields: [vendorId], references: [id])
+  bill     Bill      @relation(fields: [billId], references: [id])
+  goniType GoniType? @relation("StockGoniType", fields: [goniTypeId], references: [id])
+}
+
+// =====================
+// STOCK TRANSFER (VENDOR → ADMIN)
+// =====================
+model StockTransfer {
+  id            String              @id @default(uuid())
+  transferNo    String              @unique
+  vendorId      String
+  goniTypeId    String?
+  weight        Float?
+  unit          QuantityUnit?
+  shopName      String?
+  shopLocation  String
+  vehicalNumber String
+  bagCount      Int
+  status        StockTransferStatus @default(PENDING)
+  createdAt     DateTime            @default(now())
+  completedAt   DateTime?
+
+  vendor   User      @relation("VendorTransfers", fields: [vendorId], references: [id])
+  goniType GoniType? @relation(fields: [goniTypeId], references: [id])
 }
