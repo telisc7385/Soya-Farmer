@@ -69,12 +69,7 @@ router.patch(
   toggleDeductionMaster,
 );
 
-router.get(
-  "/deductions",
-  authMiddleware,
-  authorize("ADMIN"),
-  listDeductionMasters,
-);
+router.get("/deductions", authMiddleware, listDeductionMasters);
 
 router.post(
   "/goni-types",
@@ -92,7 +87,7 @@ router.put(
   updateGoniType,
 );
 
-router.get("/goni-types", authMiddleware, authorize("ADMIN"), listGoniTypes);
+router.get("/goni-types", authMiddleware, listGoniTypes);
 
 // =====================
 // STOCK TRANSFER ROUTES (ADMIN)
