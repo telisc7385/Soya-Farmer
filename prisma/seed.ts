@@ -30,8 +30,8 @@ async function main() {
     console.log("Admin already exists");
   }
 
-  // Seed one production-grade deduction master (formula based)
-  const deductionName = "Market Fee";
+  // Seed one formula deduction master
+  const deductionName = "Moisture Deduction";
   const existingDeduction = await prisma.deductionMaster.findFirst({
     where: { name: deductionName },
   });
@@ -41,19 +41,22 @@ async function main() {
       data: {
         name: deductionName,
         type: "FORMULA",
-        formulaExpression: "grossAmount * ratePercent / 100",
+        formulaExpression: "moisture * dagi * mati",
+        variableValues: ["10*2*2", "10*2*3"],
         createdBy: admin.id,
         variables: {
           create: [
             {
-              code: "ratePercent",
-              label: "Rate (%)",
-              unitHint: "%",
+              code: "moisture",
+              label: "Moisture %",
             },
             {
-              code: "grossAmount",
-              label: "Gross Amount",
-              unitHint: "INR",
+              code: "dagi",
+              label: "Dagi",
+            },
+            {
+              code: "mati",
+              label: "Mati/Kadi",
             },
           ],
         },
@@ -67,7 +70,7 @@ async function main() {
   }
 
   // Seed one production-grade goni type
-  const goniName = "Standard Jute Bag";
+  const goniName = "Plastic Poti";
   const existingGoni = await prisma.goniType.findFirst({
     where: { name: goniName },
   });

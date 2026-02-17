@@ -14,6 +14,11 @@ import {
   listGoniTypes,
   updateGoniType,
 } from "../controllers/admin/goniType.controller";
+import {
+  changeQualityRateStatus,
+  listAllQualityRates,
+  saveQualityRate,
+} from "../controllers/qualityRate.controller";
 import * as transferController from "../controllers/stockTransfer.controller";
 import { validateRequest } from "../middleware/validateRequest.middleware";
 import {
@@ -26,6 +31,7 @@ import {
   toggleDeductionMasterSchema,
   createGoniTypeSchema,
   updateGoniTypeSchema,
+  saveQualityRateSchema,
 } from "../validations/admin.validation";
 import { updateTransferSchema } from "../validations/stock.validation";
 const router = Router();
@@ -89,6 +95,28 @@ router.put(
 
 router.get("/goni-types", authMiddleware, listGoniTypes);
 
+router.post(
+  "/quality-rates",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateRequest(saveQualityRateSchema),
+  saveQualityRate,
+);
+
+router.get(
+  "/quality-rates",
+  authMiddleware,
+  authorize("ADMIN"),
+  listAllQualityRates,
+);
+
+router.put(
+  "/quality-rates/:qualityId",
+  authMiddleware,
+  authorize("ADMIN"),
+  changeQualityRateStatus,
+);
+
 // =====================
 // STOCK TRANSFER ROUTES (ADMIN)
 // =====================
@@ -99,15 +127,6 @@ router.get(
   authMiddleware,
   authorize("ADMIN"),
   transferController.getAdminTransfers,
-);
-
-// update transfer
-router.put(
-  "/transfers/:transferId/update",
-  authMiddleware,
-  authorize("ADMIN"),
-  validateRequest(updateTransferSchema),
-  transferController.completeTransfer,
 );
 
 // Complete transfer

@@ -10,7 +10,14 @@ export const createDeductionMaster = async (
   next: NextFunction,
 ) => {
   try {
-    const { name, type, baseAmount, formulaExpression, variables = [] } = req.body;
+    const {
+      name,
+      type,
+      baseAmount,
+      formulaExpression,
+      variableValues,
+      variables = [],
+    } = req.body;
 
     if (!req.user) throw new AppError("Unauthorized", 401);
 
@@ -20,6 +27,15 @@ export const createDeductionMaster = async (
     if (type === "FORMULA" && !formulaExpression) {
       throw new AppError("formulaExpression is required for FORMULA deductions", 400);
     }
+    if (type === "FORMULA") {
+      const existingFormula = await prisma.deductionMaster.findFirst({
+        where: { type: "FORMULA" },
+        select: { id: true },
+      });
+      if (existingFormula) {
+        throw new AppError("Only one FORMULA deduction master is allowed", 400);
+      }
+    }
 
     const master = await prisma.$transaction(async (tx) => {
       const created = await tx.deductionMaster.create({
@@ -28,6 +44,7 @@ export const createDeductionMaster = async (
           type,
           baseAmount,
           formulaExpression,
+          variableValues,
           createdBy: req.user!.id,
         },
       });
@@ -59,7 +76,14 @@ export const updateDeductionMaster = async (
 ) => {
   try {
     const { masterId } = req.params;
-    const { name, type, baseAmount, formulaExpression, variables = [] } = req.body;
+    const {
+      name,
+      type,
+      baseAmount,
+      formulaExpression,
+      variableValues,
+      variables = [],
+    } = req.body;
 
     const existing = await prisma.deductionMaster.findUnique({
       where: { id: masterId },
@@ -73,6 +97,18 @@ export const updateDeductionMaster = async (
     if (type === "FORMULA" && !formulaExpression) {
       throw new AppError("formulaExpression is required for FORMULA deductions", 400);
     }
+    if (type === "FORMULA") {
+      const existingFormula = await prisma.deductionMaster.findFirst({
+        where: {
+          type: "FORMULA",
+          id: { not: masterId },
+        },
+        select: { id: true },
+      });
+      if (existingFormula) {
+        throw new AppError("Only one FORMULA deduction master is allowed", 400);
+      }
+    }
 
     await prisma.$transaction(async (tx) => {
       await tx.deductionMaster.update({
@@ -82,6 +118,7 @@ export const updateDeductionMaster = async (
           type,
           baseAmount,
           formulaExpression,
+          variableValues,
         },
       });
 

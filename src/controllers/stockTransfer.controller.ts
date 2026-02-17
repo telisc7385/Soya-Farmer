@@ -233,8 +233,12 @@ export const completeTransfer = async (
       orderBy: { createdAt: "asc" },
     });
 
-    let remainingWeight = transfer.weight;
-    let remainingBags = transfer.bagCount;
+    let remainingWeight = transfer.weight || 0;
+    let remainingBags = transfer.bagCount || 0;
+
+    if (remainingWeight <= 0 || remainingBags <= 0) {
+      throw new AppError("Transfer has no weight or bag count to process", 400);
+    }
 
     // Check if enough stock is available
     const totalAvailableWeight = availableStocks.reduce(
@@ -311,7 +315,10 @@ export const updateTransfer = async (
     const { weight, unit } = req.body;
 
     if (weight === undefined && unit === undefined) {
-      throw new AppError("At least one field (weight or unit) is required", 400);
+      throw new AppError(
+        "At least one field (weight or unit) is required",
+        400,
+      );
     }
 
     const transfer = await prisma.stockTransfer.findFirst({
@@ -323,10 +330,7 @@ export const updateTransfer = async (
     }
 
     if (transfer.status !== "PENDING") {
-      throw new AppError(
-        "Only pending transfers can be updated",
-        400,
-      );
+      throw new AppError("Only pending transfers can be updated", 400);
     }
 
     const updatedTransfer = await prisma.stockTransfer.update({

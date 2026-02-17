@@ -19,6 +19,9 @@ export const createDeductionMasterSchema = Joi.object({
     then: Joi.required(),
     otherwise: Joi.forbidden(),
   }),
+  variableValues: Joi.array()
+    .items(Joi.alternatives().try(Joi.number(), Joi.string().trim()))
+    .optional(),
   variables: Joi.array().items(deductionVariableSchema).optional(),
 });
 
@@ -35,6 +38,9 @@ export const updateDeductionMasterSchema = Joi.object({
     then: Joi.required(),
     otherwise: Joi.forbidden(),
   }),
+  variableValues: Joi.array()
+    .items(Joi.alternatives().try(Joi.number(), Joi.string().trim()))
+    .optional(),
   variables: Joi.array().items(deductionVariableSchema).optional(),
 });
 
@@ -51,4 +57,10 @@ export const updateGoniTypeSchema = Joi.object({
   name: Joi.string().trim().required(),
   weightPerBag: Joi.number().positive().required(),
   isActive: Joi.boolean().required(),
+});
+
+export const saveQualityRateSchema = Joi.object({
+  quality: Joi.string().trim().max(100).required(),
+  rate: Joi.number().positive().required(),
+  isActive: Joi.boolean().optional(),
 });

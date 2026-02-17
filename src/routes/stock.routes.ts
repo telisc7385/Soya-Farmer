@@ -4,6 +4,7 @@ import { authorize } from "../middleware/role.middleware";
 import { validateRequest } from "../middleware/validateRequest.middleware";
 import * as stockController from "../controllers/stock.controller";
 import * as transferController from "../controllers/stockTransfer.controller";
+import { listActiveQualityRates } from "../controllers/qualityRate.controller";
 import { createTransferSchema } from "../validations/stock.validation";
 
 const router = Router();
@@ -27,6 +28,14 @@ router.get(
   authMiddleware,
   authorize("VENDOR"),
   transferController.getVendorTransfers,
+);
+
+// Get quality-wise rates
+router.get(
+  "/quality-rates",
+  authMiddleware,
+  authorize("VENDOR"),
+  listActiveQualityRates,
 );
 
 // Get all stocks (vendor's own)
