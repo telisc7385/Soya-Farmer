@@ -4,6 +4,7 @@ import { createdResponse, successResponse } from "../utils/response";
 import { Response, NextFunction, Request } from "express";
 import { AuthRequest } from "../middleware/auth.middleware";
 import { checkFarmer } from "../repositories/checkFarmer.repository";
+import { saveUploadedFile } from "../utils/upload";
 
 // Farmer Controllers
 export const createFarmer = async (
@@ -162,60 +163,6 @@ export const updateFarmer = async (
   }
 };
 
-// Farmer Documents
-export const addFarmerDocument = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const { farmerId, type } = req.body;
-
-    if (!req.file) {
-      throw new AppError("Document image is required", 400);
-    }
-
-    await checkFarmer(farmerId);
-
-    const imageUrl = `/uploads/farmers/documents/${req.file.filename}`;
-
-    const doc = await prisma.farmerDocument.create({
-      data: {
-        farmerId,
-        type,
-        imageUrl,
-      },
-    });
-
-    createdResponse(res, doc, "Farmer document uploaded");
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const checkDocumentsExistence = async (
-  req: Request,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const { farmerId } = req.params;
-    await checkFarmer(farmerId);
-
-    const docCount = await prisma.farmerDocument.count({
-      where: { farmerId },
-    });
-
-    if (docCount > 0) {
-      throw new AppError("Documents already exist for this farmer", 400);
-    }
-
-    next();
-  } catch (error) {
-    throw new AppError((error as Error).message, 400);
-  }
-};
-
 const REQUIRED_DOCS = ["AADHAAR", "PAN", "DRIVING_LICENSE"] as const;
 
 export const addFarmerAllDocuments = async (
@@ -239,12 +186,26 @@ export const addFarmerAllDocuments = async (
     }
 
     await checkFarmer(farmerId);
+    const docCount = await prisma.farmerDocument.count({
+      where: { farmerId },
+    });
 
-    const data = REQUIRED_DOCS.map((type) => ({
-      farmerId,
-      type,
-      imageUrl: `/uploads/farmers/documents/${files[type][0].filename}`,
-    }));
+    if (docCount > 0) {
+      throw new AppError("Documents already exist for this farmer", 400);
+    }
+
+    const data = [];
+    for (const type of REQUIRED_DOCS) {
+      const { publicUrl } = await saveUploadedFile(
+        files[type][0],
+        "farmers/documents",
+      );
+      data.push({
+        farmerId,
+        type,
+        imageUrl: publicUrl,
+      });
+    }
 
     const createdDocs = await prisma.farmerDocument.createMany({
       data,
@@ -288,7 +249,10 @@ export const updateFarmerDocument = async (
       throw new AppError("Document file is required", 400);
     }
 
-    const imageUrl = `/uploads/farmers/documents/${req.file.filename}`;
+    const { publicUrl: imageUrl } = await saveUploadedFile(
+      req.file,
+      "farmers/documents",
+    );
 
     const doc = await prisma.farmerDocument.update({
       where: { id: documentId },
@@ -325,7 +289,10 @@ export const addFarmerLand = async (
       }
     }
 
-    const documentUrl = `/uploads/farmers/lands/${req.file.filename}`;
+    const { publicUrl: documentUrl } = await saveUploadedFile(
+      req.file,
+      "farmers/lands",
+    );
 
     const land = await prisma.farmerLand.create({
       data: {
@@ -381,7 +348,8 @@ export const updateFarmerLand = async (
     if (district !== undefined) updateData.district = district;
 
     if (req.file) {
-      updateData.documentUrl = `/uploads/farmers/lands/${req.file.filename}`;
+      const { publicUrl } = await saveUploadedFile(req.file, "farmers/lands");
+      updateData.documentUrl = publicUrl;
     }
 
     const land = await prisma.farmerLand.update({
@@ -411,7 +379,10 @@ export const addFarmerBank = async (
 
     await checkFarmer(farmerId);
 
-    const passbookImage = `/uploads/farmers/documents/${req.file.filename}`;
+    const { publicUrl: passbookImage } = await saveUploadedFile(
+      req.file,
+      "farmers/bank",
+    );
 
     const existingBank = await prisma.farmerBank.findFirst({
       where: { farmerId, accountNo },
@@ -469,7 +440,8 @@ export const updateFarmerBank = async (
     let passbookImage;
 
     if (req.file) {
-      passbookImage = `/uploads/farmers/documents/${req.file.filename}`;
+      const { publicUrl } = await saveUploadedFile(req.file, "farmers/bank");
+      passbookImage = publicUrl;
     }
 
     const bank = await prisma.farmerBank.update({

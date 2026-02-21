@@ -4,7 +4,7 @@ import * as farmerControllers from "../controllers/farmer.controller";
 import { validateRequest } from "../middleware/validateRequest.middleware";
 import { authMiddleware } from "../middleware/auth.middleware";
 import * as farmerValidation from "../validations/farmer.validation";
-import { upload } from "../middleware/multer.middleware";
+import upload from "../middleware/multer.middleware";
 
 const router = Router();
 
@@ -25,7 +25,6 @@ router.put("/update/:farmerId", authMiddleware, farmerControllers.updateFarmer);
 router.post(
   "/documents/:farmerId",
   authMiddleware,
-  farmerControllers.checkDocumentsExistence,
   upload.fields([
     { name: "AADHAAR", maxCount: 1 },
     { name: "PAN", maxCount: 1 },
@@ -34,13 +33,6 @@ router.post(
   farmerControllers.addFarmerAllDocuments,
 );
 
-router.post(
-  "/document",
-  authMiddleware,
-  upload.single("document"), // 👈 file field name
-  validateRequest(farmerValidation.farmerDocumentSchema),
-  farmerControllers.addFarmerDocument,
-);
 router.get(
   "/document/:farmerId",
   authMiddleware,
