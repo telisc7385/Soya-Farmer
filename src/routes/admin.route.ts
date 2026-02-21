@@ -20,7 +20,10 @@ import {
   saveQualityRate,
 } from "../controllers/qualityRate.controller";
 import * as transferController from "../controllers/stockTransfer.controller";
-import { validateRequest } from "../middleware/validateRequest.middleware";
+import {
+  validateRequest,
+  validateQuery,
+} from "../middleware/validateRequest.middleware";
 import {
   payFarmerSchema,
   rejectFarmerSchema,
@@ -34,6 +37,8 @@ import {
   saveQualityRateSchema,
 } from "../validations/admin.validation";
 import { updateTransferSchema } from "../validations/stock.validation";
+import { exportReportSchema } from "../validations/report.validation";
+import { exportAdminReport } from "../controllers/adminReport.controller";
 const router = Router();
 
 router.post(
@@ -152,6 +157,17 @@ router.get(
   authMiddleware,
   authorize("ADMIN"),
   transferController.getAdminStockSummary,
+);
+
+// =====================
+// ADMIN REPORTS (CSV EXPORT)
+// =====================
+router.get(
+  "/reports/:reportType/export",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateQuery(exportReportSchema),
+  exportAdminReport,
 );
 
 export default router;
