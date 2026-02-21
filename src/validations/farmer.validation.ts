@@ -14,19 +14,6 @@ export const createFarmerSchema = Joi.object({
   district: Joi.string().optional(),
 });
 
-export const farmerDocumentSchema = Joi.object({
-  farmerId: Joi.string().uuid().required(),
-  type: Joi.string()
-    .valid(
-      "AADHAAR",
-      "PAN",
-      "DRIVING_LICENSE",
-      "LAND_712",
-      "BLOOD_RELATION_712",
-    )
-    .required(),
-});
-
 export const farmerLandSchema = Joi.object({
   landType: Joi.string().valid("OWN", "BLOOD_RELATION").required(),
   area: Joi.number().positive().required(),
