@@ -48,52 +48,6 @@ const recalcTotals = async (billId: string) => {
   };
 };
 
-const buildBaselineInputs = (master: {
-  variableValues: unknown;
-  variables: { code: string }[];
-}) => {
-  const rawValues = master.variableValues;
-  if (rawValues == null) return null;
-
-  if (!Array.isArray(rawValues)) {
-    throw new AppError("Invalid variableValues configuration", 400);
-  }
-  if (rawValues.length === 0) return null;
-
-  let numbers: number[] | null = null;
-  const allNumbers = rawValues.every((item) => typeof item === "number");
-  if (allNumbers) {
-    numbers = rawValues as number[];
-  } else if (rawValues.length >= 1 && typeof rawValues[0] === "string") {
-    const parts = (rawValues[0] as string)
-      .split("*")
-      .map((part) => part.trim())
-      .filter(Boolean);
-    numbers = parts.map((part) => Number(part));
-  } else if (rawValues.length >= 1 && typeof rawValues[0] === "number") {
-    numbers = [rawValues[0] as number];
-  }
-
-  if (!numbers || numbers.some((value) => Number.isNaN(value))) {
-    throw new AppError("Invalid variableValues configuration", 400);
-  }
-
-  if (numbers.length !== master.variables.length) {
-    throw new AppError(
-      "variableValues count must match deduction variables",
-      400,
-    );
-  }
-
-  return master.variables.reduce<Record<string, number>>(
-    (acc, variable, idx) => {
-      acc[variable.code] = numbers![idx];
-      return acc;
-    },
-    {},
-  );
-};
-
 export const createDraftBill = async (
   req: AuthRequest,
   res: Response,
@@ -145,6 +99,7 @@ export const calculateDeductions = async (
   next: NextFunction,
 ) => {
   try {
+    debugger;
     const vendorId = req.user?.id;
     if (!vendorId) throw new AppError("Unauthorized", 401);
 
@@ -153,63 +108,133 @@ export const calculateDeductions = async (
 
     const { deductions } = req.body;
 
-    await prisma.$transaction(async (tx) => {
-      await tx.billDeduction.deleteMany({ where: { billId } });
+    const masterIds = deductions.map((d: any) => d.masterId);
 
-      for (const deduction of deductions) {
-        const master = await tx.deductionMaster.findFirst({
-          where: { id: deduction.masterId, isActive: true },
-          include: { variables: { orderBy: { createdAt: "asc" } } },
-        });
+    const masters = await prisma.deductionMaster.findMany({
+      where: {
+        id: { in: masterIds },
+        isActive: true,
+      },
+      include: {
+        variables: { orderBy: { createdAt: "asc" } },
+      },
+    });
 
-        if (!master) {
-          throw new AppError("Deduction master not found or inactive", 404);
-        }
+    const masterMap = new Map(masters.map((m) => [m.id, m]));
 
-        let value = 0;
-        let payload: Record<string, number> | undefined;
+    const recordsToCreate = [];
 
-        if (master.type === "FIXED") {
-          value = master.baseAmount ?? 0;
-        } else {
-          const inputs = deduction.inputs || {};
-          for (const variable of master.variables) {
-            if (typeof inputs[variable.code] !== "number") {
-              throw new AppError(`Missing input for ${variable.code}`, 400);
+    const parseDefaultInputs = (master: any) => {
+      const raw = master?.variableValues;
+      if (!raw) return undefined;
+
+      const normalizeRecord = (record: Record<string, unknown>) => {
+        const normalized: Record<string, number> = {};
+        for (const variable of master.variables || []) {
+          const value = record[variable.code];
+          if (typeof value === "number") {
+            normalized[variable.code] = value;
+          } else if (typeof value === "string" && value.trim() !== "") {
+            const parsed = Number(value);
+            if (!Number.isNaN(parsed)) {
+              normalized[variable.code] = parsed;
             }
           }
-          payload = inputs;
-          const baselineInputs = buildBaselineInputs(master);
-          const evalInputs = baselineInputs
-            ? master.variables.reduce<Record<string, number>>(
-                (acc, variable) => {
-                  const baseValue = baselineInputs[variable.code] ?? 0;
-                  const inputValue = inputs[variable.code] ?? 0;
-                  const delta = inputValue - baseValue;
-                  acc[variable.code] = delta > 0 ? delta : 0;
-                  return acc;
-                },
-                {},
-              )
-            : inputs;
+        }
+        return Object.keys(normalized).length ? normalized : undefined;
+      };
 
-          value = formulaEngine.evaluate(
-            master.formulaExpression || "",
-            evalInputs,
-          );
+      if (typeof raw === "object" && !Array.isArray(raw)) {
+        return normalizeRecord(raw as Record<string, unknown>);
+      }
+
+      if (Array.isArray(raw) && raw.length) {
+        const first = raw[0];
+        if (typeof first === "object" && first !== null) {
+          return normalizeRecord(first as Record<string, unknown>);
+        }
+        if (typeof first === "string") {
+          const matches = first.match(/-?\d+(\.\d+)?/g) || [];
+          if (!matches.length) return undefined;
+          const values = matches.map((v) => Number(v));
+          const mapped: Record<string, number> = {};
+          for (let i = 0; i < master.variables.length; i += 1) {
+            if (typeof values[i] === "number" && !Number.isNaN(values[i])) {
+              mapped[master.variables[i].code] = values[i];
+            }
+          }
+          return Object.keys(mapped).length ? mapped : undefined;
+        }
+        if (typeof first === "number") {
+          const mapped: Record<string, number> = {};
+          if (master.variables?.[0]) {
+            mapped[master.variables[0].code] = first;
+          }
+          return Object.keys(mapped).length ? mapped : undefined;
+        }
+      }
+
+      return undefined;
+    };
+
+    for (const deduction of deductions) {
+      const master = masterMap.get(deduction.masterId);
+
+      if (!master) {
+        throw new AppError("Deduction master not found or inactive", 404);
+      }
+
+      let value = 0;
+      let payload;
+
+      if (master.type === "FIXED") {
+        value = master.baseAmount ?? 0;
+      } else {
+        const inputs = deduction.inputs || {};
+        for (const variable of master.variables) {
+          if (typeof inputs[variable.code] !== "number") {
+            throw new AppError(`Missing input for ${variable.code}`, 400);
+          }
         }
 
-        await tx.billDeduction.create({
-          data: {
-            billId,
-            masterId: master.id,
-            label: master.name,
-            value,
-            payload,
-          },
-        });
+        payload = inputs;
+
+        const userValue = formulaEngine.evaluate(
+          master.formulaExpression || "",
+          inputs,
+        );
+
+        const defaultInputs = parseDefaultInputs(master);
+        if (defaultInputs) {
+          try {
+            const defaultValue = formulaEngine.evaluate(
+              master.formulaExpression || "",
+              defaultInputs,
+            );
+            value = Math.max(0, userValue - defaultValue);
+          } catch {
+            value = userValue;
+          }
+        } else {
+          value = userValue;
+        }
       }
-    });
+
+      recordsToCreate.push({
+        billId,
+        masterId: master.id,
+        label: master.name,
+        value,
+        payload,
+      });
+    }
+
+    await prisma.$transaction([
+      // prisma.billDeduction.deleteMany({ where: { billId } }),
+      prisma.billDeduction.createMany({
+        data: recordsToCreate,
+      }),
+    ]);
 
     const totals = await recalcTotals(billId);
 

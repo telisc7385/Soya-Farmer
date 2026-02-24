@@ -73,6 +73,7 @@ model User {
   password   String
   role       Role
   isActive   Boolean  @default(true)
+  vendorRate Float    @default(0)
   createdAt  DateTime @default(now())
   villageAdd String?
   taluka     String?

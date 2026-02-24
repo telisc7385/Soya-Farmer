@@ -51,6 +51,7 @@ export const register = async (
       role = "VENDOR",
       name,
       email,
+      vendorRate,
       villageAdd,
       taluka,
       district,
@@ -76,6 +77,7 @@ export const register = async (
         district,
         password: hashedPassword,
         role,
+        ...(vendorRate !== undefined ? { vendorRate } : {}),
       },
     });
 
@@ -98,7 +100,7 @@ export const updateVendor = async (
 ) => {
   try {
     const { id } = req.params; // vendor id
-    const { phone, name, villageAdd, taluka, district } = req.body;
+    const { phone, name, villageAdd, taluka, district, vendorRate } = req.body;
 
     // Check if vendor exists
     const existingVendor = await prisma.user.findUnique({
@@ -112,7 +114,14 @@ export const updateVendor = async (
     // Update vendor
     const updatedVendor = await prisma.user.update({
       where: { id },
-      data: { name, phone, villageAdd, taluka, district },
+      data: {
+        name,
+        phone,
+        villageAdd,
+        taluka,
+        district,
+        ...(vendorRate !== undefined ? { vendorRate } : {}),
+      },
     });
 
     // Remove password from response
@@ -193,6 +202,7 @@ export const getVendorList = async (
         name: true,
         email: true,
         phone: true,
+        vendorRate: true,
         villageAdd: true,
         taluka: true,
         district: true,
@@ -235,6 +245,7 @@ export const getVendorById = async (
         name: true,
         email: true,
         phone: true,
+        vendorRate: true,
         villageAdd: true,
         taluka: true,
         district: true,
