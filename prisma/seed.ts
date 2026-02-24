@@ -42,7 +42,7 @@ async function main() {
         name: deductionName,
         type: "FORMULA",
         formulaExpression: "moisture * dagi * mati",
-        variableValues: ["10*2*2", "10*2*3"],
+        variableValues: ["10*2*2"],
         createdBy: admin.id,
         variables: {
           create: [

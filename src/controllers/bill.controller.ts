@@ -2,6 +2,7 @@ import { Request, Response, NextFunction } from "express";
 import prisma from "../database/prisma";
 import { successResponse } from "../utils/response";
 import { AppError } from "../core/appError";
+import { attachDeductionDetails } from "../utils/deductionDetails";
 
 export const getBills = async (
   _req: Request,
@@ -34,14 +35,23 @@ export const getBillById = async (
       where: { id: req.params.billId },
       include: {
         farmer: true,
-        deductions: true,
+        deductions: {
+          include: {
+            master: {
+              include: {
+                variables: true,
+              },
+            },
+          },
+        },
         goniType: true,
       },
     });
 
     if (!bill) throw new AppError("Bill not found", 404);
 
-    successResponse(res, bill, "Bill details");
+    const billWithDetails = attachDeductionDetails(bill);
+    successResponse(res, billWithDetails, "Bill details");
   } catch (error) {
     next(error);
   }
