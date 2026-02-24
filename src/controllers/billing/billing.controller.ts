@@ -7,6 +7,7 @@ import { generateBillNo } from "../../utils/billNo";
 import { checkFarmer } from "../../repositories/checkFarmer.repository";
 import { formulaEngine } from "../../services/formulaEngine.service";
 import { roundTo } from "../../utils/number";
+import { attachDeductionDetails, parseDefaultInputs } from "../../utils/deductionDetails";
 
 const ensureDraftBill = async (billId: string, vendorId: string) => {
   const bill = await prisma.bill.findUnique({
@@ -123,59 +124,6 @@ export const calculateDeductions = async (
     const masterMap = new Map(masters.map((m) => [m.id, m]));
 
     const recordsToCreate = [];
-
-    const parseDefaultInputs = (master: any) => {
-      const raw = master?.variableValues;
-      if (!raw) return undefined;
-
-      const normalizeRecord = (record: Record<string, unknown>) => {
-        const normalized: Record<string, number> = {};
-        for (const variable of master.variables || []) {
-          const value = record[variable.code];
-          if (typeof value === "number") {
-            normalized[variable.code] = value;
-          } else if (typeof value === "string" && value.trim() !== "") {
-            const parsed = Number(value);
-            if (!Number.isNaN(parsed)) {
-              normalized[variable.code] = parsed;
-            }
-          }
-        }
-        return Object.keys(normalized).length ? normalized : undefined;
-      };
-
-      if (typeof raw === "object" && !Array.isArray(raw)) {
-        return normalizeRecord(raw as Record<string, unknown>);
-      }
-
-      if (Array.isArray(raw) && raw.length) {
-        const first = raw[0];
-        if (typeof first === "object" && first !== null) {
-          return normalizeRecord(first as Record<string, unknown>);
-        }
-        if (typeof first === "string") {
-          const matches = first.match(/-?\d+(\.\d+)?/g) || [];
-          if (!matches.length) return undefined;
-          const values = matches.map((v) => Number(v));
-          const mapped: Record<string, number> = {};
-          for (let i = 0; i < master.variables.length; i += 1) {
-            if (typeof values[i] === "number" && !Number.isNaN(values[i])) {
-              mapped[master.variables[i].code] = values[i];
-            }
-          }
-          return Object.keys(mapped).length ? mapped : undefined;
-        }
-        if (typeof first === "number") {
-          const mapped: Record<string, number> = {};
-          if (master.variables?.[0]) {
-            mapped[master.variables[0].code] = first;
-          }
-          return Object.keys(mapped).length ? mapped : undefined;
-        }
-      }
-
-      return undefined;
-    };
 
     for (const deduction of deductions) {
       const master = masterMap.get(deduction.masterId);
@@ -298,12 +246,21 @@ export const previewDraft = async (
       where: { id: billId },
       include: {
         farmer: true,
-        deductions: true,
+        deductions: {
+          include: {
+            master: {
+              include: {
+                variables: true,
+              },
+            },
+          },
+        },
         goniType: true,
       },
     });
 
-    successResponse(res, { bill: response, totals }, "Bill preview");
+    const billWithDetails = attachDeductionDetails(response);
+    successResponse(res, { bill: billWithDetails, totals }, "Bill preview");
   } catch (error) {
     next(error);
   }
