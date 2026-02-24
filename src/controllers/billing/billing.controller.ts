@@ -7,7 +7,10 @@ import { generateBillNo } from "../../utils/billNo";
 import { checkFarmer } from "../../repositories/checkFarmer.repository";
 import { formulaEngine } from "../../services/formulaEngine.service";
 import { roundTo } from "../../utils/number";
-import { attachDeductionDetails, parseDefaultInputs } from "../../utils/deductionDetails";
+import {
+  attachDeductionDetails,
+  parseDefaultInputs,
+} from "../../utils/deductionDetails";
 
 const ensureDraftBill = async (billId: string, vendorId: string) => {
   const bill = await prisma.bill.findUnique({
@@ -178,7 +181,7 @@ export const calculateDeductions = async (
     }
 
     await prisma.$transaction([
-      // prisma.billDeduction.deleteMany({ where: { billId } }),
+      prisma.billDeduction.deleteMany({ where: { billId } }),
       prisma.billDeduction.createMany({
         data: recordsToCreate,
       }),
