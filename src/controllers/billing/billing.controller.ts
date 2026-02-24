@@ -48,6 +48,52 @@ const recalcTotals = async (billId: string) => {
   };
 };
 
+const buildBaselineInputs = (master: {
+  variableValues: unknown;
+  variables: { code: string }[];
+}) => {
+  const rawValues = master.variableValues;
+  if (rawValues == null) return null;
+
+  if (!Array.isArray(rawValues)) {
+    throw new AppError("Invalid variableValues configuration", 400);
+  }
+  if (rawValues.length === 0) return null;
+
+  let numbers: number[] | null = null;
+  const allNumbers = rawValues.every((item) => typeof item === "number");
+  if (allNumbers) {
+    numbers = rawValues as number[];
+  } else if (rawValues.length >= 1 && typeof rawValues[0] === "string") {
+    const parts = (rawValues[0] as string)
+      .split("*")
+      .map((part) => part.trim())
+      .filter(Boolean);
+    numbers = parts.map((part) => Number(part));
+  } else if (rawValues.length >= 1 && typeof rawValues[0] === "number") {
+    numbers = [rawValues[0] as number];
+  }
+
+  if (!numbers || numbers.some((value) => Number.isNaN(value))) {
+    throw new AppError("Invalid variableValues configuration", 400);
+  }
+
+  if (numbers.length !== master.variables.length) {
+    throw new AppError(
+      "variableValues count must match deduction variables",
+      400,
+    );
+  }
+
+  return master.variables.reduce<Record<string, number>>(
+    (acc, variable, idx) => {
+      acc[variable.code] = numbers![idx];
+      return acc;
+    },
+    {},
+  );
+};
+
 export const createDraftBill = async (
   req: AuthRequest,
   res: Response,
@@ -113,7 +159,7 @@ export const calculateDeductions = async (
       for (const deduction of deductions) {
         const master = await tx.deductionMaster.findFirst({
           where: { id: deduction.masterId, isActive: true },
-          include: { variables: true },
+          include: { variables: { orderBy: { createdAt: "asc" } } },
         });
 
         if (!master) {
@@ -133,9 +179,23 @@ export const calculateDeductions = async (
             }
           }
           payload = inputs;
+          const baselineInputs = buildBaselineInputs(master);
+          const evalInputs = baselineInputs
+            ? master.variables.reduce<Record<string, number>>(
+                (acc, variable) => {
+                  const baseValue = baselineInputs[variable.code] ?? 0;
+                  const inputValue = inputs[variable.code] ?? 0;
+                  const delta = inputValue - baseValue;
+                  acc[variable.code] = delta > 0 ? delta : 0;
+                  return acc;
+                },
+                {},
+              )
+            : inputs;
+
           value = formulaEngine.evaluate(
             master.formulaExpression || "",
-            inputs,
+            evalInputs,
           );
         }
 
