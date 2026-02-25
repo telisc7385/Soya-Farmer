@@ -13,7 +13,10 @@ export const calculateDeductionSchema = Joi.object({
     .items(
       Joi.object({
         masterId: Joi.string().uuid().required(),
-        inputs: Joi.object()
+        actualInputs: Joi.object()
+          .pattern(Joi.string(), Joi.number().min(0))
+          .optional(),
+        customInputs: Joi.object()
           .pattern(Joi.string(), Joi.number().min(0))
           .optional(),
       }),

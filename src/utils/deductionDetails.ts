@@ -77,50 +77,55 @@ export const attachDeductionDetails = (bill: any) => {
     const master = deduction.master;
     if (!master || master.type !== "FORMULA") return deduction;
 
-    const actualInputs =
+    const payload =
       typeof deduction.payload === "object" && deduction.payload !== null
-        ? normalizeInputs(master, deduction.payload as Record<string, unknown>)
+        ? (deduction.payload as Record<string, unknown>)
         : undefined;
-    if (!actualInputs) return deduction;
+    if (!payload) return deduction;
 
-    const defaultInputs = parseDefaultInputs(master);
+    const actualInputs = payload.actualInputs
+      ? normalizeInputs(master, payload.actualInputs as Record<string, unknown>)
+      : undefined;
+    const customInputs = payload.customInputs
+      ? normalizeInputs(master, payload.customInputs as Record<string, unknown>)
+      : undefined;
+    const deductedInputs = payload.deductedInputs
+      ? normalizeInputs(master, payload.deductedInputs as Record<string, unknown>)
+      : undefined;
+    if (!actualInputs && !customInputs && !deductedInputs) return deduction;
 
     const variableDeductions: RecordMap = {};
     const variableDetails: Array<{
       code: string;
       label?: string;
       unitHint?: string | null;
-      allowed: number;
       actual: number;
-      delta: number;
+      custom: number;
+      deducted: number;
     }> = [];
-    if (defaultInputs) {
-      for (const variable of master.variables || []) {
-        const actual = actualInputs[variable.code] ?? 0;
-        const allowed = defaultInputs[variable.code] ?? 0;
-        const delta = actual - allowed;
-        if (delta > 0) {
-          variableDeductions[variable.code] = delta;
-        }
-        variableDetails.push({
-          code: variable.code,
-          label: variable.label,
-          unitHint: variable.unitHint,
-          allowed,
-          actual,
-          delta,
-        });
+    for (const variable of master.variables || []) {
+      const actual = actualInputs?.[variable.code] ?? 0;
+      const custom = customInputs?.[variable.code] ?? 0;
+      const deducted = deductedInputs?.[variable.code] ?? 0;
+      if (deducted > 0) {
+        variableDeductions[variable.code] = deducted;
       }
+      variableDetails.push({
+        code: variable.code,
+        label: variable.label,
+        unitHint: variable.unitHint,
+        actual,
+        custom,
+        deducted,
+      });
     }
 
     return {
-      // ...deduction,
-      // allowedValue,
-      // actualValue,
       actualInputs,
-      defaultInputs,
+      customInputs,
+      deductedInputs,
       variableDeductions,
-      // variableDetails,
+      variableDetails,
     };
   });
 

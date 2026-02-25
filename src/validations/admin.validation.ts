@@ -21,7 +21,6 @@ export const createDeductionMasterSchema = Joi.object({
   }),
   variableValues: Joi.array()
     .items(Joi.alternatives().try(Joi.number(), Joi.string().trim()))
-    .max(1)
     .optional(),
   variables: Joi.array().items(deductionVariableSchema).optional(),
 });
@@ -41,7 +40,6 @@ export const updateDeductionMasterSchema = Joi.object({
   }),
   variableValues: Joi.array()
     .items(Joi.alternatives().try(Joi.number(), Joi.string().trim()))
-    .max(1)
     .optional(),
   variables: Joi.array().items(deductionVariableSchema).optional(),
 });

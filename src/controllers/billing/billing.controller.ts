@@ -7,10 +7,7 @@ import { generateBillNo } from "../../utils/billNo";
 import { checkFarmer } from "../../repositories/checkFarmer.repository";
 import { formulaEngine } from "../../services/formulaEngine.service";
 import { roundTo } from "../../utils/number";
-import {
-  attachDeductionDetails,
-  parseDefaultInputs,
-} from "../../utils/deductionDetails";
+import { attachDeductionDetails } from "../../utils/deductionDetails";
 
 const ensureDraftBill = async (billId: string, vendorId: string) => {
   const bill = await prisma.bill.findUnique({
@@ -103,12 +100,11 @@ export const calculateDeductions = async (
   next: NextFunction,
 ) => {
   try {
-    debugger;
     const vendorId = req.user?.id;
     if (!vendorId) throw new AppError("Unauthorized", 401);
 
     const { billId } = req.params;
-    await ensureDraftBill(billId, vendorId);
+    const bill = await ensureDraftBill(billId, vendorId);
 
     const { deductions } = req.body;
 
@@ -127,6 +123,7 @@ export const calculateDeductions = async (
     const masterMap = new Map(masters.map((m) => [m.id, m]));
 
     const recordsToCreate = [];
+    const deductionDetails = [];
 
     for (const deduction of deductions) {
       const master = masterMap.get(deduction.masterId);
@@ -136,39 +133,67 @@ export const calculateDeductions = async (
       }
 
       let value = 0;
-      let payload;
+      let payload: Record<string, any> = {};
+      let actualInputs;
+      let customInputs;
+      let deductedInputs;
 
       if (master.type === "FIXED") {
         value = master.baseAmount ?? 0;
       } else {
-        const inputs = deduction.inputs || {};
-        for (const variable of master.variables) {
-          if (typeof inputs[variable.code] !== "number") {
-            throw new AppError(`Missing input for ${variable.code}`, 400);
-          }
+        actualInputs = deduction.actualInputs || {};
+        customInputs = deduction.customInputs || {};
+        deductedInputs = {} as Record<string, number>;
+        const deductedAmounts: Record<string, number> = {};
+
+        const variableCodes =
+          master.variables?.length > 0
+            ? master.variables.map((v) => v.code)
+            : Array.from(
+                new Set([
+                  ...Object.keys(actualInputs),
+                  ...Object.keys(customInputs),
+                ]),
+              );
+
+        if (!variableCodes.length) {
+          throw new AppError("No inputs provided for formula deduction", 400);
         }
 
-        payload = inputs;
+        for (const code of variableCodes) {
+          if (typeof actualInputs[code] !== "number") {
+            throw new AppError(`Missing actual input for ${code}`, 400);
+          }
+          if (typeof customInputs[code] !== "number") {
+            throw new AppError(`Missing custom input for ${code}`, 400);
+          }
 
-        const userValue = formulaEngine.evaluate(
+          const extra =
+            (customInputs[code] as number) - (actualInputs[code] as number);
+
+          deductedInputs[code] = extra > 0 ? extra : 0;
+        }
+
+        payload = {
+          actualInputs,
+          customInputs,
+          deductedInputs,
+        };
+
+        const totalPercent = formulaEngine.evaluate(
           master.formulaExpression || "",
-          inputs,
+          deductedInputs,
         );
+        const safeTotalPercent = Math.max(0, totalPercent);
+        const grossAmount = bill.grossAmount ?? 0;
+        value = roundTo((grossAmount * safeTotalPercent) / 100);
 
-        const defaultInputs = parseDefaultInputs(master);
-        if (defaultInputs) {
-          try {
-            const defaultValue = formulaEngine.evaluate(
-              master.formulaExpression || "",
-              defaultInputs,
-            );
-            value = Math.max(0, userValue - defaultValue);
-          } catch {
-            value = userValue;
-          }
-        } else {
-          value = userValue;
+        for (const code of Object.keys(deductedInputs)) {
+          const percent = deductedInputs[code] ?? 0;
+          deductedAmounts[code] = roundTo((grossAmount * percent) / 100);
         }
+
+        payload.deductedAmounts = deductedAmounts;
       }
 
       recordsToCreate.push({
@@ -177,6 +202,19 @@ export const calculateDeductions = async (
         label: master.name,
         value,
         payload,
+      });
+
+      deductionDetails.push({
+        masterId: master.id,
+        label: master.name,
+        actualInputs,
+        customInputs,
+        deductedInputs,
+        deductedAmounts:
+          payload && typeof payload === "object"
+            ? (payload as any).deductedAmounts
+            : undefined,
+        deductedAmount: value,
       });
     }
 
@@ -189,7 +227,14 @@ export const calculateDeductions = async (
 
     const totals = await recalcTotals(billId);
 
-    successResponse(res, totals, "Deductions recalculated");
+    successResponse(
+      res,
+      {
+        totals,
+        deductions: deductionDetails,
+      },
+      "Deductions recalculated",
+    );
   } catch (error) {
     next(error);
   }
@@ -249,15 +294,7 @@ export const previewDraft = async (
       where: { id: billId },
       include: {
         farmer: true,
-        deductions: {
-          include: {
-            master: {
-              include: {
-                variables: true,
-              },
-            },
-          },
-        },
+        deductions: true,
         goniType: true,
       },
     });
