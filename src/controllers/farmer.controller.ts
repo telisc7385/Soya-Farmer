@@ -17,6 +17,7 @@ export const createFarmer = async (
       name,
       phone,
       aadhaarNo,
+      panNo,
       email,
       villageAdd,
       gutNumber,
@@ -54,17 +55,25 @@ export const createFarmer = async (
     let farmer;
 
     // ✅ create only if not exists
+    let profileUrl;
+    if (req.file) {
+      const uploaded = await saveUploadedFile(req.file, "farmers/profile");
+      profileUrl = uploaded.publicUrl;
+    }
+
     if (!existingFarmer) {
       farmer = await prisma.farmer.create({
         data: {
           name,
           phone,
           aadhaarNo,
+          panNo,
           email,
           villageAdd,
           gutNumber,
           taluka,
           district,
+          ...(profileUrl && { profileUrl }),
         },
       });
     } else {
