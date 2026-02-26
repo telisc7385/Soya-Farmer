@@ -57,7 +57,16 @@ export const createDraftBill = async (
   try {
     const vendorId = req.user?.id;
     if (!vendorId) throw new AppError("Unauthorized", 401);
-    const { farmerId, billDate, quantity, unit, rate } = req.body;
+    const {
+      farmerId,
+      billDate,
+      quantity,
+      unit,
+      rate,
+      vehicleNumber,
+      vehicleType,
+      driverName,
+    } = req.body;
 
     await checkFarmer(farmerId);
     const grossAmount = roundTo(quantity * rate);
@@ -74,6 +83,9 @@ export const createDraftBill = async (
         primaryUnit: unit,
         ratePerUnit: rate,
         grossAmount,
+        vehicleNumber,
+        vehicleType,
+        driverName,
         totalAmount: grossAmount,
         netPayable: grossAmount,
       },

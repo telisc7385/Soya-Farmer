@@ -6,6 +6,9 @@ export const createDraftSchema = Joi.object({
   quantity: Joi.number().positive().required(),
   unit: Joi.string().valid("QTL", "MT").required(),
   rate: Joi.number().positive().required(),
+  vehicleNumber: Joi.string().trim().required(),
+  vehicleType: Joi.string().trim().required(),
+  driverName: Joi.string().trim().required(),
 });
 
 export const calculateDeductionSchema = Joi.object({

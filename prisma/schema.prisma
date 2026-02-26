@@ -94,8 +94,10 @@ model Farmer {
   id         String   @id @default(uuid())
   name       String
   aadhaarNo  String   @unique
+  panNo      String?
   phone      String
   email      String?
+  profileUrl String?
   villageAdd String?
   gutNumber  String?
   taluka     String?
@@ -172,6 +174,9 @@ model Bill {
   primaryUnit     QuantityUnit?
   ratePerUnit     Float?
   grossAmount     Float         @default(0)
+  vehicleNumber   String?
+  vehicleType     String?
+  driverName      String?
   goniTypeId      String?
   bagCount        Int           @default(0)
   goniWeight      Float         @default(0)

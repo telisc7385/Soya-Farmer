@@ -12,6 +12,7 @@ const router = Router();
 router.post(
   "/create-farmer",
   authMiddleware,
+  upload.single("profile"),
   validateRequest(farmerValidation.createFarmerSchema),
   farmerControllers.createFarmer,
 );
