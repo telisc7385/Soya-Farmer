@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from "express";
-import prisma from "../database/prisma";
-import { successResponse } from "../utils/response";
-import { AppError } from "../core/appError";
-import { attachDeductionDetails } from "../utils/deductionDetails";
+import prisma from "../../database/prisma";
+import { AppError } from "../../core/appError";
+import { successResponse } from "../../utils/response";
+import { attachDeductionDetails } from "../../utils/deductionDetails";
 
 export const getBills = async (
   _req: Request,

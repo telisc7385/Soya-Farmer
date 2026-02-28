@@ -1,12 +1,12 @@
 import { Router } from "express";
-import {
-  addBillDeductions,
-  deleteBillDeduction,
-  getBillDeductions,
-  updateBillDeduction,
-} from "../controllers/billDeduction.controller";
 import { addDeductionsSchema } from "../validations/billDeduction.validation";
 import { validateRequest } from "../middleware/validateRequest.middleware";
+import {
+  addBillDeductions,
+  updateBillDeduction,
+  getBillDeductions,
+  deleteBillDeduction,
+} from "../controllers/billing/billDeduction.controller";
 
 const router = Router();
 

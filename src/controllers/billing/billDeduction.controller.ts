@@ -1,7 +1,7 @@
 import { Request, Response, NextFunction } from "express";
-import prisma from "../database/prisma";
-import { AppError } from "../core/appError";
-import { createdResponse, successResponse } from "../utils/response";
+import prisma from "../../database/prisma";
+import { AppError } from "../../core/appError";
+import { createdResponse, successResponse } from "../../utils/response";
 
 /**
  * Add Deduction to Bill

@@ -38,7 +38,7 @@ import {
 } from "../validations/admin.validation";
 import { updateTransferSchema } from "../validations/stock.validation";
 import { exportReportSchema } from "../validations/report.validation";
-import { exportAdminReport } from "../controllers/adminReport.controller";
+import { exportAdminReport } from "../controllers/admin/adminReport.controller";
 const router = Router();
 
 router.post(
