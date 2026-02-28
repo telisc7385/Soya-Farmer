@@ -1,5 +1,5 @@
 import { Router } from "express";
-import * as billController from "../controllers/bill.controller";
+import * as billController from "../controllers/billing/bill.controller";
 import * as billingFlow from "../controllers/billing/billing.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
 import { validateRequest } from "../middleware/validateRequest.middleware";

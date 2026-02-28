@@ -30,43 +30,54 @@ async function main() {
     console.log("Admin already exists");
   }
 
-  // Seed one formula deduction master
-  const deductionName = "Moisture Deduction";
-  const existingDeduction = await prisma.deductionMaster.findFirst({
-    where: { name: deductionName },
-  });
+  // Seed formula deduction masters (examples)
+  const deductionSeeds = [
+    {
+      name: "FM Deduction",
+      formulaExpression: "moisture + dagi + mati",
+      variableValues: ["10+2+2", "10+2+3"],
+      variables: [
+        { code: "moisture", label: "Moisture %" },
+        { code: "dagi", label: "Dagi" },
+        { code: "mati", label: "Mati/Kadi" },
+      ],
+    },
+    {
+      name: "Damage Deduction",
+      formulaExpression: "(moisture + dagi + mati) / 4",
+      variableValues: ["10+2+2", "10+2+3"],
+      variables: [
+        { code: "moisture", label: "Moisture %" },
+        { code: "dagi", label: "Dagi" },
+        { code: "mati", label: "Mati/Kadi" },
+      ],
+    },
+  ];
 
-  if (!existingDeduction) {
-    const deduction = await prisma.deductionMaster.create({
-      data: {
-        name: deductionName,
-        type: "FORMULA",
-        formulaExpression: "moisture * dagi * mati",
-        variableValues: ["10*2*2", "10*2*3"],
-        createdBy: admin.id,
-        variables: {
-          create: [
-            {
-              code: "moisture",
-              label: "Moisture %",
-            },
-            {
-              code: "dagi",
-              label: "Dagi",
-            },
-            {
-              code: "mati",
-              label: "Mati/Kadi",
-            },
-          ],
-        },
-      },
-      include: { variables: true },
+  for (const seed of deductionSeeds) {
+    const existingDeduction = await prisma.deductionMaster.findFirst({
+      where: { name: seed.name },
     });
 
-    console.log("Deduction master seeded:", deduction.name);
-  } else {
-    console.log("Deduction master already exists");
+    if (!existingDeduction) {
+      const deduction = await prisma.deductionMaster.create({
+        data: {
+          name: seed.name,
+          type: "FORMULA",
+          formulaExpression: seed.formulaExpression,
+          variableValues: seed.variableValues,
+          createdBy: admin.id,
+          variables: {
+            create: seed.variables,
+          },
+        },
+        include: { variables: true },
+      });
+
+      console.log("Deduction master seeded:", deduction.name);
+    } else {
+      console.log("Deduction master already exists:", seed.name);
+    }
   }
 
   // Seed one production-grade goni type

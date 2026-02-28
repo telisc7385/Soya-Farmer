@@ -1,8 +1,16 @@
 import { Request, Response, NextFunction } from "express";
-import prisma from "../database/prisma";
-import { successResponse } from "../utils/response";
-import { AppError } from "../core/appError";
-import { attachDeductionDetails } from "../utils/deductionDetails";
+import prisma from "../../database/prisma";
+import { AppError } from "../../core/appError";
+import { successResponse } from "../../utils/response";
+import { attachDeductionDetails } from "../../utils/deductionDetails";
+import { roundTo } from "../../utils/number";
+
+const withGoniAmount = (bill: any) => {
+  const goniWeight = bill?.goniWeight ?? 0;
+  const ratePerUnit = bill?.ratePerUnit ?? 0;
+  const goniDeductionAmount = roundTo(goniWeight * ratePerUnit);
+  return { ...bill, goniDeductionAmount };
+};
 
 export const getBills = async (
   _req: Request,
@@ -19,7 +27,8 @@ export const getBills = async (
       },
     });
 
-    successResponse(res, bills, "Bills fetched");
+    const withGoni = bills.map(withGoniAmount);
+    successResponse(res, withGoni, "Bills fetched");
   } catch (error) {
     next(error);
   }
@@ -51,7 +60,8 @@ export const getBillById = async (
     if (!bill) throw new AppError("Bill not found", 404);
 
     const billWithDetails = attachDeductionDetails(bill);
-    successResponse(res, billWithDetails, "Bill details");
+    const withGoni = withGoniAmount(billWithDetails);
+    successResponse(res, withGoni, "Bill details");
   } catch (error) {
     next(error);
   }

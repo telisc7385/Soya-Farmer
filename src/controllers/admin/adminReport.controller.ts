@@ -1,8 +1,8 @@
 import { Request, Response, NextFunction } from "express";
-import prisma from "../database/prisma";
-import { AppError } from "../core/appError";
-import { buildCsvFilename, toCsv } from "../utils/csv";
-import { ReportKey, reportConfigs } from "../utils/reportConfigs";
+import { reportConfigs, ReportKey } from "../../utils/reportConfigs";
+import { AppError } from "../../core/appError";
+import prisma from "../../database/prisma";
+import { buildCsvFilename, toCsv } from "../../utils/csv";
 
 const parseStatusFilter = (status?: string) => {
   if (!status) return [];
@@ -38,11 +38,12 @@ const buildDateFilter = (startDate?: string, endDate?: string) => {
 const getBillsReport = async (query: any) => {
   const createdAt = buildDateFilter(query.startDate, query.endDate);
   const status = parseStatusFilter(query.status);
-  ensureAllowedStatus(
-    "bills",
-    status,
-    ["DRAFT", "PENDING", "COMPLETED", "CANCELLED"],
-  );
+  ensureAllowedStatus("bills", status, [
+    "DRAFT",
+    "PENDING",
+    "COMPLETED",
+    "CANCELLED",
+  ]);
 
   return prisma.bill.findMany({
     where: {
@@ -88,11 +89,11 @@ const getPaymentsReport = async (query: any) => {
 const getStockTransfersReport = async (query: any) => {
   const createdAt = buildDateFilter(query.startDate, query.endDate);
   const status = parseStatusFilter(query.status);
-  ensureAllowedStatus(
-    "stock-transfers",
-    status,
-    ["PENDING", "COMPLETED", "CANCELLED"],
-  );
+  ensureAllowedStatus("stock-transfers", status, [
+    "PENDING",
+    "COMPLETED",
+    "CANCELLED",
+  ]);
 
   return prisma.stockTransfer.findMany({
     where: {
@@ -222,10 +223,7 @@ const getVendorsReport = async (query: any) => {
   }));
 };
 
-const reportHandlers: Record<
-  ReportKey,
-  (query: any) => Promise<any[]>
-> = {
+const reportHandlers: Record<ReportKey, (query: any) => Promise<any[]>> = {
   bills: getBillsReport,
   payments: getPaymentsReport,
   "stock-transfers": getStockTransfersReport,

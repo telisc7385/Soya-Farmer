@@ -27,15 +27,7 @@ export const createDeductionMaster = async (
     if (type === "FORMULA" && !formulaExpression) {
       throw new AppError("formulaExpression is required for FORMULA deductions", 400);
     }
-    if (type === "FORMULA") {
-      const existingFormula = await prisma.deductionMaster.findFirst({
-        where: { type: "FORMULA" },
-        select: { id: true },
-      });
-      if (existingFormula) {
-        throw new AppError("Only one FORMULA deduction master is allowed", 400);
-      }
-    }
+    // Allow multiple FORMULA deduction masters (e.g., FM, Damage, Moisture, etc.)
 
     const master = await prisma.$transaction(async (tx) => {
       const created = await tx.deductionMaster.create({
@@ -97,18 +89,7 @@ export const updateDeductionMaster = async (
     if (type === "FORMULA" && !formulaExpression) {
       throw new AppError("formulaExpression is required for FORMULA deductions", 400);
     }
-    if (type === "FORMULA") {
-      const existingFormula = await prisma.deductionMaster.findFirst({
-        where: {
-          type: "FORMULA",
-          id: { not: masterId },
-        },
-        select: { id: true },
-      });
-      if (existingFormula) {
-        throw new AppError("Only one FORMULA deduction master is allowed", 400);
-      }
-    }
+    // Allow multiple FORMULA deduction masters (e.g., FM, Damage, Moisture, etc.)
 
     await prisma.$transaction(async (tx) => {
       await tx.deductionMaster.update({

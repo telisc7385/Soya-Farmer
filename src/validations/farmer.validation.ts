@@ -9,7 +9,7 @@ export const createFarmerSchema = Joi.object({
   panNo: Joi.string()
     .pattern(/^[A-Z]{5}[0-9]{4}[A-Z]$/)
     .required(),
-  email: Joi.string().email().required(),
+  email: Joi.string().email().optional(),
 
   villageAdd: Joi.string().optional(),
   gutNumber: Joi.string().optional(),
