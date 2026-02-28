@@ -172,7 +172,8 @@ export const updateFarmer = async (
   }
 };
 
-const REQUIRED_DOCS = ["AADHAAR", "PAN", "DRIVING_LICENSE"] as const;
+const REQUIRED_DOCS = ["AADHAAR"] as const;
+const OPTIONAL_DOCS = ["PAN", "DRIVING_LICENSE"] as const;
 
 export const addFarmerAllDocuments = async (
   req: Request,
@@ -184,7 +185,7 @@ export const addFarmerAllDocuments = async (
     const files = req.files as Record<string, Express.Multer.File[]>;
 
     if (!files) {
-      throw new AppError("All documents are required", 400);
+      throw new AppError("AADHAAR document is required", 400);
     }
 
     // 🔒 Ensure all required docs are present
@@ -205,6 +206,20 @@ export const addFarmerAllDocuments = async (
 
     const data = [];
     for (const type of REQUIRED_DOCS) {
+      const { publicUrl } = await saveUploadedFile(
+        files[type][0],
+        "farmers/documents",
+      );
+      data.push({
+        farmerId,
+        type,
+        imageUrl: publicUrl,
+      });
+    }
+
+    for (const type of OPTIONAL_DOCS) {
+      if (!files[type] || files[type].length === 0) continue;
+
       const { publicUrl } = await saveUploadedFile(
         files[type][0],
         "farmers/documents",
