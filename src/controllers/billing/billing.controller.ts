@@ -9,6 +9,13 @@ import { formulaEngine } from "../../services/formulaEngine.service";
 import { roundTo } from "../../utils/number";
 import { attachDeductionDetails } from "../../utils/deductionDetails";
 
+const withGoniAmount = (bill: any) => {
+  const goniWeight = bill?.goniWeight ?? 0;
+  const ratePerUnit = bill?.ratePerUnit ?? 0;
+  const goniDeductionAmount = roundTo(goniWeight * ratePerUnit);
+  return { ...bill, goniDeductionAmount };
+};
+
 const ensureDraftBill = async (billId: string, vendorId: string) => {
   const bill = await prisma.bill.findUnique({
     where: { id: billId },
@@ -31,7 +38,11 @@ const recalcTotals = async (billId: string) => {
   const deductionTotal = bill.deductions.reduce((sum, d) => sum + d.value, 0);
   const gross = bill.grossAmount ?? 0;
   const goniWeight = bill.goniWeight ?? 0;
-  const net = roundTo(Math.max(gross - deductionTotal - goniWeight, 0));
+  const ratePerUnit = bill.ratePerUnit ?? 0;
+  const goniDeductionAmount = roundTo(goniWeight * ratePerUnit);
+  const net = roundTo(
+    Math.max(gross - deductionTotal - goniDeductionAmount, 0),
+  );
 
   await prisma.bill.update({
     where: { id: billId },
@@ -45,6 +56,7 @@ const recalcTotals = async (billId: string) => {
     grossAmount: gross,
     totalDeductions: deductionTotal,
     goniWeight,
+    goniDeductionAmount,
     netPayable: net,
   };
 };
@@ -96,9 +108,10 @@ export const createDraftBill = async (
       include: { farmer: true, deductions: true, goniType: true },
     });
 
+    const billWithGoni = withGoniAmount(hydrated);
     createdResponse(
       res,
-      { bill: hydrated, totals },
+      { bill: billWithGoni, totals },
       "Bill draft created with quantity",
     );
   } catch (error) {
@@ -312,7 +325,8 @@ export const previewDraft = async (
     });
 
     const billWithDetails = attachDeductionDetails(response);
-    successResponse(res, { bill: billWithDetails, totals }, "Bill preview");
+    const billWithGoni = withGoniAmount(billWithDetails);
+    successResponse(res, { bill: billWithGoni, totals }, "Bill preview");
   } catch (error) {
     next(error);
   }
