@@ -13,31 +13,101 @@ const withGoniAmount = (bill: any) => {
 };
 
 export const getBills = async (
-  _req: Request,
+  req: Request,
   res: Response,
   next: NextFunction,
 ) => {
   try {
-    const bills = await prisma.bill.findMany({
-      orderBy: { createdAt: "desc" },
-      include: {
-        farmer: true,
-        deductions: {
-          include: {
-            master: {
-              include: {
-                variables: true,
-              },
-            },
-          },
-        },
-        goniType: true,
-      },
-    });
+    const {
+      page = 1,
+      limit = 10,
+      search,
+      vendorId,
+      startDate,
+      endDate,
+      status,
+    } = req.query;
 
-    const withDetails = bills.map(attachDeductionDetails);
-    const withGoni = withDetails.map(withGoniAmount);
-    successResponse(res, withGoni, "Bills fetched");
+    const take = Number(limit);
+    const currentPage = Number(page);
+    const skip = (currentPage - 1) * take;
+
+    const whereClause: any = {};
+
+    // 🔎 Search filter
+    if (search && typeof search === "string") {
+      whereClause.OR = [
+        { farmer: { name: { contains: search, mode: "insensitive" } } },
+        { farmer: { phone: { contains: search, mode: "insensitive" } } },
+      ];
+    }
+
+    // 🏢 Vendor filter
+    if (vendorId) {
+      whereClause.vendorId = String(vendorId);
+    }
+
+    // 📅 Date filter
+    if (startDate && endDate) {
+      whereClause.createdAt = {
+        gte: new Date(startDate as string),
+        lte: new Date(endDate as string),
+      };
+    }
+
+    if (typeof status === "string" && status.trim()) {
+      const statusArray = status
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean);
+
+      if (statusArray.length) {
+        whereClause.status = { in: statusArray };
+      }
+    }
+
+    // 🚀 Run queries in parallel (better performance)
+    const [bills, total] = await Promise.all([
+      prisma.bill.findMany({
+        where: whereClause,
+        skip,
+        take,
+        orderBy: { createdAt: "desc" },
+        include: {
+          farmer: {
+            select: { name: true, phone: true },
+          },
+          // deductions: {
+          //   include: {
+          //     master: {
+          //       include: {
+          //         variables: true,
+          //       },
+          //     },
+          //   },
+          // },
+          // goniType: true,
+        },
+      }),
+      prisma.bill.count({ where: whereClause }),
+    ]);
+
+    // 🔄 Transform data
+    const formattedBills = bills
+      .map(attachDeductionDetails)
+      .map(withGoniAmount);
+
+    successResponse(
+      res,
+      {
+        bills: formattedBills,
+        total,
+        page: currentPage,
+        limit: take,
+        pages: Math.ceil(total / take),
+      },
+      "Bills fetched",
+    );
   } catch (error) {
     next(error);
   }
