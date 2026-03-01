@@ -25,7 +25,10 @@ export const createDeductionMaster = async (
       throw new AppError("baseAmount is required for FIXED deductions", 400);
     }
     if (type === "FORMULA" && !formulaExpression) {
-      throw new AppError("formulaExpression is required for FORMULA deductions", 400);
+      throw new AppError(
+        "formulaExpression is required for FORMULA deductions",
+        400,
+      );
     }
     // Allow multiple FORMULA deduction masters (e.g., FM, Damage, Moisture, etc.)
 
@@ -87,7 +90,10 @@ export const updateDeductionMaster = async (
       throw new AppError("baseAmount is required for FIXED deductions", 400);
     }
     if (type === "FORMULA" && !formulaExpression) {
-      throw new AppError("formulaExpression is required for FORMULA deductions", 400);
+      throw new AppError(
+        "formulaExpression is required for FORMULA deductions",
+        400,
+      );
     }
     // Allow multiple FORMULA deduction masters (e.g., FM, Damage, Moisture, etc.)
 
@@ -158,7 +164,22 @@ export const listDeductionMasters = async (
       },
     });
 
-    successResponse(res, masters, "Deduction masters fetched");
+    const updatedMasters = masters.map((master) => {
+      let divisor = 1;
+
+      // Check if formula contains division
+      const match = master.formulaExpression?.match(/\/\s*(\d+)/);
+      if (match) {
+        divisor = Number(match[1]);
+      }
+
+      return {
+        ...master,
+        percentRatio: `1/${divisor}`,
+      };
+    });
+
+    successResponse(res, updatedMasters, "Deduction masters fetched");
   } catch (error) {
     next(error);
   }
