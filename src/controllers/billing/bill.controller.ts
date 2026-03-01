@@ -22,12 +22,21 @@ export const getBills = async (
       orderBy: { createdAt: "desc" },
       include: {
         farmer: true,
-        deductions: true,
+        deductions: {
+          include: {
+            master: {
+              include: {
+                variables: true,
+              },
+            },
+          },
+        },
         goniType: true,
       },
     });
 
-    const withGoni = bills.map(withGoniAmount);
+    const withDetails = bills.map(attachDeductionDetails);
+    const withGoni = withDetails.map(withGoniAmount);
     successResponse(res, withGoni, "Bills fetched");
   } catch (error) {
     next(error);

@@ -41,6 +41,12 @@ export const attachDeductionDetails = (bill: any) => {
           payload.deductedInputs as Record<string, unknown>,
         )
       : undefined;
+    const deductedAmounts = payload.deductedAmounts
+      ? normalizeInputs(
+          master,
+          payload.deductedAmounts as Record<string, unknown>,
+        )
+      : undefined;
     if (!actualInputs && !customInputs && !deductedInputs) return deduction;
 
     const variableDeductions: RecordMap = {};
@@ -51,11 +57,13 @@ export const attachDeductionDetails = (bill: any) => {
       actual: number;
       custom: number;
       deducted: number;
+      deductionValue: number;
     }> = [];
     for (const variable of master.variables || []) {
       const actual = actualInputs?.[variable.code] ?? 0;
       const custom = customInputs?.[variable.code] ?? 0;
       const deducted = deductedInputs?.[variable.code] ?? 0;
+      const deductionValue = deductedAmounts?.[variable.code] ?? 0;
       if (deducted > 0) {
         variableDeductions[variable.code] = deducted;
       }
@@ -66,13 +74,16 @@ export const attachDeductionDetails = (bill: any) => {
         actual,
         custom,
         deducted,
+        deductionValue,
       });
     }
 
     return {
+      ...deduction,
       actualInputs,
       customInputs,
       deductedInputs,
+      deductedAmounts,
       variableDeductions,
       variableDetails,
     };
