@@ -33,23 +33,13 @@ async function main() {
   // Seed formula deduction masters (examples)
   const deductionSeeds = [
     {
-      name: "FM Deduction",
-      formulaExpression: "moisture + dagi + mati",
+      name: "Over All Deduction",
+      formulaExpression: "moisture + FM + Damage",
       variableValues: ["10+2+2", "10+2+3"],
       variables: [
-        { code: "moisture", label: "Moisture %" },
-        { code: "dagi", label: "Dagi" },
-        { code: "mati", label: "Mati/Kadi" },
-      ],
-    },
-    {
-      name: "Damage Deduction",
-      formulaExpression: "(moisture + dagi + mati) / 4",
-      variableValues: ["10+2+2", "10+2+3"],
-      variables: [
-        { code: "moisture", label: "Moisture %" },
-        { code: "dagi", label: "Dagi" },
-        { code: "mati", label: "Mati/Kadi" },
+        { code: "moisture", label: "Moisture %", unitHint: "1" },
+        { code: "FM", label: "FM", unitHint: "1" },
+        { code: "Damage", label: "Damage", unitHint: "1/4" },
       ],
     },
   ];
@@ -90,7 +80,7 @@ async function main() {
     const goni = await prisma.goniType.create({
       data: {
         name: goniName,
-        weightPerBag: 1.0,
+        weightPerBag: 0.0001,
         createdBy: admin.id,
       },
     });

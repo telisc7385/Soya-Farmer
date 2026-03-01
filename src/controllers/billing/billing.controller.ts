@@ -9,6 +9,22 @@ import { formulaEngine } from "../../services/formulaEngine.service";
 import { roundTo } from "../../utils/number";
 import { attachDeductionDetails } from "../../utils/deductionDetails";
 
+const parseUnitHint = (unitHint?: string | null): number => {
+  if (!unitHint) return 1;
+  const trimmed = unitHint.trim();
+  if (!trimmed) return 1;
+  if (trimmed.includes("/")) {
+    const [numRaw, denRaw] = trimmed.split("/");
+    const num = Number(numRaw);
+    const den = Number(denRaw);
+    if (!Number.isNaN(num) && !Number.isNaN(den) && den !== 0) {
+      return num / den;
+    }
+  }
+  const parsed = Number(trimmed);
+  return Number.isNaN(parsed) || parsed === 0 ? 1 : parsed;
+};
+
 const withGoniAmount = (bill: any) => {
   const goniWeight = bill?.goniWeight ?? 0;
   const ratePerUnit = bill?.ratePerUnit ?? 0;
@@ -40,15 +56,16 @@ const recalcTotals = async (billId: string) => {
   const goniWeight = bill.goniWeight ?? 0;
   const ratePerUnit = bill.ratePerUnit ?? 0;
   const goniDeductionAmount = roundTo(goniWeight * ratePerUnit);
-  const net = roundTo(
+  const netPayable = roundTo(
     Math.max(gross - deductionTotal - goniDeductionAmount, 0),
+    2,
   );
 
   await prisma.bill.update({
     where: { id: billId },
     data: {
-      totalAmount: net,
-      netPayable: net,
+      totalAmount: netPayable,
+      netPayable,
     },
   });
 
@@ -57,7 +74,7 @@ const recalcTotals = async (billId: string) => {
     totalDeductions: deductionTotal,
     goniWeight,
     goniDeductionAmount,
-    netPayable: net,
+    netPayable,
   };
 };
 
@@ -125,6 +142,7 @@ export const calculateDeductions = async (
   next: NextFunction,
 ) => {
   try {
+    debugger;
     const vendorId = req.user?.id;
     if (!vendorId) throw new AppError("Unauthorized", 401);
 
@@ -159,9 +177,10 @@ export const calculateDeductions = async (
 
       let value = 0;
       let payload: Record<string, any> = {};
-      let actualInputs;
-      let customInputs;
-      let deductedInputs;
+      let actualInputs: Record<string, number> = {};
+      let customInputs: Record<string, number> = {};
+      let deductedInputs: Record<string, number> = {};
+      let variableDetails: any;
 
       if (master.type === "FIXED") {
         value = master.baseAmount ?? 0;
@@ -185,6 +204,10 @@ export const calculateDeductions = async (
           throw new AppError("No inputs provided for formula deduction", 400);
         }
 
+        const variableMeta = new Map(
+          (master.variables || []).map((v) => [v.code, v]),
+        );
+
         for (const code of variableCodes) {
           if (typeof actualInputs[code] !== "number") {
             throw new AppError(`Missing actual input for ${code}`, 400);
@@ -195,8 +218,10 @@ export const calculateDeductions = async (
 
           const extra =
             (customInputs[code] as number) - (actualInputs[code] as number);
-
-          deductedInputs[code] = extra > 0 ? extra : 0;
+          const rawExtra = extra > 0 ? extra : 0;
+          const unitHint = variableMeta.get(code)?.unitHint ?? "1";
+          const unitFactor = parseUnitHint(unitHint);
+          deductedInputs[code] = roundTo(rawExtra * unitFactor);
         }
 
         payload = {
@@ -219,6 +244,16 @@ export const calculateDeductions = async (
         }
 
         payload.deductedAmounts = deductedAmounts;
+
+        variableDetails = (master.variables || []).map((variable) => ({
+          code: variable.code,
+          label: variable.label,
+          unitHint: variable.unitHint,
+          actual: actualInputs?.[variable.code] ?? 0,
+          custom: customInputs?.[variable.code] ?? 0,
+          deducted: deductedInputs?.[variable.code] ?? 0,
+          deductionValue: deductedAmounts?.[variable.code] ?? 0,
+        }));
       }
 
       recordsToCreate.push({
@@ -239,6 +274,7 @@ export const calculateDeductions = async (
           payload && typeof payload === "object"
             ? (payload as any).deductedAmounts
             : undefined,
+        variableDetails,
         deductedAmount: value,
       });
     }
