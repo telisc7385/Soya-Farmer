@@ -573,6 +573,7 @@ export const getFarmers = async (
         total,
         page: Number(page),
         limit: take,
+        pages: Math.ceil(total / take),
       },
       "KYC-complete farmers fetched successfully",
     );
