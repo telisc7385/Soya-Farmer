@@ -3,13 +3,15 @@ import prisma from "../../database/prisma";
 import { AppError } from "../../core/appError";
 import { successResponse } from "../../utils/response";
 import { attachDeductionDetails } from "../../utils/deductionDetails";
-import { roundTo } from "../../utils/number";
+import { buildBillingCalculationDetails } from "../../utils/billingCalculation";
 
 const withGoniAmount = (bill: any) => {
-  const goniWeight = bill?.goniWeight ?? 0;
-  const ratePerUnit = bill?.ratePerUnit ?? 0;
-  const goniDeductionAmount = roundTo(goniWeight * ratePerUnit);
-  return { ...bill, goniDeductionAmount };
+  const calculationDetails = buildBillingCalculationDetails(bill);
+  return {
+    ...bill,
+    goniDeductionAmount: calculationDetails.goniDeductionAmount,
+    calculationDetails,
+  };
 };
 
 export const getBills = async (
