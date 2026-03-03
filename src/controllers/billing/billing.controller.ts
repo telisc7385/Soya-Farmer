@@ -294,7 +294,7 @@ export const calculateDeductions = async (
           }
 
           const extra =
-            (actualInputs[code] as number) - (customInputs[code] as number);
+            (customInputs[code] as number) - (actualInputs[code] as number);
           const rawExtra = extra > 0 ? extra : 0;
           const unitHint = variableMeta.get(code)?.unitHint ?? "1";
           const unitFactor = parseUnitHint(unitHint);
