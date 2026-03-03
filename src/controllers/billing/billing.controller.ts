@@ -8,6 +8,7 @@ import { checkFarmer } from "../../repositories/checkFarmer.repository";
 import { formulaEngine } from "../../services/formulaEngine.service";
 import { roundTo } from "../../utils/number";
 import { attachDeductionDetails } from "../../utils/deductionDetails";
+import { buildBillingCalculationDetails } from "../../utils/billingCalculation";
 
 const parseUnitHint = (unitHint?: string | null): number => {
   if (!unitHint) return 1;
@@ -26,11 +27,59 @@ const parseUnitHint = (unitHint?: string | null): number => {
 };
 
 const withGoniAmount = (bill: any) => {
-  const goniWeight = bill?.goniWeight ?? 0;
-  const ratePerUnit = bill?.ratePerUnit ?? 0;
-  const goniDeductionAmount = roundTo(goniWeight * ratePerUnit);
-  return { ...bill, goniDeductionAmount };
+  const calculationDetails = buildBillingCalculationDetails(bill);
+  return {
+    ...bill,
+    goniDeductionAmount: calculationDetails.goniDeductionAmount,
+    calculationDetails,
+  };
 };
+
+const compactTotals = (totals: any) => ({
+  grossAmount: totals?.grossAmount ?? 0,
+  totalDeductions: totals?.totalDeductions ?? 0,
+  goniWeight: totals?.goniWeight ?? 0,
+  goniDeductionAmount: totals?.goniDeductionAmount ?? 0,
+  netPayable: totals?.netPayable ?? 0,
+});
+
+const compactDeductionRows = (calculationDetails: any) =>
+  Array.isArray(calculationDetails?.deductions)
+    ? calculationDetails.deductions.map((row: any) => ({
+        deductionId: row.deductionId,
+        masterId: row.masterId,
+        label: row.label,
+        type: row.type,
+        deductionPercent: row.deductionPercent,
+        deductionWeight: row.deductionWeight,
+        deductionAmount: row.deductionAmount,
+        actualInputs: row.actualInputs,
+        allowedInputs: row.allowedInputs,
+        deductedInputs: row.deductedInputs,
+        variableDetails: row.variableDetails,
+      }))
+    : [];
+
+const compactCalculationDetails = (calculationDetails: any) => ({
+  totalQuantityReceived: calculationDetails?.totalQuantityReceived ?? 0,
+  ratePerUnit: calculationDetails?.ratePerUnit ?? 0,
+  bagWeight: calculationDetails?.bagWeight ?? 0,
+  netWeightForLab: calculationDetails?.netWeightForLab ?? 0,
+  goniDeductionAmount: calculationDetails?.goniDeductionAmount ?? 0,
+  totalLabDeductionPercent: calculationDetails?.totalLabDeductionPercent ?? 0,
+  totalLabDeductionWeight: calculationDetails?.totalLabDeductionWeight ?? 0,
+  totalLabDeductionAmount: calculationDetails?.totalLabDeductionAmount ?? 0,
+  totalFixedDeductionAmount:
+    calculationDetails?.totalFixedDeductionAmount ?? 0,
+  finalNetPayableWeight: calculationDetails?.finalNetPayableWeight ?? 0,
+  amountAfterLab: calculationDetails?.amountAfterLab ?? 0,
+  finalPayableAmount: calculationDetails?.finalPayableAmount ?? 0,
+  rateAfterLabDeduction: calculationDetails?.rateAfterLabDeduction ?? 0,
+  rateAfterLabDeductionRounded:
+    calculationDetails?.rateAfterLabDeductionRounded ?? 0,
+  recalculatedTotal: calculationDetails?.recalculatedTotal ?? 0,
+  pricedQuantity: calculationDetails?.pricedQuantity ?? 0,
+});
 
 const ensureDraftBill = async (billId: string, vendorId: string) => {
   const bill = await prisma.bill.findUnique({
@@ -48,18 +97,21 @@ const ensureDraftBill = async (billId: string, vendorId: string) => {
 const recalcTotals = async (billId: string) => {
   const bill = await prisma.bill.findUnique({
     where: { id: billId },
-    include: { deductions: true },
+    include: {
+      deductions: {
+        include: {
+          master: true,
+        },
+      },
+    },
   });
   if (!bill) throw new AppError("Bill not found while recalculating", 404);
-  const deductionTotal = bill.deductions.reduce((sum, d) => sum + d.value, 0);
-  const gross = bill.grossAmount ?? 0;
-  const goniWeight = bill.goniWeight ?? 0;
-  const ratePerUnit = bill.ratePerUnit ?? 0;
-  const goniDeductionAmount = roundTo(goniWeight * ratePerUnit);
-  const netPayable = roundTo(
-    Math.max(gross - deductionTotal - goniDeductionAmount, 0),
-    2,
+  const deductionTotal = roundTo(
+    bill.deductions.reduce((sum, d) => sum + d.value, 0),
   );
+  const gross = bill.grossAmount ?? 0;
+  const calculationDetails = buildBillingCalculationDetails(bill);
+  const netPayable = calculationDetails.finalPayableAmount;
 
   await prisma.bill.update({
     where: { id: billId },
@@ -72,9 +124,10 @@ const recalcTotals = async (billId: string) => {
   return {
     grossAmount: gross,
     totalDeductions: deductionTotal,
-    goniWeight,
-    goniDeductionAmount,
+    goniWeight: bill.goniWeight ?? 0,
+    goniDeductionAmount: calculationDetails.goniDeductionAmount,
     netPayable,
+    calculationDetails,
   };
 };
 
@@ -126,9 +179,34 @@ export const createDraftBill = async (
     });
 
     const billWithGoni = withGoniAmount(hydrated);
+    const calculationDetails = billWithGoni.calculationDetails;
     createdResponse(
       res,
-      { bill: billWithGoni, totals },
+      {
+        bill: {
+          id: billWithGoni.id,
+          billNo: billWithGoni.billNo,
+          billDate: billWithGoni.billDate,
+          status: billWithGoni.status,
+          primaryQuantity: billWithGoni.primaryQuantity,
+          primaryUnit: billWithGoni.primaryUnit,
+          ratePerUnit: billWithGoni.ratePerUnit,
+          grossAmount: billWithGoni.grossAmount,
+          totalAmount: billWithGoni.totalAmount,
+          netPayable: billWithGoni.netPayable,
+          vehicleNumber: billWithGoni.vehicleNumber,
+          vehicleType: billWithGoni.vehicleType,
+          driverName: billWithGoni.driverName,
+          bagCount: billWithGoni.bagCount,
+          goniWeight: billWithGoni.goniWeight,
+          goniDeductionAmount: billWithGoni.goniDeductionAmount,
+          farmer: billWithGoni.farmer,
+          goniType: billWithGoni.goniType,
+        },
+        totals: compactTotals(totals),
+        calculationDetails: compactCalculationDetails(calculationDetails),
+        deductions: compactDeductionRows(calculationDetails),
+      },
       "Bill draft created with quantity",
     );
   } catch (error) {
@@ -142,7 +220,6 @@ export const calculateDeductions = async (
   next: NextFunction,
 ) => {
   try {
-    debugger;
     const vendorId = req.user?.id;
     if (!vendorId) throw new AppError("Unauthorized", 401);
 
@@ -217,11 +294,11 @@ export const calculateDeductions = async (
           }
 
           const extra =
-            (customInputs[code] as number) - (actualInputs[code] as number);
+            (actualInputs[code] as number) - (customInputs[code] as number);
           const rawExtra = extra > 0 ? extra : 0;
           const unitHint = variableMeta.get(code)?.unitHint ?? "1";
           const unitFactor = parseUnitHint(unitHint);
-          deductedInputs[code] = roundTo(rawExtra * unitFactor);
+          deductedInputs[code] = roundTo(rawExtra * unitFactor, 4);
         }
 
         payload = {
@@ -235,14 +312,32 @@ export const calculateDeductions = async (
           deductedInputs,
         );
         const safeTotalPercent = Math.max(0, totalPercent);
-        const grossAmount = bill.grossAmount ?? 0;
-        value = roundTo((grossAmount * safeTotalPercent) / 100);
+        const baseWeightForLab = roundTo(
+          Math.max((bill.primaryQuantity ?? 0) - (bill.goniWeight ?? 0), 0),
+          3,
+        );
+        const ratePerUnit = bill.ratePerUnit ?? 0;
+        const deductionWeight = roundTo(
+          (baseWeightForLab * safeTotalPercent) / 100,
+          3,
+        );
+        value = roundTo(deductionWeight * ratePerUnit);
+
+        const deductedWeights: Record<string, number> = {};
 
         for (const code of Object.keys(deductedInputs)) {
           const percent = deductedInputs[code] ?? 0;
-          deductedAmounts[code] = roundTo((grossAmount * percent) / 100);
+          const weight = roundTo((baseWeightForLab * percent) / 100, 3);
+          deductedWeights[code] = weight;
+          deductedAmounts[code] = roundTo(weight * ratePerUnit);
         }
 
+        payload.baseWeightForLab = baseWeightForLab;
+        payload.totalDeductionPercent = roundTo(safeTotalPercent, 4);
+        payload.deductionWeight = deductionWeight;
+        payload.deductionAmount = value;
+        payload.ratePerUnit = ratePerUnit;
+        payload.deductedWeights = deductedWeights;
         payload.deductedAmounts = deductedAmounts;
 
         variableDetails = (master.variables || []).map((variable) => ({
@@ -252,8 +347,11 @@ export const calculateDeductions = async (
           actual: actualInputs?.[variable.code] ?? 0,
           custom: customInputs?.[variable.code] ?? 0,
           deducted: deductedInputs?.[variable.code] ?? 0,
+          deductedWeight: deductedWeights?.[variable.code] ?? 0,
           deductionValue: deductedAmounts?.[variable.code] ?? 0,
         }));
+
+        payload.variableDetails = variableDetails;
       }
 
       recordsToCreate.push({
@@ -275,6 +373,14 @@ export const calculateDeductions = async (
             ? (payload as any).deductedAmounts
             : undefined,
         variableDetails,
+        totalDeductionPercent:
+          payload && typeof payload === "object"
+            ? (payload as any).totalDeductionPercent
+            : 0,
+        deductionWeight:
+          payload && typeof payload === "object"
+            ? (payload as any).deductionWeight
+            : 0,
         deductedAmount: value,
       });
     }
@@ -287,12 +393,14 @@ export const calculateDeductions = async (
     ]);
 
     const totals = await recalcTotals(billId);
+    const calculationDetails = totals.calculationDetails;
 
     successResponse(
       res,
       {
-        totals,
-        deductions: deductionDetails,
+        totals: compactTotals(totals),
+        calculationDetails: compactCalculationDetails(calculationDetails),
+        deductions: compactDeductionRows(calculationDetails),
       },
       "Deductions recalculated",
     );
@@ -332,7 +440,15 @@ export const applyGoniDeduction = async (
 
     const totals = await recalcTotals(billId);
 
-    successResponse(res, { goniWeight, totals }, "Goni deduction applied");
+    successResponse(
+      res,
+      {
+        totals: compactTotals(totals),
+        calculationDetails: compactCalculationDetails(totals.calculationDetails),
+        deductions: compactDeductionRows(totals.calculationDetails),
+      },
+      "Goni deduction applied",
+    );
   } catch (error) {
     next(error);
   }
@@ -355,14 +471,52 @@ export const previewDraft = async (
       where: { id: billId },
       include: {
         farmer: true,
-        deductions: true,
+        deductions: {
+          include: {
+            master: {
+              include: {
+                variables: true,
+              },
+            },
+          },
+        },
         goniType: true,
       },
     });
 
     const billWithDetails = attachDeductionDetails(response);
     const billWithGoni = withGoniAmount(billWithDetails);
-    successResponse(res, { bill: billWithGoni, totals }, "Bill preview");
+    const calculationDetails = billWithGoni.calculationDetails;
+
+    successResponse(
+      res,
+      {
+        bill: {
+          id: billWithGoni.id,
+          billNo: billWithGoni.billNo,
+          billDate: billWithGoni.billDate,
+          status: billWithGoni.status,
+          primaryQuantity: billWithGoni.primaryQuantity,
+          primaryUnit: billWithGoni.primaryUnit,
+          ratePerUnit: billWithGoni.ratePerUnit,
+          grossAmount: billWithGoni.grossAmount,
+          totalAmount: billWithGoni.totalAmount,
+          netPayable: billWithGoni.netPayable,
+          vehicleNumber: billWithGoni.vehicleNumber,
+          vehicleType: billWithGoni.vehicleType,
+          driverName: billWithGoni.driverName,
+          bagCount: billWithGoni.bagCount,
+          goniWeight: billWithGoni.goniWeight,
+          goniDeductionAmount: billWithGoni.goniDeductionAmount,
+          farmer: billWithGoni.farmer,
+          goniType: billWithGoni.goniType,
+        },
+        totals: compactTotals(totals),
+        calculationDetails: compactCalculationDetails(calculationDetails),
+        deductions: compactDeductionRows(calculationDetails),
+      },
+      "Bill preview",
+    );
   } catch (error) {
     next(error);
   }
