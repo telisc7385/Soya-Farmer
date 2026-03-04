@@ -80,7 +80,8 @@ async function main() {
     const goni = await prisma.goniType.create({
       data: {
         name: goniName,
-        weightPerBag: 0.0001,
+        // Stored in KG (billing converts KG -> QTL).
+        weightPerBag: 0.01,
         createdBy: admin.id,
       },
     });
