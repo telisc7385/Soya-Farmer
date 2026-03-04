@@ -427,7 +427,9 @@ export const applyGoniDeduction = async (
     });
     if (!goniType) throw new AppError("Goni type not found", 404);
 
-    const goniWeight = roundTo(bagCount * goniType.weightPerBag, 3);
+    // Goni type weight is stored in KG; bill calculations run in QTL.
+    const goniWeightKg = roundTo(bagCount * goniType.weightPerBag, 3);
+    const goniWeight = roundTo(goniWeightKg / 100, 3);
 
     await prisma.bill.update({
       where: { id: billId },
