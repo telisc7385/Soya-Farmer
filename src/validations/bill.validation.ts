@@ -4,7 +4,7 @@ export const createDraftSchema = Joi.object({
   farmerId: Joi.string().uuid().required(),
   billDate: Joi.date().optional(),
   quantity: Joi.number().positive().required(),
-  unit: Joi.string().valid("QTL", "MT").required(),
+  unit: Joi.string().valid("QTL", "MT", "KG").required(),
   rate: Joi.number().positive().required(),
   vehicleNumber: Joi.string().trim().required(),
   vehicleType: Joi.string().trim().required(),
