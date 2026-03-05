@@ -496,6 +496,11 @@ export const previewDraft = async (
     const billWithDetails = attachDeductionDetails(response);
     const billWithGoni = withGoniAmount(billWithDetails);
     const calculationDetails = billWithGoni.calculationDetails;
+    const perQtlLabDeduction = roundTo(
+      ((billWithGoni.ratePerUnit ?? 0) *
+        (calculationDetails?.totalLabDeductionPercent ?? 0)) /
+        100,
+    );
 
     successResponse(
       res,
@@ -521,8 +526,7 @@ export const previewDraft = async (
           goniType: billWithGoni.goniType,
         },
         totals: compactTotals(totals),
-        calculationDetails: compactCalculationDetails(calculationDetails),
-        deductions: compactDeductionRows(calculationDetails),
+        perQtlLabDeduction,
       },
       "Bill preview",
     );
