@@ -69,8 +69,7 @@ const compactCalculationDetails = (calculationDetails: any) => ({
   totalLabDeductionPercent: calculationDetails?.totalLabDeductionPercent ?? 0,
   totalLabDeductionWeight: calculationDetails?.totalLabDeductionWeight ?? 0,
   totalLabDeductionAmount: calculationDetails?.totalLabDeductionAmount ?? 0,
-  totalFixedDeductionAmount:
-    calculationDetails?.totalFixedDeductionAmount ?? 0,
+  totalFixedDeductionAmount: calculationDetails?.totalFixedDeductionAmount ?? 0,
   finalNetPayableWeight: calculationDetails?.finalNetPayableWeight ?? 0,
   amountAfterLab: calculationDetails?.amountAfterLab ?? 0,
   finalPayableAmount: calculationDetails?.finalPayableAmount ?? 0,
@@ -142,13 +141,19 @@ export const createDraftBill = async (
     const {
       farmerId,
       billDate,
-      quantity,
+      quantity: rawQuantity,
       unit,
       rate,
       vehicleNumber,
       vehicleType,
       driverName,
     } = req.body;
+
+    let quantity = rawQuantity;
+    if (unit === "KG") {
+      // Convert KG to QTL for storage and calculations
+      quantity = roundTo(quantity / 100, 3);
+    }
 
     await checkFarmer(farmerId);
     const grossAmount = roundTo(quantity * rate);
@@ -162,7 +167,7 @@ export const createDraftBill = async (
         farmerId,
         status: "DRAFT",
         primaryQuantity: quantity,
-        primaryUnit: unit,
+        primaryUnit: unit === "KG" ? "QTL" : unit, // Store as QTL if input is KG
         ratePerUnit: rate,
         grossAmount,
         vehicleNumber,
@@ -446,7 +451,9 @@ export const applyGoniDeduction = async (
       res,
       {
         totals: compactTotals(totals),
-        calculationDetails: compactCalculationDetails(totals.calculationDetails),
+        calculationDetails: compactCalculationDetails(
+          totals.calculationDetails,
+        ),
         deductions: compactDeductionRows(totals.calculationDetails),
       },
       "Goni deduction applied",
