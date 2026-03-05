@@ -28,10 +28,17 @@ const parseUnitHint = (unitHint?: string | null): number => {
 
 const withGoniAmount = (bill: any) => {
   const calculationDetails = buildBillingCalculationDetails(bill);
+  const perQtlLabDeduction = roundTo(
+    ((bill.ratePerUnit ?? 0) *
+      (calculationDetails?.totalLabDeductionPercent ?? 0)) /
+      100,
+  );
+
   return {
     ...bill,
     goniDeductionAmount: calculationDetails.goniDeductionAmount,
     calculationDetails,
+    perQtlLabDeduction,
   };
 };
 
@@ -474,7 +481,6 @@ export const previewDraft = async (
 
     const { billId } = req.params;
     await ensureDraftBill(billId, vendorId);
-    const totals = await recalcTotals(billId);
 
     const response = await prisma.bill.findUnique({
       where: { id: billId },
@@ -495,41 +501,8 @@ export const previewDraft = async (
 
     const billWithDetails = attachDeductionDetails(response);
     const billWithGoni = withGoniAmount(billWithDetails);
-    const calculationDetails = billWithGoni.calculationDetails;
-    const perQtlLabDeduction = roundTo(
-      ((billWithGoni.ratePerUnit ?? 0) *
-        (calculationDetails?.totalLabDeductionPercent ?? 0)) /
-        100,
-    );
 
-    successResponse(
-      res,
-      {
-        bill: {
-          id: billWithGoni.id,
-          billNo: billWithGoni.billNo,
-          billDate: billWithGoni.billDate,
-          status: billWithGoni.status,
-          primaryQuantity: billWithGoni.primaryQuantity,
-          primaryUnit: billWithGoni.primaryUnit,
-          ratePerUnit: billWithGoni.ratePerUnit,
-          grossAmount: billWithGoni.grossAmount,
-          totalAmount: billWithGoni.totalAmount,
-          netPayable: billWithGoni.netPayable,
-          vehicleNumber: billWithGoni.vehicleNumber,
-          vehicleType: billWithGoni.vehicleType,
-          driverName: billWithGoni.driverName,
-          bagCount: billWithGoni.bagCount,
-          goniWeight: billWithGoni.goniWeight,
-          goniDeductionAmount: billWithGoni.goniDeductionAmount,
-          farmer: billWithGoni.farmer,
-          goniType: billWithGoni.goniType,
-        },
-        totals: compactTotals(totals),
-        perQtlLabDeduction,
-      },
-      "Bill preview",
-    );
+    successResponse(res, billWithGoni, "Bill preview");
   } catch (error) {
     next(error);
   }
