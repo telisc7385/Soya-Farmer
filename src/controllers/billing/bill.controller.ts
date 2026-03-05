@@ -4,13 +4,20 @@ import { AppError } from "../../core/appError";
 import { successResponse } from "../../utils/response";
 import { attachDeductionDetails } from "../../utils/deductionDetails";
 import { buildBillingCalculationDetails } from "../../utils/billingCalculation";
+import { roundTo } from "../../utils/number";
 
 const withGoniAmount = (bill: any) => {
   const calculationDetails = buildBillingCalculationDetails(bill);
+  const perQtlLabDeduction = roundTo(
+    ((bill.ratePerUnit ?? 0) *
+      (calculationDetails?.totalLabDeductionPercent ?? 0)) /
+      100,
+  );
   return {
     ...bill,
     goniDeductionAmount: calculationDetails.goniDeductionAmount,
     calculationDetails,
+    perQtlLabDeduction,
   };
 };
 
