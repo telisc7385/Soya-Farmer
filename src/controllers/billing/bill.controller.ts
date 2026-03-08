@@ -13,8 +13,15 @@ const withGoniAmount = (bill: any) => {
       (calculationDetails?.totalLabDeductionPercent ?? 0)) /
       100,
   );
+  const totalAmount = Number(bill?.totalAmount ?? 0);
+  const advancedAmount = Number(bill?.advancedAmount ?? 0);
+  const balanceAmount = roundTo(Math.max(totalAmount - advancedAmount, 0));
+
   return {
     ...bill,
+    totalAmount,
+    advancedAmount,
+    balanceAmount,
     goniDeductionAmount: calculationDetails.goniDeductionAmount,
     calculationDetails,
     perQtlLabDeduction,

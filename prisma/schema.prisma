@@ -169,6 +169,7 @@ model Bill {
   farmerId String
 
   totalAmount     Float
+  advancedAmount  Float         @default(0)
   status          BillStatus    @default(PENDING)
   primaryQuantity Float?
   primaryUnit     QuantityUnit?
