@@ -1,4 +1,5 @@
 import { NextFunction, Response } from "express";
+import { BagMovementType } from "@prisma/client";
 import prisma from "../../database/prisma";
 import { createdResponse, successResponse } from "../../utils/response";
 import { AuthRequest } from "../../middleware/auth.middleware";
@@ -692,6 +693,35 @@ export const confirmDraft = async (
           status: "AVAILABLE",
         },
       });
+
+      // Explicitly record farmer -> vendor bag receipt at finalization time
+      const trackedGonis = await tx.billGoni.findMany({
+        where: {
+          billId,
+          goniType: {
+            isTracked: true,
+            isActive: true,
+          },
+        },
+        select: {
+          goniTypeId: true,
+          bagCount: true,
+        },
+      });
+
+      if (trackedGonis.length) {
+        await tx.bagMovement.createMany({
+          data: trackedGonis.map((g) => ({
+            vendorId,
+            farmerId: bill.farmerId,
+            goniTypeId: g.goniTypeId,
+            bagCount: g.bagCount,
+            movementType: BagMovementType.FARMER_TO_VENDOR,
+            notes: `Captured from bill ${bill.billNo}`,
+            createdById: vendorId,
+          })),
+        });
+      }
     });
 
     successResponse(res, null, "Bill confirmed and stock added");

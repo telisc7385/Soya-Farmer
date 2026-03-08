@@ -4,6 +4,10 @@ import { successResponse, createdResponse } from "../utils/response";
 import { AppError } from "../core/appError";
 import { generateTransferNo } from "../utils/transferNo";
 import { AuthRequest } from "../middleware/auth.middleware";
+import {
+  getVendorCurrentBagsForType,
+  isTrackedGoniType,
+} from "../services/bagLedger.service";
 
 // =====================
 // VENDOR TRANSFER OPERATIONS
@@ -20,15 +24,16 @@ export const createTransfer = async (
 ) => {
   try {
     const vendorId = req?.user?.id as string;
-    const {
-      weight,
-      unit,
-      bagCount,
-      goniTypeId,
-      shopName,
-      shopLocation,
-      vehicalNumber,
-    } = req.body;
+    const { weight, unit, bagCount, goniTypeId, shopName, shopLocation, vehicalNumber } =
+      req.body as {
+        weight?: number;
+        unit?: "QTL" | "MT";
+        bagCount: number;
+        goniTypeId: string;
+        shopName: string;
+        shopLocation: string;
+        vehicalNumber: string;
+      };
 
     // Get vendor's total available stock
     const availableStock = await prisma.stock.aggregate({
@@ -46,11 +51,34 @@ export const createTransfer = async (
     const availableBags = availableStock._sum.bagCount || 0;
 
     // Validate transfer doesn't exceed available stock
-    if (weight > availableWeight) {
+    if (typeof weight === "number" && weight > availableWeight) {
       throw new AppError(
         `Transfer weight (${weight}) exceeds available stock (${availableWeight})`,
         400,
       );
+    }
+
+    // Validate goniType
+    const goniType = await prisma.goniType.findFirst({
+      where: { id: goniTypeId, isActive: true },
+      select: { id: true, name: true },
+    });
+    if (!goniType) {
+      throw new AppError("Goni type not found", 404);
+    }
+
+    const isTracked = await isTrackedGoniType(goniTypeId);
+    if (isTracked) {
+      const availableBagsByType = await getVendorCurrentBagsForType(
+        vendorId,
+        goniTypeId,
+      );
+      if (bagCount > availableBagsByType) {
+        throw new AppError(
+          `Transfer bag count (${bagCount}) exceeds available ${goniType.name} bags (${availableBagsByType})`,
+          400,
+        );
+      }
     }
 
     if (bagCount > availableBags) {
@@ -58,16 +86,6 @@ export const createTransfer = async (
         `Transfer bag count (${bagCount}) exceeds available stock (${availableBags})`,
         400,
       );
-    }
-
-    // Validate goniType if provided
-    if (goniTypeId) {
-      const goniType = await prisma.goniType.findFirst({
-        where: { id: goniTypeId, isActive: true },
-      });
-      if (!goniType) {
-        throw new AppError("Goni type not found", 404);
-      }
     }
 
     const transferNo = await generateTransferNo();
@@ -206,7 +224,7 @@ export const getAdminTransfers = async (
  * Complete transfer (Admin) - Deducts from vendor's available stock using FIFO
  */
 export const completeTransfer = async (
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction,
 ) => {
@@ -294,6 +312,19 @@ export const completeTransfer = async (
           completedAt: new Date(),
         },
       });
+
+      if (transfer.goniTypeId && (await isTrackedGoniType(transfer.goniTypeId))) {
+        await tx.bagMovement.create({
+          data: {
+            vendorId: transfer.vendorId,
+            goniTypeId: transfer.goniTypeId,
+            transferId: transfer.id,
+            bagCount: transfer.bagCount,
+            movementType: "VENDOR_TO_ADMIN",
+            createdById: req.user?.id,
+          },
+        });
+      }
     });
 
     successResponse(res, null, "Transfer completed successfully");

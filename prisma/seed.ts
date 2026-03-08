@@ -40,8 +40,7 @@ async function main() {
         {
           code: "moisture",
           label: "Moisture %",
-          unitHint:
-            "range:<=variableValue:0,10-13:1,14-16:1.5,>16:2",
+          unitHint: "range:<=variableValue:0,10-13:1,14-16:1.5,>16:2",
         },
         { code: "FM", label: "FM", unitHint: "1" },
         { code: "Damage", label: "Damage", unitHint: "1/4" },
@@ -76,24 +75,30 @@ async function main() {
   }
 
   // Seed one production-grade goni type
-  const goniName = "Plastic Poti";
-  const existingGoni = await prisma.goniType.findFirst({
-    where: { name: goniName },
-  });
+  const goniTypes = [
+    { name: "PP Bag", weightPerBag: 0.01, isTracked: false },
+    { name: "Kaltani Katta", weightPerBag: 0.05, isTracked: true },
+  ];
 
-  if (!existingGoni) {
-    const goni = await prisma.goniType.create({
-      data: {
-        name: goniName,
-        // Stored in KG (billing converts KG -> QTL).
-        weightPerBag: 0.01,
-        createdBy: admin.id,
-      },
+  for (const goni of goniTypes) {
+    const existing = await prisma.goniType.findFirst({
+      where: { name: goni.name },
     });
 
-    console.log("Goni type seeded:", goni.name);
-  } else {
-    console.log("Goni type already exists");
+    if (!existing) {
+      await prisma.goniType.create({
+        data: {
+          name: goni.name,
+          weightPerBag: goni.weightPerBag,
+          isTracked: goni.isTracked,
+          createdBy: admin.id,
+        },
+      });
+
+      console.log("Goni type seeded:", goni.name);
+    } else {
+      console.log("Goni type already exists");
+    }
   }
 }
 
