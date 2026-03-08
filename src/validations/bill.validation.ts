@@ -29,6 +29,13 @@ export const calculateDeductionSchema = Joi.object({
 });
 
 export const applyGoniSchema = Joi.object({
-  goniTypeId: Joi.string().uuid().required(),
-  bagCount: Joi.number().integer().min(0).required(),
+  gonis: Joi.array()
+    .items(
+      Joi.object({
+        goniTypeId: Joi.string().uuid().required(),
+        bagCount: Joi.number().integer().min(1).required(),
+      }),
+    )
+    .min(1)
+    .required(),
 });

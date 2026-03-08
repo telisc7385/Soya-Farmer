@@ -149,7 +149,11 @@ export const getBillById = async (
             },
           },
         },
-        goniType: true,
+        gonis: {
+          include: {
+            goniType: true,
+          },
+        },
       },
     });
 

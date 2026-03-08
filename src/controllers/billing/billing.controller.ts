@@ -74,13 +74,13 @@ const parseUnitHint = (
       .filter(Boolean);
 
     for (const entry of entries) {
-      const [conditionRaw, factorRaw] = entry.split(":").map((part) => part.trim());
+      const [conditionRaw, factorRaw] = entry
+        .split(":")
+        .map((part) => part.trim());
       if (!conditionRaw || !factorRaw) continue;
       const factor = Number(factorRaw);
       if (Number.isNaN(factor)) continue;
-      if (
-        evaluateRangeCondition(conditionRaw, measurement, reference)
-      ) {
+      if (evaluateRangeCondition(conditionRaw, measurement, reference)) {
         return factor;
       }
     }
@@ -162,7 +162,12 @@ const compactCalculationDetails = (calculationDetails: any) => ({
 const ensureDraftBill = async (billId: string, vendorId: string) => {
   const bill = await prisma.bill.findUnique({
     where: { id: billId },
-    include: { deductions: true, goniType: true },
+    include: {
+      deductions: true,
+      gonis: {
+        include: { goniType: true },
+      },
+    },
   });
   if (!bill) throw new AppError("Bill not found", 404);
   if (bill.vendorId !== vendorId)
@@ -259,7 +264,13 @@ export const createDraftBill = async (
     const totals = await recalcTotals(draft.id);
     const hydrated = await prisma.bill.findUnique({
       where: { id: draft.id },
-      include: { farmer: true, deductions: true, goniType: true },
+      include: {
+        farmer: true,
+        deductions: true,
+        gonis: {
+          include: { goniType: true },
+        },
+      },
     });
 
     const billWithGoni = withGoniAmount(hydrated);
@@ -281,8 +292,13 @@ export const createDraftBill = async (
           vehicleNumber: billWithGoni.vehicleNumber,
           vehicleType: billWithGoni.vehicleType,
           driverName: billWithGoni.driverName,
-          bagCount: billWithGoni.bagCount,
           goniWeight: billWithGoni.goniWeight,
+          goniCount:
+            billWithGoni.gonis?.reduce(
+              (sum: number, g: any) => sum + g.bagCount,
+              0,
+            ) ?? 0,
+          gonis: billWithGoni.gonis,
           goniDeductionAmount: billWithGoni.goniDeductionAmount,
           farmer: billWithGoni.farmer,
           goniType: billWithGoni.goniType,
@@ -377,18 +393,18 @@ export const calculateDeductions = async (
             throw new AppError(`Missing custom input for ${code}`, 400);
           }
 
-        const extra =
-          (customInputs[code] as number) - (actualInputs[code] as number);
-        const rawExtra = extra > 0 ? extra : 0;
-        const unitHint = variableMeta.get(code)?.unitHint ?? "1";
-        const measurementValue = customInputs[code];
-        const referenceValue = actualInputs[code];
-        const unitFactor = parseUnitHint(
-          unitHint,
-          measurementValue,
-          referenceValue,
-        );
-        deductedInputs[code] = roundTo(rawExtra * unitFactor, 4);
+          const extra =
+            (customInputs[code] as number) - (actualInputs[code] as number);
+          const rawExtra = extra > 0 ? extra : 0;
+          const unitHint = variableMeta.get(code)?.unitHint ?? "1";
+          const measurementValue = customInputs[code];
+          const referenceValue = actualInputs[code];
+          const unitFactor = parseUnitHint(
+            unitHint,
+            measurementValue,
+            referenceValue,
+          );
+          deductedInputs[code] = roundTo(rawExtra * unitFactor, 4);
         }
 
         payload = {
@@ -511,24 +527,39 @@ export const applyGoniDeduction = async (
     const { billId } = req.params;
     await ensureDraftBill(billId, vendorId);
 
-    const { goniTypeId, bagCount } = req.body;
-    const goniType = await prisma.goniType.findFirst({
-      where: { id: goniTypeId, isActive: true },
-    });
-    if (!goniType) throw new AppError("Goni type not found", 404);
+    const { gonis } = req.body;
+    let totalWeightKg = 0;
+    const records = [];
 
-    // Goni type weight is stored in KG; bill calculations run in QTL.
-    const goniWeightKg = roundTo(bagCount * goniType.weightPerBag, 3);
-    const goniWeight = roundTo(goniWeightKg / 100, 3);
+    for (const g of gonis) {
+      const goniType = await prisma.goniType.findFirst({
+        where: { id: g.goniTypeId, isActive: true },
+      });
 
-    await prisma.bill.update({
-      where: { id: billId },
-      data: {
-        goniTypeId,
-        bagCount,
-        goniWeight,
-      },
-    });
+      if (goniType) {
+        const weightKg = g.bagCount * goniType.weightPerBag;
+
+        totalWeightKg += weightKg;
+
+        records.push({
+          billId,
+          goniTypeId: g.goniTypeId,
+          bagCount: g.bagCount,
+          weight: weightKg / 100, // convert to QTL
+        });
+      }
+    }
+
+    await prisma.$transaction([
+      prisma.billGoni.deleteMany({ where: { billId } }),
+      prisma.billGoni.createMany({ data: records }),
+      prisma.bill.update({
+        where: { id: billId },
+        data: {
+          goniWeight: totalWeightKg / 100,
+        },
+      }),
+    ]);
 
     const totals = await recalcTotals(billId);
 
@@ -573,7 +604,11 @@ export const previewDraft = async (
             },
           },
         },
-        goniType: true,
+        gonis: {
+          include: {
+            goniType: true,
+          },
+        },
       },
     });
 
@@ -615,6 +650,12 @@ export const confirmDraft = async (
         },
       });
 
+      const gonis = await prisma.billGoni.findMany({
+        where: { billId },
+      });
+
+      const totalBags = gonis.reduce((sum, g) => sum + g.bagCount, 0);
+
       // Auto-create stock entry for vendor
       await tx.stock.create({
         data: {
@@ -622,8 +663,7 @@ export const confirmDraft = async (
           billId,
           weight: bill.primaryQuantity!,
           unit: bill.primaryUnit!,
-          bagCount: bill.bagCount ?? 0,
-          goniTypeId: bill.goniTypeId,
+          bagCount: totalBags,
           status: "AVAILABLE",
         },
       });

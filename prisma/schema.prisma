@@ -178,8 +178,7 @@ model Bill {
   vehicleNumber   String?
   vehicleType     String?
   driverName      String?
-  goniTypeId      String?
-  bagCount        Int           @default(0)
+
   goniWeight      Float         @default(0)
   netPayable      Float         @default(0)
 
@@ -187,10 +186,27 @@ model Bill {
 
   vendor     User            @relation(fields: [vendorId], references: [id])
   farmer     Farmer          @relation(fields: [farmerId], references: [id])
-  goniType   GoniType?       @relation(fields: [goniTypeId], references: [id])
   deductions BillDeduction[]
+  gonis      BillGoni[]
   payment    FarmerPayment?
   stock      Stock?
+}
+
+model BillGoni {
+  id        String   @id @default(uuid())
+  billId    String
+  goniTypeId String
+  bagCount  Int
+  weight    Float
+
+  bill      Bill     @relation("BillGonis", fields: [billId], references: [id])
+  goniType  GoniType @relation("GoniTypeBillGonis", fields: [goniTypeId], references: [id])
+
+  createdAt DateTime @default(now())
+
+  @@unique([billId, goniTypeId])
+  @@index([billId])
+  @@index([goniTypeId])
 }
 
 // =====================
@@ -292,7 +308,7 @@ model GoniType {
   updatedAt    DateTime @updatedAt
 
   createdByUser User?           @relation("UserGoniTypes", fields: [createdBy], references: [id])
-  bills         Bill[]
+  billGonis     BillGoni[]
   stocks        Stock[]         @relation("StockGoniType")
   transfers     StockTransfer[]
 }
