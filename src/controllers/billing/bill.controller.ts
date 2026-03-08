@@ -76,7 +76,7 @@ export const getBills = async (
     }
 
     // 🚀 Run queries in parallel (better performance)
-    const [bills, total] = await Promise.all([
+    const [bills, total, averageRateResult] = await Promise.all([
       prisma.bill.findMany({
         where: whereClause,
         skip,
@@ -86,20 +86,20 @@ export const getBills = async (
           farmer: {
             select: { name: true, phone: true },
           },
-          // deductions: {
-          //   include: {
-          //     master: {
-          //       include: {
-          //         variables: true,
-          //       },
-          //     },
-          //   },
-          // },
-          // goniType: true,
         },
       }),
       prisma.bill.count({ where: whereClause }),
+      prisma.bill.aggregate({
+        where: whereClause,
+        _avg: {
+          ratePerUnit: true,
+        },
+      }),
     ]);
+
+    const averageRate = roundTo(
+      Number(averageRateResult._avg.ratePerUnit ?? 0),
+    );
 
     // 🔄 Transform data
     const formattedBills = bills
@@ -111,6 +111,7 @@ export const getBills = async (
       {
         bills: formattedBills,
         total,
+        averageRate,
         page: currentPage,
         limit: take,
         pages: Math.ceil(total / take),

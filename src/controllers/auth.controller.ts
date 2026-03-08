@@ -11,18 +11,14 @@ export const login = async (
   next: NextFunction,
 ) => {
   try {
-    const { email, password, role } = req.body;
+    const { email, password, role = "VENDOR" } = req.body;
 
     const user = await prisma.user.findUnique({
-      where: { email },
+      where: { email, role },
     });
 
     if (!user) {
       return res.status(401).json({ message: "Invalid credentials" });
-    }
-
-    if (role && role === "Admin" && user.role !== "ADMIN") {
-      return res.status(403).json({ message: "Unauthorized role" });
     }
 
     const isMatch = await bcrypt.compare(password, user.password);
