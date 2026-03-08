@@ -20,8 +20,8 @@ export const listTransferQuerySchema = Joi.object({
 });
 
 export const updateTransferSchema = Joi.object({
-  weight: Joi.number().positive().required(),
-  unit: Joi.string().valid("QTL", "MT").required(),
+  weight: Joi.number().positive().optional(),
+  unit: Joi.string().valid("QTL", "MT").optional(),
 }).or("weight", "unit");
 
 export const returnBagsToFarmerSchema = Joi.object({

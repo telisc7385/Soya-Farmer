@@ -363,6 +363,11 @@ model StockTransfer {
   transferNo    String              @unique
   vendorId      String
   goniTypeId    String?
+  vendorEnteredWeight Float?
+  vendorEnteredUnit   QuantityUnit?
+  adminAdjustedWeight Float?
+  adminAdjustedUnit   QuantityUnit?
+  adminAdjustedAt     DateTime?
   weight        Float?
   unit          QuantityUnit?
   shopName      String?

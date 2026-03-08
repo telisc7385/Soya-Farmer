@@ -95,6 +95,8 @@ export const createTransfer = async (
         transferNo,
         vendorId,
         goniTypeId,
+        vendorEnteredWeight: weight,
+        vendorEnteredUnit: unit,
         weight,
         unit,
         bagCount,
@@ -364,12 +366,27 @@ export const updateTransfer = async (
       throw new AppError("Only pending transfers can be updated", 400);
     }
 
+    const now = new Date();
+    const updateData: any = {};
+
+    if (weight !== undefined) {
+      updateData.weight = weight;
+      updateData.adminAdjustedWeight = weight;
+      updateData.vendorEnteredWeight =
+        transfer.vendorEnteredWeight ?? transfer.weight ?? null;
+      updateData.adminAdjustedAt = now;
+    }
+
+    if (unit !== undefined) {
+      updateData.unit = unit;
+      updateData.adminAdjustedUnit = unit;
+      updateData.vendorEnteredUnit = transfer.vendorEnteredUnit ?? transfer.unit;
+      updateData.adminAdjustedAt = now;
+    }
+
     const updatedTransfer = await prisma.stockTransfer.update({
       where: { id: transferId },
-      data: {
-        ...(weight !== undefined ? { weight } : {}),
-        ...(unit !== undefined ? { unit } : {}),
-      },
+      data: updateData,
       include: {
         vendor: {
           select: { id: true, name: true, phone: true },
@@ -435,6 +452,34 @@ export const getAdminStockSummary = async (
       vendor: vendors.find((vendor) => vendor.id === v.vendorId),
     }));
 
+    const completedTransfersForAnalysis = await prisma.stockTransfer.findMany({
+      where: { status: "COMPLETED" },
+      select: {
+        vendorEnteredWeight: true,
+        adminAdjustedWeight: true,
+        weight: true,
+      },
+    });
+
+    const analysis = completedTransfersForAnalysis.reduce(
+      (acc, transfer) => {
+        const vendorWeight =
+          transfer.vendorEnteredWeight ?? transfer.weight ?? 0;
+        const adminWeight =
+          transfer.adminAdjustedWeight ?? transfer.weight ?? 0;
+
+        acc.vendorEnteredWeight += vendorWeight;
+        acc.adminAdjustedWeight += adminWeight;
+        acc.totalAdjustment += adminWeight - vendorWeight;
+        return acc;
+      },
+      {
+        vendorEnteredWeight: 0,
+        adminAdjustedWeight: 0,
+        totalAdjustment: 0,
+      },
+    );
+
     successResponse(
       res,
       {
@@ -448,6 +493,7 @@ export const getAdminStockSummary = async (
           bagCount: pendingTransfers._sum.bagCount || 0,
           count: pendingTransfers._count,
         },
+        analysis,
         byVendor: byVendorWithDetails,
       },
       "Admin stock summary fetched",
