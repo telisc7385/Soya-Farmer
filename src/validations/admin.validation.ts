@@ -51,12 +51,14 @@ export const toggleDeductionMasterSchema = Joi.object({
 export const createGoniTypeSchema = Joi.object({
   name: Joi.string().trim().required(),
   weightPerBag: Joi.number().positive().required(),
+  isTracked: Joi.boolean().optional(),
 });
 
 export const updateGoniTypeSchema = Joi.object({
   name: Joi.string().trim().required(),
   weightPerBag: Joi.number().positive().required(),
   isActive: Joi.boolean().required(),
+  isTracked: Joi.boolean().optional(),
 });
 
 export const saveQualityRateSchema = Joi.object({

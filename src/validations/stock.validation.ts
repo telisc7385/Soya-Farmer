@@ -7,10 +7,10 @@ export const createTransferSchema = Joi.object({
   weight: Joi.number().positive().optional(),
   unit: Joi.string().valid("QTL", "MT").optional(),
   bagCount: Joi.number().integer().min(0).required(),
-  goniTypeId: Joi.string().uuid().optional(),
+  goniTypeId: Joi.string().uuid().required(),
   shopName: Joi.string().max(255).required(),
   shopLocation: Joi.string().max(255).required(),
-  vehicalNumber: Joi.string().max(50).optional(),
+  vehicalNumber: Joi.string().max(50).required(),
 });
 
 export const listTransferQuerySchema = Joi.object({
@@ -20,6 +20,20 @@ export const listTransferQuerySchema = Joi.object({
 });
 
 export const updateTransferSchema = Joi.object({
-  weight: Joi.number().positive().required(),
-  unit: Joi.string().valid("QTL", "MT").required(),
+  weight: Joi.number().positive().optional(),
+  unit: Joi.string().valid("QTL", "MT").optional(),
 }).or("weight", "unit");
+
+export const returnBagsToFarmerSchema = Joi.object({
+  farmerId: Joi.string().uuid().required(),
+  goniTypeId: Joi.string().uuid().required(),
+  bagCount: Joi.number().integer().min(1).required(),
+  notes: Joi.string().max(500).optional(),
+});
+
+export const adminReturnBagsToVendorSchema = Joi.object({
+  billId: Joi.string().uuid().required(),
+  goniTypeId: Joi.string().uuid().required(),
+  bagCount: Joi.number().integer().min(1).required(),
+  notes: Joi.string().max(500).optional(),
+});

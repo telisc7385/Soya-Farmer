@@ -45,7 +45,7 @@ const getBillsReport = async (query: any) => {
     "CANCELLED",
   ]);
 
-  return prisma.bill.findMany({
+  const bills = await prisma.bill.findMany({
     where: {
       ...(createdAt && { createdAt }),
       ...(status.length > 0 && { status: { in: status as any } }),
@@ -56,10 +56,20 @@ const getBillsReport = async (query: any) => {
     include: {
       farmer: true,
       vendor: true,
-      goniType: true,
+      gonis: {
+        include: { goniType: true },
+      },
       payment: true,
     },
   });
+
+  return bills.map((bill) => ({
+    ...bill,
+    bagCount: bill.gonis.reduce((sum, row) => sum + row.bagCount, 0),
+    goniType: {
+      name: bill.gonis.map((row) => row.goniType.name).join(", "),
+    },
+  }));
 };
 
 const getPaymentsReport = async (query: any) => {

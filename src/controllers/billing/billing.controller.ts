@@ -1,4 +1,5 @@
 import { NextFunction, Response } from "express";
+import { BagMovementType } from "@prisma/client";
 import prisma from "../../database/prisma";
 import { createdResponse, successResponse } from "../../utils/response";
 import { AuthRequest } from "../../middleware/auth.middleware";
@@ -74,13 +75,13 @@ const parseUnitHint = (
       .filter(Boolean);
 
     for (const entry of entries) {
-      const [conditionRaw, factorRaw] = entry.split(":").map((part) => part.trim());
+      const [conditionRaw, factorRaw] = entry
+        .split(":")
+        .map((part) => part.trim());
       if (!conditionRaw || !factorRaw) continue;
       const factor = Number(factorRaw);
       if (Number.isNaN(factor)) continue;
-      if (
-        evaluateRangeCondition(conditionRaw, measurement, reference)
-      ) {
+      if (evaluateRangeCondition(conditionRaw, measurement, reference)) {
         return factor;
       }
     }
@@ -162,7 +163,12 @@ const compactCalculationDetails = (calculationDetails: any) => ({
 const ensureDraftBill = async (billId: string, vendorId: string) => {
   const bill = await prisma.bill.findUnique({
     where: { id: billId },
-    include: { deductions: true, goniType: true },
+    include: {
+      deductions: true,
+      gonis: {
+        include: { goniType: true },
+      },
+    },
   });
   if (!bill) throw new AppError("Bill not found", 404);
   if (bill.vendorId !== vendorId)
@@ -232,6 +238,9 @@ export const createDraftBill = async (
     if (unit === "KG") {
       // Convert KG to QTL for storage and calculations
       quantity = roundTo(quantity / 100, 3);
+    } else if (unit === "MT") {
+      // Convert MT to QTL for storage and calculations
+      quantity = roundTo(quantity * 10, 3);
     }
 
     await checkFarmer(farmerId);
@@ -246,7 +255,8 @@ export const createDraftBill = async (
         farmerId,
         status: "DRAFT",
         primaryQuantity: quantity,
-        primaryUnit: unit === "KG" ? "QTL" : unit, // Store as QTL if input is KG
+        // Keep quantity unit normalized to QTL in persistence layer
+        primaryUnit: "QTL",
         ratePerUnit: rate,
         grossAmount,
         vehicleNumber,
@@ -259,7 +269,13 @@ export const createDraftBill = async (
     const totals = await recalcTotals(draft.id);
     const hydrated = await prisma.bill.findUnique({
       where: { id: draft.id },
-      include: { farmer: true, deductions: true, goniType: true },
+      include: {
+        farmer: true,
+        deductions: true,
+        gonis: {
+          include: { goniType: true },
+        },
+      },
     });
 
     const billWithGoni = withGoniAmount(hydrated);
@@ -281,8 +297,13 @@ export const createDraftBill = async (
           vehicleNumber: billWithGoni.vehicleNumber,
           vehicleType: billWithGoni.vehicleType,
           driverName: billWithGoni.driverName,
-          bagCount: billWithGoni.bagCount,
           goniWeight: billWithGoni.goniWeight,
+          goniCount:
+            billWithGoni.gonis?.reduce(
+              (sum: number, g: any) => sum + g.bagCount,
+              0,
+            ) ?? 0,
+          gonis: billWithGoni.gonis,
           goniDeductionAmount: billWithGoni.goniDeductionAmount,
           farmer: billWithGoni.farmer,
           goniType: billWithGoni.goniType,
@@ -377,18 +398,18 @@ export const calculateDeductions = async (
             throw new AppError(`Missing custom input for ${code}`, 400);
           }
 
-        const extra =
-          (customInputs[code] as number) - (actualInputs[code] as number);
-        const rawExtra = extra > 0 ? extra : 0;
-        const unitHint = variableMeta.get(code)?.unitHint ?? "1";
-        const measurementValue = customInputs[code];
-        const referenceValue = actualInputs[code];
-        const unitFactor = parseUnitHint(
-          unitHint,
-          measurementValue,
-          referenceValue,
-        );
-        deductedInputs[code] = roundTo(rawExtra * unitFactor, 4);
+          const extra =
+            (customInputs[code] as number) - (actualInputs[code] as number);
+          const rawExtra = extra > 0 ? extra : 0;
+          const unitHint = variableMeta.get(code)?.unitHint ?? "1";
+          const measurementValue = customInputs[code];
+          const referenceValue = actualInputs[code];
+          const unitFactor = parseUnitHint(
+            unitHint,
+            measurementValue,
+            referenceValue,
+          );
+          deductedInputs[code] = roundTo(rawExtra * unitFactor, 4);
         }
 
         payload = {
@@ -511,24 +532,55 @@ export const applyGoniDeduction = async (
     const { billId } = req.params;
     await ensureDraftBill(billId, vendorId);
 
-    const { goniTypeId, bagCount } = req.body;
-    const goniType = await prisma.goniType.findFirst({
-      where: { id: goniTypeId, isActive: true },
+    const { gonis } = req.body;
+    const requestedTypeIds: string[] = Array.from(
+      new Set(gonis.map((g: { goniTypeId: string }) => g.goniTypeId)),
+    );
+    const goniTypes = await prisma.goniType.findMany({
+      where: { id: { in: requestedTypeIds }, isActive: true },
     });
-    if (!goniType) throw new AppError("Goni type not found", 404);
+    const goniTypeMap = new Map(goniTypes.map((type) => [type.id, type]));
+    const invalidTypeIds = requestedTypeIds.filter((id) => !goniTypeMap.has(id));
+    if (invalidTypeIds.length) {
+      throw new AppError(
+        `Invalid or inactive goni type(s): ${invalidTypeIds.join(", ")}`,
+        400,
+      );
+    }
 
-    // Goni type weight is stored in KG; bill calculations run in QTL.
-    const goniWeightKg = roundTo(bagCount * goniType.weightPerBag, 3);
-    const goniWeight = roundTo(goniWeightKg / 100, 3);
+    const bagCountByType = new Map<string, number>();
+    for (const g of gonis) {
+      const current = bagCountByType.get(g.goniTypeId) ?? 0;
+      bagCountByType.set(g.goniTypeId, current + g.bagCount);
+    }
 
-    await prisma.bill.update({
-      where: { id: billId },
-      data: {
+    let totalWeightKg = 0;
+    const records = [];
+
+    for (const [goniTypeId, bagCount] of bagCountByType.entries()) {
+      const goniType = goniTypeMap.get(goniTypeId)!;
+      const weightKg = bagCount * goniType.weightPerBag;
+
+      totalWeightKg += weightKg;
+
+      records.push({
+        billId,
         goniTypeId,
         bagCount,
-        goniWeight,
-      },
-    });
+        weight: weightKg / 100, // convert to QTL
+      });
+    }
+
+    await prisma.$transaction([
+      prisma.billGoni.deleteMany({ where: { billId } }),
+      prisma.billGoni.createMany({ data: records }),
+      prisma.bill.update({
+        where: { id: billId },
+        data: {
+          goniWeight: totalWeightKg / 100,
+        },
+      }),
+    ]);
 
     const totals = await recalcTotals(billId);
 
@@ -573,7 +625,11 @@ export const previewDraft = async (
             },
           },
         },
-        goniType: true,
+        gonis: {
+          include: {
+            goniType: true,
+          },
+        },
       },
     });
 
@@ -615,18 +671,57 @@ export const confirmDraft = async (
         },
       });
 
+      const gonis = await prisma.billGoni.findMany({
+        where: { billId },
+      });
+
+      const totalBags = gonis.reduce((sum, g) => sum + g.bagCount, 0);
+      const stockWeight = roundTo(
+        Math.max((bill.primaryQuantity ?? 0) - (bill.goniWeight ?? 0), 0),
+        3,
+      );
+
       // Auto-create stock entry for vendor
       await tx.stock.create({
         data: {
           vendorId,
           billId,
-          weight: bill.primaryQuantity!,
-          unit: bill.primaryUnit!,
-          bagCount: bill.bagCount ?? 0,
-          goniTypeId: bill.goniTypeId,
+          // Stock should represent net commodity after bag-weight deduction
+          weight: stockWeight,
+          unit: "QTL",
+          bagCount: totalBags,
           status: "AVAILABLE",
         },
       });
+
+      // Explicitly record farmer -> vendor bag receipt at finalization time
+      const trackedGonis = await tx.billGoni.findMany({
+        where: {
+          billId,
+          goniType: {
+            isTracked: true,
+            isActive: true,
+          },
+        },
+        select: {
+          goniTypeId: true,
+          bagCount: true,
+        },
+      });
+
+      if (trackedGonis.length) {
+        await tx.bagMovement.createMany({
+          data: trackedGonis.map((g) => ({
+            vendorId,
+            farmerId: bill.farmerId,
+            goniTypeId: g.goniTypeId,
+            bagCount: g.bagCount,
+            movementType: BagMovementType.FARMER_TO_VENDOR,
+            notes: `Captured from bill ${bill.billNo}`,
+            createdById: vendorId,
+          })),
+        });
+      }
     });
 
     successResponse(res, null, "Bill confirmed and stock added");

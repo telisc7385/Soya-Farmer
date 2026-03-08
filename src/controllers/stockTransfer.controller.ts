@@ -4,6 +4,10 @@ import { successResponse, createdResponse } from "../utils/response";
 import { AppError } from "../core/appError";
 import { generateTransferNo } from "../utils/transferNo";
 import { AuthRequest } from "../middleware/auth.middleware";
+import {
+  getVendorCurrentBagsForType,
+  isTrackedGoniType,
+} from "../services/bagLedger.service";
 
 // =====================
 // VENDOR TRANSFER OPERATIONS
@@ -20,15 +24,16 @@ export const createTransfer = async (
 ) => {
   try {
     const vendorId = req?.user?.id as string;
-    const {
-      weight,
-      unit,
-      bagCount,
-      goniTypeId,
-      shopName,
-      shopLocation,
-      vehicalNumber,
-    } = req.body;
+    const { weight, unit, bagCount, goniTypeId, shopName, shopLocation, vehicalNumber } =
+      req.body as {
+        weight?: number;
+        unit?: "QTL" | "MT";
+        bagCount: number;
+        goniTypeId: string;
+        shopName: string;
+        shopLocation: string;
+        vehicalNumber: string;
+      };
 
     // Get vendor's total available stock
     const availableStock = await prisma.stock.aggregate({
@@ -46,11 +51,34 @@ export const createTransfer = async (
     const availableBags = availableStock._sum.bagCount || 0;
 
     // Validate transfer doesn't exceed available stock
-    if (weight > availableWeight) {
+    if (typeof weight === "number" && weight > availableWeight) {
       throw new AppError(
         `Transfer weight (${weight}) exceeds available stock (${availableWeight})`,
         400,
       );
+    }
+
+    // Validate goniType
+    const goniType = await prisma.goniType.findFirst({
+      where: { id: goniTypeId, isActive: true },
+      select: { id: true, name: true },
+    });
+    if (!goniType) {
+      throw new AppError("Goni type not found", 404);
+    }
+
+    const isTracked = await isTrackedGoniType(goniTypeId);
+    if (isTracked) {
+      const availableBagsByType = await getVendorCurrentBagsForType(
+        vendorId,
+        goniTypeId,
+      );
+      if (bagCount > availableBagsByType) {
+        throw new AppError(
+          `Transfer bag count (${bagCount}) exceeds available ${goniType.name} bags (${availableBagsByType})`,
+          400,
+        );
+      }
     }
 
     if (bagCount > availableBags) {
@@ -60,16 +88,6 @@ export const createTransfer = async (
       );
     }
 
-    // Validate goniType if provided
-    if (goniTypeId) {
-      const goniType = await prisma.goniType.findFirst({
-        where: { id: goniTypeId, isActive: true },
-      });
-      if (!goniType) {
-        throw new AppError("Goni type not found", 404);
-      }
-    }
-
     const transferNo = await generateTransferNo();
 
     const transfer = await prisma.stockTransfer.create({
@@ -77,6 +95,8 @@ export const createTransfer = async (
         transferNo,
         vendorId,
         goniTypeId,
+        vendorEnteredWeight: weight,
+        vendorEnteredUnit: unit,
         weight,
         unit,
         bagCount,
@@ -206,7 +226,7 @@ export const getAdminTransfers = async (
  * Complete transfer (Admin) - Deducts from vendor's available stock using FIFO
  */
 export const completeTransfer = async (
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction,
 ) => {
@@ -294,6 +314,19 @@ export const completeTransfer = async (
           completedAt: new Date(),
         },
       });
+
+      if (transfer.goniTypeId && (await isTrackedGoniType(transfer.goniTypeId))) {
+        await tx.bagMovement.create({
+          data: {
+            vendorId: transfer.vendorId,
+            goniTypeId: transfer.goniTypeId,
+            transferId: transfer.id,
+            bagCount: transfer.bagCount,
+            movementType: "VENDOR_TO_ADMIN",
+            createdById: req.user?.id,
+          },
+        });
+      }
     });
 
     successResponse(res, null, "Transfer completed successfully");
@@ -333,12 +366,27 @@ export const updateTransfer = async (
       throw new AppError("Only pending transfers can be updated", 400);
     }
 
+    const now = new Date();
+    const updateData: any = {};
+
+    if (weight !== undefined) {
+      updateData.weight = weight;
+      updateData.adminAdjustedWeight = weight;
+      updateData.vendorEnteredWeight =
+        transfer.vendorEnteredWeight ?? transfer.weight ?? null;
+      updateData.adminAdjustedAt = now;
+    }
+
+    if (unit !== undefined) {
+      updateData.unit = unit;
+      updateData.adminAdjustedUnit = unit;
+      updateData.vendorEnteredUnit = transfer.vendorEnteredUnit ?? transfer.unit;
+      updateData.adminAdjustedAt = now;
+    }
+
     const updatedTransfer = await prisma.stockTransfer.update({
       where: { id: transferId },
-      data: {
-        ...(weight !== undefined ? { weight } : {}),
-        ...(unit !== undefined ? { unit } : {}),
-      },
+      data: updateData,
       include: {
         vendor: {
           select: { id: true, name: true, phone: true },
@@ -404,6 +452,34 @@ export const getAdminStockSummary = async (
       vendor: vendors.find((vendor) => vendor.id === v.vendorId),
     }));
 
+    const completedTransfersForAnalysis = await prisma.stockTransfer.findMany({
+      where: { status: "COMPLETED" },
+      select: {
+        vendorEnteredWeight: true,
+        adminAdjustedWeight: true,
+        weight: true,
+      },
+    });
+
+    const analysis = completedTransfersForAnalysis.reduce(
+      (acc, transfer) => {
+        const vendorWeight =
+          transfer.vendorEnteredWeight ?? transfer.weight ?? 0;
+        const adminWeight =
+          transfer.adminAdjustedWeight ?? transfer.weight ?? 0;
+
+        acc.vendorEnteredWeight += vendorWeight;
+        acc.adminAdjustedWeight += adminWeight;
+        acc.totalAdjustment += adminWeight - vendorWeight;
+        return acc;
+      },
+      {
+        vendorEnteredWeight: 0,
+        adminAdjustedWeight: 0,
+        totalAdjustment: 0,
+      },
+    );
+
     successResponse(
       res,
       {
@@ -417,6 +493,7 @@ export const getAdminStockSummary = async (
           bagCount: pendingTransfers._sum.bagCount || 0,
           count: pendingTransfers._count,
         },
+        analysis,
         byVendor: byVendorWithDetails,
       },
       "Admin stock summary fetched",

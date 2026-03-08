@@ -20,6 +20,7 @@ import {
   saveQualityRate,
 } from "../controllers/qualityRate.controller";
 import * as transferController from "../controllers/stockTransfer.controller";
+import * as bagController from "../controllers/bag.controller";
 import {
   validateRequest,
   validateQuery,
@@ -36,7 +37,10 @@ import {
   updateGoniTypeSchema,
   saveQualityRateSchema,
 } from "../validations/admin.validation";
-import { updateTransferSchema } from "../validations/stock.validation";
+import {
+  adminReturnBagsToVendorSchema,
+  updateTransferSchema,
+} from "../validations/stock.validation";
 import { exportReportSchema } from "../validations/report.validation";
 import { exportAdminReport } from "../controllers/admin/adminReport.controller";
 const router = Router();
@@ -99,6 +103,14 @@ router.put(
 );
 
 router.get("/goni-types", authMiddleware, listGoniTypes);
+
+router.post(
+  "/bags/vendor/:vendorId/return",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateRequest(adminReturnBagsToVendorSchema),
+  bagController.adminReturnBagsToVendor,
+);
 
 router.post(
   "/quality-rates",

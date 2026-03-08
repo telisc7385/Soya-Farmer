@@ -4,8 +4,12 @@ import { authorize } from "../middleware/role.middleware";
 import { validateRequest } from "../middleware/validateRequest.middleware";
 import * as stockController from "../controllers/stock.controller";
 import * as transferController from "../controllers/stockTransfer.controller";
+import * as bagController from "../controllers/bag.controller";
 import { listActiveQualityRates } from "../controllers/qualityRate.controller";
-import { createTransferSchema } from "../validations/stock.validation";
+import {
+  createTransferSchema,
+  returnBagsToFarmerSchema,
+} from "../validations/stock.validation";
 
 const router = Router();
 
@@ -47,6 +51,23 @@ router.get(
   authMiddleware,
   authorize("VENDOR"),
   stockController.getStockSummary,
+);
+
+// Get vendor bag summary (farmer/admin cycle)
+router.get(
+  "/bags/summary",
+  authMiddleware,
+  authorize("VENDOR"),
+  bagController.getVendorBagSummary,
+);
+
+// Vendor returns bags to farmer
+router.post(
+  "/bags/return-to-farmer",
+  authMiddleware,
+  authorize("VENDOR"),
+  validateRequest(returnBagsToFarmerSchema),
+  bagController.returnBagsToFarmer,
 );
 
 // Get stock by ID
