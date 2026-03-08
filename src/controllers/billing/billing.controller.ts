@@ -237,6 +237,9 @@ export const createDraftBill = async (
     if (unit === "KG") {
       // Convert KG to QTL for storage and calculations
       quantity = roundTo(quantity / 100, 3);
+    } else if (unit === "MT") {
+      // Convert MT to QTL for storage and calculations
+      quantity = roundTo(quantity * 10, 3);
     }
 
     await checkFarmer(farmerId);
@@ -251,7 +254,8 @@ export const createDraftBill = async (
         farmerId,
         status: "DRAFT",
         primaryQuantity: quantity,
-        primaryUnit: unit === "KG" ? "QTL" : unit, // Store as QTL if input is KG
+        // Keep quantity unit normalized to QTL in persistence layer
+        primaryUnit: "QTL",
         ratePerUnit: rate,
         grossAmount,
         vehicleNumber,
@@ -528,26 +532,42 @@ export const applyGoniDeduction = async (
     await ensureDraftBill(billId, vendorId);
 
     const { gonis } = req.body;
+    const requestedTypeIds: string[] = Array.from(
+      new Set(gonis.map((g: { goniTypeId: string }) => g.goniTypeId)),
+    );
+    const goniTypes = await prisma.goniType.findMany({
+      where: { id: { in: requestedTypeIds }, isActive: true },
+    });
+    const goniTypeMap = new Map(goniTypes.map((type) => [type.id, type]));
+    const invalidTypeIds = requestedTypeIds.filter((id) => !goniTypeMap.has(id));
+    if (invalidTypeIds.length) {
+      throw new AppError(
+        `Invalid or inactive goni type(s): ${invalidTypeIds.join(", ")}`,
+        400,
+      );
+    }
+
+    const bagCountByType = new Map<string, number>();
+    for (const g of gonis) {
+      const current = bagCountByType.get(g.goniTypeId) ?? 0;
+      bagCountByType.set(g.goniTypeId, current + g.bagCount);
+    }
+
     let totalWeightKg = 0;
     const records = [];
 
-    for (const g of gonis) {
-      const goniType = await prisma.goniType.findFirst({
-        where: { id: g.goniTypeId, isActive: true },
+    for (const [goniTypeId, bagCount] of bagCountByType.entries()) {
+      const goniType = goniTypeMap.get(goniTypeId)!;
+      const weightKg = bagCount * goniType.weightPerBag;
+
+      totalWeightKg += weightKg;
+
+      records.push({
+        billId,
+        goniTypeId,
+        bagCount,
+        weight: weightKg / 100, // convert to QTL
       });
-
-      if (goniType) {
-        const weightKg = g.bagCount * goniType.weightPerBag;
-
-        totalWeightKg += weightKg;
-
-        records.push({
-          billId,
-          goniTypeId: g.goniTypeId,
-          bagCount: g.bagCount,
-          weight: weightKg / 100, // convert to QTL
-        });
-      }
     }
 
     await prisma.$transaction([
@@ -655,14 +675,19 @@ export const confirmDraft = async (
       });
 
       const totalBags = gonis.reduce((sum, g) => sum + g.bagCount, 0);
+      const stockWeight = roundTo(
+        Math.max((bill.primaryQuantity ?? 0) - (bill.goniWeight ?? 0), 0),
+        3,
+      );
 
       // Auto-create stock entry for vendor
       await tx.stock.create({
         data: {
           vendorId,
           billId,
-          weight: bill.primaryQuantity!,
-          unit: bill.primaryUnit!,
+          // Stock should represent net commodity after bag-weight deduction
+          weight: stockWeight,
+          unit: "QTL",
           bagCount: totalBags,
           status: "AVAILABLE",
         },
