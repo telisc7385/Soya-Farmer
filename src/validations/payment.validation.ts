@@ -1,8 +1,8 @@
-import Joi, { optional } from "joi";
+import Joi from "joi";
 
 export const payFarmerSchema = Joi.object({
-  amount: Joi.number().required(),
-  paidDate: Joi.string().required(),
+  amount: Joi.number().positive().required(),
+  paidDate: Joi.string().optional(),
   reference: Joi.string().optional(),
 });
 export const rejectFarmerSchema = Joi.object({

@@ -37,7 +37,12 @@ async function main() {
       formulaExpression: "moisture + FM + Damage",
       variableValues: ["10+2+2", "10+2+3"],
       variables: [
-        { code: "moisture", label: "Moisture %", unitHint: "1" },
+        {
+          code: "moisture",
+          label: "Moisture %",
+          unitHint:
+            "range:<=variableValue:0,10-13:1,14-16:1.5,>16:2",
+        },
         { code: "FM", label: "FM", unitHint: "1" },
         { code: "Damage", label: "Damage", unitHint: "1/4" },
       ],

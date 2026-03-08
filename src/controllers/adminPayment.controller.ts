@@ -20,30 +20,70 @@ export const payFarmer = async (
     if (!bill) throw new AppError("Bill not found", 404);
     if (bill.status !== "PENDING")
       throw new AppError("Bill not ready for payment", 400);
+    if (typeof amount !== "number" || amount <= 0) {
+      throw new AppError("Payment amount must be greater than 0", 400);
+    }
 
-    if (bill.payment) throw new AppError("Payment already done", 400);
+    const totalAmount = Number(bill.totalAmount ?? 0);
+    const advancedAmount = Number((bill as any).advancedAmount ?? 0);
+    const remainingAmount = Number((totalAmount - advancedAmount).toFixed(2));
+
+    if (amount > remainingAmount) {
+      throw new AppError(
+        `Payment amount cannot exceed remaining amount (${remainingAmount})`,
+        400,
+      );
+    }
+
+    const updatedAdvancedAmount = Number((advancedAmount + amount).toFixed(2));
+    const isFullyPaid = updatedAdvancedAmount >= totalAmount;
 
     await prisma.$transaction(async (tx) => {
-      await tx.farmerPayment.create({
-        data: {
-          billId,
-          farmerId: bill.farmerId,
-          amount,
-          status: "PAID",
-          paidDate: paidDate ? new Date(paidDate) : new Date(),
-          reference,
-        },
-      });
+      if (bill.payment) {
+        await tx.farmerPayment.update({
+          where: { billId },
+          data: {
+            amount: updatedAdvancedAmount,
+            status: isFullyPaid ? "PAID" : "PENDING",
+            paidDate: paidDate ? new Date(paidDate) : new Date(),
+            reference,
+          },
+        });
+      } else {
+        await tx.farmerPayment.create({
+          data: {
+            billId,
+            farmerId: bill.farmerId,
+            amount: updatedAdvancedAmount,
+            status: isFullyPaid ? "PAID" : "PENDING",
+            paidDate: paidDate ? new Date(paidDate) : new Date(),
+            reference,
+          },
+        });
+      }
 
       await tx.bill.update({
         where: { id: billId },
         data: {
-          status: "COMPLETED",
+          advancedAmount: updatedAdvancedAmount,
+          status: isFullyPaid ? "COMPLETED" : "PENDING",
         },
       });
     });
 
-    successResponse(res, null, "Farmer paid successfully");
+    successResponse(
+      res,
+      {
+        totalAmount,
+        advancedAmount: updatedAdvancedAmount,
+        remainingAmount: Number(
+          Math.max(totalAmount - updatedAdvancedAmount, 0).toFixed(2),
+        ),
+      },
+      isFullyPaid
+        ? "Farmer payment completed successfully"
+        : "Advance payment recorded successfully",
+    );
   } catch (error) {
     next(error);
   }
