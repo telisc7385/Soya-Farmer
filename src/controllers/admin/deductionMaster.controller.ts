@@ -4,6 +4,34 @@ import { createdResponse, successResponse } from "../../utils/response";
 import { AppError } from "../../core/appError";
 import { AuthRequest } from "../../middleware/auth.middleware";
 
+type UnitHintRangeEntry = {
+  condition: string;
+  factor: number | string;
+};
+
+const formatUnitHint = (
+  unitHint?: string | UnitHintRangeEntry[],
+): string | undefined => {
+  if (!unitHint) return undefined;
+  if (typeof unitHint === "string") {
+    const trimmed = unitHint.trim();
+    return trimmed || undefined;
+  }
+  const segments = unitHint
+    .map((entry) => {
+      const condition = entry?.condition?.trim();
+      const factorValue =
+        typeof entry.factor === "number"
+          ? entry.factor.toString()
+          : entry.factor?.toString().trim();
+      if (!condition || !factorValue) return undefined;
+      return `${condition}:${factorValue}`;
+    })
+    .filter((segment): segment is string => Boolean(segment));
+  if (!segments.length) return undefined;
+  return `range:${segments.join(",")}`;
+};
+
 export const createDeductionMaster = async (
   req: AuthRequest,
   res: Response,
@@ -50,7 +78,7 @@ export const createDeductionMaster = async (
             masterId: created.id,
             code: variable.code,
             label: variable.label,
-            unitHint: variable.unitHint,
+            unitHint: formatUnitHint(variable.unitHint),
           })),
         });
       }
@@ -119,7 +147,7 @@ export const updateDeductionMaster = async (
             masterId,
             code: variable.code,
             label: variable.label,
-            unitHint: variable.unitHint,
+            unitHint: formatUnitHint(variable.unitHint),
           })),
         });
       }

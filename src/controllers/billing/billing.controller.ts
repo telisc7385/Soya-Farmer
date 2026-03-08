@@ -10,10 +10,82 @@ import { roundTo } from "../../utils/number";
 import { attachDeductionDetails } from "../../utils/deductionDetails";
 import { buildBillingCalculationDetails } from "../../utils/billingCalculation";
 
-const parseUnitHint = (unitHint?: string | null): number => {
+const evaluateRangeCondition = (
+  condition: string,
+  measurement?: number,
+  reference?: number,
+): boolean => {
+  if (measurement === undefined || condition.trim() === "") return false;
+  const normalized = condition.replace(/\s+/g, "");
+  if (!normalized) return false;
+
+  const resolveValue = (token: string): number | undefined => {
+    if (!token) return undefined;
+    if (token.toLowerCase() === "variablevalue") {
+      return reference;
+    }
+    const parsed = Number(token);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  };
+
+  if (normalized.startsWith("<=")) {
+    const target = resolveValue(normalized.slice(2));
+    return target !== undefined && measurement <= target;
+  }
+  if (normalized.startsWith(">=")) {
+    const target = resolveValue(normalized.slice(2));
+    return target !== undefined && measurement >= target;
+  }
+  if (normalized.startsWith(">")) {
+    const target = resolveValue(normalized.slice(1));
+    return target !== undefined && measurement > target;
+  }
+  if (normalized.startsWith("<")) {
+    const target = resolveValue(normalized.slice(1));
+    return target !== undefined && measurement < target;
+  }
+  if (normalized.includes("-")) {
+    const [rawMin, rawMax] = normalized.split("-");
+    const min = resolveValue(rawMin);
+    const max = resolveValue(rawMax);
+    if (min === undefined || max === undefined) {
+      return false;
+    }
+    return measurement >= min && measurement <= max;
+  }
+  const exact = resolveValue(normalized);
+  return exact !== undefined && measurement === exact;
+};
+
+const parseUnitHint = (
+  unitHint?: string | null,
+  measurement?: number,
+  reference?: number,
+): number => {
   if (!unitHint) return 1;
   const trimmed = unitHint.trim();
   if (!trimmed) return 1;
+
+  if (trimmed.toLowerCase().startsWith("range:")) {
+    const rangePart = trimmed.slice(6);
+    const entries = rangePart
+      .split(",")
+      .map((segment) => segment.trim())
+      .filter(Boolean);
+
+    for (const entry of entries) {
+      const [conditionRaw, factorRaw] = entry.split(":").map((part) => part.trim());
+      if (!conditionRaw || !factorRaw) continue;
+      const factor = Number(factorRaw);
+      if (Number.isNaN(factor)) continue;
+      if (
+        evaluateRangeCondition(conditionRaw, measurement, reference)
+      ) {
+        return factor;
+      }
+    }
+  }
+
   if (trimmed.includes("/")) {
     const [numRaw, denRaw] = trimmed.split("/");
     const num = Number(numRaw);
@@ -305,12 +377,18 @@ export const calculateDeductions = async (
             throw new AppError(`Missing custom input for ${code}`, 400);
           }
 
-          const extra =
-            (customInputs[code] as number) - (actualInputs[code] as number);
-          const rawExtra = extra > 0 ? extra : 0;
-          const unitHint = variableMeta.get(code)?.unitHint ?? "1";
-          const unitFactor = parseUnitHint(unitHint);
-          deductedInputs[code] = roundTo(rawExtra * unitFactor, 4);
+        const extra =
+          (customInputs[code] as number) - (actualInputs[code] as number);
+        const rawExtra = extra > 0 ? extra : 0;
+        const unitHint = variableMeta.get(code)?.unitHint ?? "1";
+        const measurementValue = customInputs[code];
+        const referenceValue = actualInputs[code];
+        const unitFactor = parseUnitHint(
+          unitHint,
+          measurementValue,
+          referenceValue,
+        );
+        deductedInputs[code] = roundTo(rawExtra * unitFactor, 4);
         }
 
         payload = {
