@@ -322,6 +322,7 @@ model GoniType {
   billGonis     BillGoni[]       @relation("GoniTypeBillGonis")
   stocks        Stock[]         @relation("StockGoniType")
   transfers     StockTransfer[]
+  transferItems StockTransferItem[]
   bagMoves      BagMovement[]
 }
 
@@ -380,7 +381,23 @@ model StockTransfer {
 
   vendor   User      @relation("VendorTransfers", fields: [vendorId], references: [id])
   goniType GoniType? @relation(fields: [goniTypeId], references: [id])
+  items    StockTransferItem[]
   bagMoves BagMovement[]
+}
+
+model StockTransferItem {
+  id         String   @id @default(uuid())
+  transferId String
+  goniTypeId String
+  bagCount   Int
+  createdAt  DateTime @default(now())
+
+  transfer StockTransfer @relation(fields: [transferId], references: [id])
+  goniType  GoniType      @relation(fields: [goniTypeId], references: [id])
+
+  @@unique([transferId, goniTypeId])
+  @@index([transferId])
+  @@index([goniTypeId])
 }
 
 model BagMovement {

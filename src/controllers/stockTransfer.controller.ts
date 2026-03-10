@@ -14,8 +14,8 @@ import {
 // =====================
 
 /**
- * Create transfer request (Vendor → Admin)
- * Vendor transfers from their total available stock
+ * Create transfer request (Vendor -> Admin)
+ * Supports both single bag type and multiple bag types via items[].
  */
 export const createTransfer = async (
   req: AuthRequest,
@@ -24,16 +24,56 @@ export const createTransfer = async (
 ) => {
   try {
     const vendorId = req?.user?.id as string;
-    const { weight, unit, bagCount, goniTypeId, shopName, shopLocation, vehicalNumber } =
-      req.body as {
-        weight?: number;
-        unit?: "QTL" | "MT";
-        bagCount: number;
-        goniTypeId: string;
-        shopName: string;
-        shopLocation: string;
-        vehicalNumber: string;
-      };
+    const {
+      weight,
+      unit,
+      bagCount,
+      goniTypeId,
+      items,
+      shopName,
+      shopLocation,
+      vehicalNumber,
+    } = req.body as {
+      weight?: number;
+      unit?: "QTL" | "MT";
+      bagCount?: number;
+      goniTypeId?: string;
+      items?: Array<{ goniTypeId: string; bagCount: number }>;
+      shopName: string;
+      shopLocation: string;
+      vehicalNumber: string;
+    };
+
+    const normalizedItems =
+      Array.isArray(items) && items.length
+        ? items
+        : goniTypeId && typeof bagCount === "number"
+          ? [{ goniTypeId, bagCount }]
+          : [];
+
+    if (!normalizedItems.length) {
+      throw new AppError(
+        "Provide either items[] for multi-type transfer or goniTypeId + bagCount for single type",
+        400,
+      );
+    }
+
+    const bagCountByType = new Map<string, number>();
+    for (const item of normalizedItems) {
+      const current = bagCountByType.get(item.goniTypeId) ?? 0;
+      bagCountByType.set(item.goniTypeId, current + item.bagCount);
+    }
+
+    const transferItems = Array.from(bagCountByType.entries()).map(
+      ([typeId, totalBags]) => ({
+        goniTypeId: typeId,
+        bagCount: totalBags,
+      }),
+    );
+    const totalBagCount = transferItems.reduce(
+      (sum, item) => sum + item.bagCount,
+      0,
+    );
 
     // Get vendor's total available stock
     const availableStock = await prisma.stock.aggregate({
@@ -58,59 +98,93 @@ export const createTransfer = async (
       );
     }
 
-    // Validate goniType
-    const goniType = await prisma.goniType.findFirst({
-      where: { id: goniTypeId, isActive: true },
-      select: { id: true, name: true },
-    });
-    if (!goniType) {
-      throw new AppError("Goni type not found", 404);
+    if (totalBagCount > availableBags) {
+      throw new AppError(
+        `Transfer bag count (${totalBagCount}) exceeds available stock (${availableBags})`,
+        400,
+      );
     }
 
-    const isTracked = await isTrackedGoniType(goniTypeId);
-    if (isTracked) {
+    // Validate goni types
+    const goniTypes = await prisma.goniType.findMany({
+      where: {
+        id: { in: transferItems.map((item) => item.goniTypeId) },
+        isActive: true,
+      },
+      select: { id: true, name: true, isTracked: true },
+    });
+
+    const goniTypeMap = new Map(goniTypes.map((type) => [type.id, type]));
+    const invalidTypeIds = transferItems
+      .map((item) => item.goniTypeId)
+      .filter((id) => !goniTypeMap.has(id));
+
+    if (invalidTypeIds.length) {
+      throw new AppError(
+        `Goni type not found or inactive: ${invalidTypeIds.join(", ")}`,
+        404,
+      );
+    }
+
+    // Apply tracked-bag availability check only for tracked types
+    for (const item of transferItems) {
+      const currentType = goniTypeMap.get(item.goniTypeId)!;
+      if (!currentType.isTracked) continue;
+
       const availableBagsByType = await getVendorCurrentBagsForType(
         vendorId,
-        goniTypeId,
+        item.goniTypeId,
       );
-      if (bagCount > availableBagsByType) {
+
+      if (item.bagCount > availableBagsByType) {
         throw new AppError(
-          `Transfer bag count (${bagCount}) exceeds available ${goniType.name} bags (${availableBagsByType})`,
+          `Transfer bag count (${item.bagCount}) exceeds available ${currentType.name} bags (${availableBagsByType})`,
           400,
         );
       }
     }
 
-    if (bagCount > availableBags) {
-      throw new AppError(
-        `Transfer bag count (${bagCount}) exceeds available stock (${availableBags})`,
-        400,
-      );
-    }
-
     const transferNo = await generateTransferNo();
 
-    const transfer = await prisma.stockTransfer.create({
-      data: {
-        transferNo,
-        vendorId,
-        goniTypeId,
-        vendorEnteredWeight: weight,
-        vendorEnteredUnit: unit,
-        weight,
-        unit,
-        bagCount,
-        shopName,
-        shopLocation,
-        vehicalNumber,
-        status: "PENDING",
-      },
-      include: {
-        vendor: {
-          select: { id: true, name: true, phone: true },
+    const transfer = await prisma.$transaction(async (tx) => {
+      const createdTransfer = await tx.stockTransfer.create({
+        data: {
+          transferNo,
+          vendorId,
+          goniTypeId:
+            transferItems.length === 1 ? transferItems[0].goniTypeId : null,
+          vendorEnteredWeight: weight,
+          vendorEnteredUnit: unit,
+          weight,
+          unit,
+          bagCount: totalBagCount,
+          shopName,
+          shopLocation,
+          vehicalNumber,
+          status: "PENDING",
         },
-        goniType: true,
-      },
+      });
+
+      await tx.stockTransferItem.createMany({
+        data: transferItems.map((item) => ({
+          transferId: createdTransfer.id,
+          goniTypeId: item.goniTypeId,
+          bagCount: item.bagCount,
+        })),
+      });
+
+      return tx.stockTransfer.findUnique({
+        where: { id: createdTransfer.id },
+        include: {
+          vendor: {
+            select: { id: true, name: true, phone: true },
+          },
+          goniType: true,
+          items: {
+            include: { goniType: true },
+          },
+        },
+      });
     });
 
     createdResponse(res, transfer, "Transfer request created successfully");
@@ -145,6 +219,9 @@ export const getVendorTransfers = async (
         orderBy: { createdAt: "desc" },
         include: {
           goniType: true,
+          items: {
+            include: { goniType: true },
+          },
         },
       }),
       prisma.stockTransfer.count({ where }),
@@ -199,6 +276,9 @@ export const getAdminTransfers = async (
             select: { id: true, name: true, phone: true },
           },
           goniType: true,
+          items: {
+            include: { goniType: true },
+          },
         },
       }),
       prisma.stockTransfer.count({ where }),
@@ -238,6 +318,9 @@ export const completeTransfer = async (
         id: transferId,
         status: "PENDING",
       },
+      include: {
+        items: true,
+      },
     });
 
     if (!transfer) {
@@ -256,7 +339,7 @@ export const completeTransfer = async (
     let remainingWeight = transfer.weight || 0;
     let remainingBags = transfer.bagCount || 0;
 
-    if (remainingWeight <= 0 || remainingBags <= 0) {
+    if (remainingWeight <= 0 && remainingBags <= 0) {
       throw new AppError("Transfer has no weight or bag count to process", 400);
     }
 
@@ -282,8 +365,8 @@ export const completeTransfer = async (
       for (const stock of availableStocks) {
         if (remainingWeight <= 0 && remainingBags <= 0) break;
 
-        const deductWeight = Math.min(stock.weight, remainingWeight);
-        const deductBags = Math.min(stock.bagCount, remainingBags);
+        const deductWeight = Math.min(stock.weight, Math.max(remainingWeight, 0));
+        const deductBags = Math.min(stock.bagCount, Math.max(remainingBags, 0));
 
         const newWeight = stock.weight - deductWeight;
         const newBags = stock.bagCount - deductBags;
@@ -315,16 +398,38 @@ export const completeTransfer = async (
         },
       });
 
-      if (transfer.goniTypeId && (await isTrackedGoniType(transfer.goniTypeId))) {
-        await tx.bagMovement.create({
-          data: {
+      const transferItemsForLedger =
+        transfer.items.length > 0
+          ? transfer.items
+          : transfer.goniTypeId
+            ? [
+                {
+                  goniTypeId: transfer.goniTypeId,
+                  bagCount: transfer.bagCount,
+                },
+              ]
+            : [];
+
+      const trackedItems: Array<{ goniTypeId: string; bagCount: number }> = [];
+      for (const item of transferItemsForLedger) {
+        if (await isTrackedGoniType(item.goniTypeId)) {
+          trackedItems.push({
+            goniTypeId: item.goniTypeId,
+            bagCount: item.bagCount,
+          });
+        }
+      }
+
+      if (trackedItems.length) {
+        await tx.bagMovement.createMany({
+          data: trackedItems.map((item) => ({
             vendorId: transfer.vendorId,
-            goniTypeId: transfer.goniTypeId,
+            goniTypeId: item.goniTypeId,
             transferId: transfer.id,
-            bagCount: transfer.bagCount,
+            bagCount: item.bagCount,
             movementType: "VENDOR_TO_ADMIN",
             createdById: req.user?.id,
-          },
+          })),
         });
       }
     });
@@ -392,6 +497,9 @@ export const updateTransfer = async (
           select: { id: true, name: true, phone: true },
         },
         goniType: true,
+        items: {
+          include: { goniType: true },
+        },
       },
     });
 
@@ -465,8 +573,7 @@ export const getAdminStockSummary = async (
       (acc, transfer) => {
         const vendorWeight =
           transfer.vendorEnteredWeight ?? transfer.weight ?? 0;
-        const adminWeight =
-          transfer.adminAdjustedWeight ?? transfer.weight ?? 0;
+        const adminWeight = transfer.adminAdjustedWeight ?? transfer.weight ?? 0;
 
         acc.vendorEnteredWeight += vendorWeight;
         acc.adminAdjustedWeight += adminWeight;
