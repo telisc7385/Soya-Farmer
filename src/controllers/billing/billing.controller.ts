@@ -310,7 +310,7 @@ export const createDraftBill = async (
         },
         totals: compactTotals(totals),
         calculationDetails: compactCalculationDetails(calculationDetails),
-        deductions: compactDeductionRows(calculationDetails),
+        deductions: calculationDetails.variableDetails,
       },
       "Bill draft created with quantity",
     );
@@ -540,7 +540,9 @@ export const applyGoniDeduction = async (
       where: { id: { in: requestedTypeIds }, isActive: true },
     });
     const goniTypeMap = new Map(goniTypes.map((type) => [type.id, type]));
-    const invalidTypeIds = requestedTypeIds.filter((id) => !goniTypeMap.has(id));
+    const invalidTypeIds = requestedTypeIds.filter(
+      (id) => !goniTypeMap.has(id),
+    );
     if (invalidTypeIds.length) {
       throw new AppError(
         `Invalid or inactive goni type(s): ${invalidTypeIds.join(", ")}`,

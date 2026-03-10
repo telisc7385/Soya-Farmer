@@ -80,12 +80,12 @@ export const attachDeductionDetails = (bill: any) => {
 
     return {
       ...deduction,
-      actualInputs,
-      customInputs,
-      deductedInputs,
-      deductedAmounts,
-      variableDeductions,
-      variableDetails,
+      // actualInputs,
+      // customInputs,
+      // deductedInputs,
+      // deductedAmounts,
+      // variableDeductions,
+      // variableDetails,
     };
   });
 
