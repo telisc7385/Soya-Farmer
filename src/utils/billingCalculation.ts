@@ -49,7 +49,8 @@ export const buildBillingCalculationDetails = (bill: any) => {
         ? (deduction.payload as AnyRecord)
         : undefined;
     const percent =
-      asNumber(payload?.totalDeductionPercent) || sumObjectValues(payload?.deductedInputs);
+      asNumber(payload?.totalDeductionPercent) ||
+      sumObjectValues(payload?.deductedInputs);
     const weight =
       asNumber(payload?.deductionWeight) ||
       roundTo((netWeightForLab * percent) / 100, 3);
@@ -140,6 +141,6 @@ export const buildBillingCalculationDetails = (bill: any) => {
     rateAfterLabDeductionRounded: roundTo(rateAfterLabDeduction, 2),
     recalculatedTotal,
     pricedQuantity: netWeightForLab,
-    deductions: deductionRows,
+    // deductions: deductionRows,
   };
 };
