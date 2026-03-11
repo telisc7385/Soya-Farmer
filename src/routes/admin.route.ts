@@ -2,7 +2,11 @@
 import { Router } from "express";
 import { authMiddleware } from "../middleware/auth.middleware";
 import { authorize } from "../middleware/role.middleware";
-import { payFarmer, rejectBill } from "../controllers/adminPayment.controller";
+import {
+  getPayments,
+  payFarmer,
+  rejectBill,
+} from "../controllers/adminPayment.controller";
 import {
   createDeductionMaster,
   listDeductionMasters,
@@ -44,6 +48,8 @@ import {
 import { exportReportSchema } from "../validations/report.validation";
 import { exportAdminReport } from "../controllers/admin/adminReport.controller";
 const router = Router();
+
+router.get("/payments", authMiddleware, authorize("ADMIN"), getPayments);
 
 router.post(
   "/:billId/pay",
