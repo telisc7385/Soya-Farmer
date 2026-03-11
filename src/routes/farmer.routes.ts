@@ -17,7 +17,7 @@ router.post(
   farmerControllers.createFarmer,
 );
 
-router.get("/list", authMiddleware, farmerControllers.getFarmers);
+router.get("/list", farmerControllers.getFarmers);
 router.get("/:farmerId", authMiddleware, farmerControllers.getFarmerById);
 
 router.put("/update/:farmerId", authMiddleware, farmerControllers.updateFarmer);
