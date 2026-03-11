@@ -19,7 +19,9 @@ export const getVendorBagSummary = async (
     if (!vendorId) throw new AppError("Unauthorized", 401);
 
     const goniTypeId =
-      typeof req.query.goniTypeId === "string" ? req.query.goniTypeId : undefined;
+      typeof req.query.goniTypeId === "string"
+        ? req.query.goniTypeId
+        : undefined;
 
     if (goniTypeId) {
       const goniType = await prisma.goniType.findFirst({
@@ -73,10 +75,16 @@ export const returnBagsToFarmer = async (
       throw new AppError("Goni type not found or inactive", 404);
     }
     if (!isTracked) {
-      throw new AppError("Only tracked bag type is allowed for bag ledger flow", 400);
+      throw new AppError(
+        "Only tracked bag type is allowed for bag ledger flow",
+        400,
+      );
     }
 
-    const availableBags = await getVendorCurrentBagsForType(vendorId, goniTypeId);
+    const availableBags = await getVendorCurrentBagsForType(
+      vendorId,
+      goniTypeId,
+    );
     if (bagCount > availableBags) {
       throw new AppError(
         `Return bag count (${bagCount}) exceeds available ${goniType.name} bags (${availableBags})`,
@@ -116,14 +124,13 @@ export const adminReturnBagsToVendor = async (
     if (!adminId) throw new AppError("Unauthorized", 401);
 
     const { vendorId } = req.params;
-    const { billId, goniTypeId, bagCount, notes } = req.body as {
-      billId: string;
+    const { goniTypeId, bagCount, notes } = req.body as {
       goniTypeId: string;
       bagCount: number;
       notes?: string;
     };
 
-    const [vendor, goniType, bill, isTracked] = await Promise.all([
+    const [vendor, goniType, isTracked] = await Promise.all([
       prisma.user.findFirst({
         where: { id: vendorId, role: "VENDOR", isActive: true },
         select: { id: true, name: true },
@@ -131,10 +138,6 @@ export const adminReturnBagsToVendor = async (
       prisma.goniType.findFirst({
         where: { id: goniTypeId, isActive: true },
         select: { id: true, name: true },
-      }),
-      prisma.bill.findFirst({
-        where: { id: billId, vendorId },
-        select: { id: true, billNo: true, status: true },
       }),
       isTrackedGoniType(goniTypeId),
     ]);
@@ -145,17 +148,11 @@ export const adminReturnBagsToVendor = async (
     if (!goniType) {
       throw new AppError("Goni type not found or inactive", 404);
     }
-    if (!bill) {
-      throw new AppError("Bill not found for this vendor", 404);
-    }
-    if (!["PENDING", "COMPLETED"].includes(bill.status)) {
+    if (!isTracked) {
       throw new AppError(
-        "Bags can be returned only after payment request or payment completion",
+        "Only tracked bag type is allowed for bag ledger flow",
         400,
       );
-    }
-    if (!isTracked) {
-      throw new AppError("Only tracked bag type is allowed for bag ledger flow", 400);
     }
 
     const movement = await prisma.bagMovement.create({
@@ -164,7 +161,9 @@ export const adminReturnBagsToVendor = async (
         goniTypeId,
         bagCount,
         movementType: "ADMIN_TO_VENDOR",
-        notes: notes?.trim() ? notes : `Returned against bill ${bill.billNo}`,
+        notes: notes?.trim()
+          ? notes
+          : `Returned against to vendor ${vendor.name} by admin`,
         createdById: adminId,
       },
       include: {
@@ -178,4 +177,3 @@ export const adminReturnBagsToVendor = async (
     next(error);
   }
 };
-

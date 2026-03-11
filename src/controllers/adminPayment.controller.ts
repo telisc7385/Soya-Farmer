@@ -121,3 +121,83 @@ export const rejectBill = async (
     next(error);
   }
 };
+
+export const getPayments = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const {
+      page = "1",
+      limit = "10",
+      search,
+      farmerId,
+      // startDate,
+      // endDate,
+    } = req.query;
+
+    const take = Number(limit);
+    const skip = (Number(page) - 1) * take;
+
+    const where: any = {
+      ...(farmerId && { farmerId: String(farmerId) }),
+
+      ...(search && {
+        farmer: {
+          OR: [
+            {
+              name: {
+                contains: String(search),
+                mode: "insensitive",
+              },
+            },
+            {
+              aadhaarNo: {
+                contains: String(search),
+                mode: "insensitive",
+              },
+            },
+          ],
+        },
+      }),
+
+      // ...((startDate || endDate) && {
+      //   createdAt: {
+      //     ...(startDate && { gte: new Date(String(startDate)) }),
+      //     ...(endDate && { lte: new Date(String(endDate)) }),
+      //   },
+      // }),
+    };
+
+    const [total, payments] = await Promise.all([
+      prisma.farmerPayment.count({ where }),
+      prisma.farmerPayment.findMany({
+        where,
+        skip,
+        take,
+        // orderBy: { createdAt: "desc" },
+        include: {
+          farmer: {
+            select: { name: true, phone: true, aadhaarNo: true },
+          },
+          bill: true,
+        },
+      }),
+    ]);
+
+    successResponse(
+      res,
+      {
+        payments,
+        total,
+        page: Number(page),
+        limit: take,
+        pages: Math.ceil(total / take),
+      },
+      "Completed payments retrieved successfully",
+    );
+  } catch (error) {
+    next(error);
+  }
+};

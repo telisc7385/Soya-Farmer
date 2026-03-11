@@ -189,28 +189,28 @@ model Bill {
   vehicleType     String?
   driverName      String?
 
-  goniWeight      Float         @default(0)
-  netPayable      Float         @default(0)
+  goniWeight Float @default(0)
+  netPayable Float @default(0)
 
   createdAt DateTime @default(now())
 
   vendor     User            @relation(fields: [vendorId], references: [id])
   farmer     Farmer          @relation(fields: [farmerId], references: [id])
   deductions BillDeduction[]
-  gonis      BillGoni[] @relation("BillGonis")
+  gonis      BillGoni[]      @relation("BillGonis")
   payment    FarmerPayment?
   stock      Stock?
 }
 
 model BillGoni {
-  id        String   @id @default(uuid())
-  billId    String
+  id         String @id @default(uuid())
+  billId     String
   goniTypeId String
-  bagCount  Int
-  weight    Float
+  bagCount   Int
+  weight     Float
 
-  bill      Bill     @relation("BillGonis", fields: [billId], references: [id])
-  goniType  GoniType @relation("GoniTypeBillGonis", fields: [goniTypeId], references: [id])
+  bill     Bill     @relation("BillGonis", fields: [billId], references: [id])
+  goniType GoniType @relation("GoniTypeBillGonis", fields: [goniTypeId], references: [id])
 
   createdAt DateTime @default(now())
 
@@ -318,9 +318,9 @@ model GoniType {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  createdByUser User?           @relation("UserGoniTypes", fields: [createdBy], references: [id])
-  billGonis     BillGoni[]       @relation("GoniTypeBillGonis")
-  stocks        Stock[]         @relation("StockGoniType")
+  createdByUser User?               @relation("UserGoniTypes", fields: [createdBy], references: [id])
+  billGonis     BillGoni[]          @relation("GoniTypeBillGonis")
+  stocks        Stock[]             @relation("StockGoniType")
   transfers     StockTransfer[]
   transferItems StockTransferItem[]
   bagMoves      BagMovement[]
@@ -360,27 +360,27 @@ model Stock {
 // STOCK TRANSFER (VENDOR → ADMIN)
 // =====================
 model StockTransfer {
-  id            String              @id @default(uuid())
-  transferNo    String              @unique
-  vendorId      String
-  goniTypeId    String?
+  id                  String              @id @default(uuid())
+  transferNo          String              @unique
+  vendorId            String
+  goniTypeId          String?
   vendorEnteredWeight Float?
   vendorEnteredUnit   QuantityUnit?
   adminAdjustedWeight Float?
   adminAdjustedUnit   QuantityUnit?
   adminAdjustedAt     DateTime?
-  weight        Float?
-  unit          QuantityUnit?
-  shopName      String?
-  shopLocation  String
-  vehicalNumber String
-  bagCount      Int
-  status        StockTransferStatus @default(PENDING)
-  createdAt     DateTime            @default(now())
-  completedAt   DateTime?
+  weight              Float?
+  unit                QuantityUnit?
+  shopName            String?
+  shopLocation        String
+  vehicalNumber       String
+  bagCount            Int
+  status              StockTransferStatus @default(PENDING)
+  createdAt           DateTime            @default(now())
+  completedAt         DateTime?
 
-  vendor   User      @relation("VendorTransfers", fields: [vendorId], references: [id])
-  goniType GoniType? @relation(fields: [goniTypeId], references: [id])
+  vendor   User                @relation("VendorTransfers", fields: [vendorId], references: [id])
+  goniType GoniType?           @relation(fields: [goniTypeId], references: [id])
   items    StockTransferItem[]
   bagMoves BagMovement[]
 }
@@ -393,7 +393,7 @@ model StockTransferItem {
   createdAt  DateTime @default(now())
 
   transfer StockTransfer @relation(fields: [transferId], references: [id])
-  goniType  GoniType      @relation(fields: [goniTypeId], references: [id])
+  goniType GoniType      @relation(fields: [goniTypeId], references: [id])
 
   @@unique([transferId, goniTypeId])
   @@index([transferId])
@@ -401,22 +401,22 @@ model StockTransferItem {
 }
 
 model BagMovement {
-  id            String          @id @default(uuid())
-  vendorId      String
-  goniTypeId    String
-  farmerId      String?
-  transferId    String?
-  bagCount      Int
-  movementType  BagMovementType
-  notes         String?
-  createdById   String?
-  createdAt     DateTime        @default(now())
+  id           String          @id @default(uuid())
+  vendorId     String
+  goniTypeId   String
+  farmerId     String?
+  transferId   String?
+  bagCount     Int
+  movementType BagMovementType
+  notes        String?
+  createdById  String?
+  createdAt    DateTime        @default(now())
 
-  vendor     User          @relation("VendorBagMovements", fields: [vendorId], references: [id])
-  goniType   GoniType      @relation(fields: [goniTypeId], references: [id])
-  farmer     Farmer?       @relation(fields: [farmerId], references: [id])
-  transfer   StockTransfer? @relation(fields: [transferId], references: [id])
-  createdBy  User?         @relation("CreatedBagMovements", fields: [createdById], references: [id])
+  vendor    User           @relation("VendorBagMovements", fields: [vendorId], references: [id])
+  goniType  GoniType       @relation(fields: [goniTypeId], references: [id])
+  farmer    Farmer?        @relation(fields: [farmerId], references: [id])
+  transfer  StockTransfer? @relation(fields: [transferId], references: [id])
+  createdBy User?          @relation("CreatedBagMovements", fields: [createdById], references: [id])
 
   @@index([vendorId, goniTypeId, movementType])
   @@index([farmerId])

@@ -53,7 +53,6 @@ export const returnBagsToFarmerSchema = Joi.object({
 });
 
 export const adminReturnBagsToVendorSchema = Joi.object({
-  billId: Joi.string().uuid().required(),
   goniTypeId: Joi.string().uuid().required(),
   bagCount: Joi.number().integer().min(1).required(),
   notes: Joi.string().max(500).optional(),
