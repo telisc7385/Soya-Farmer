@@ -207,3 +207,55 @@ export const isTrackedGoniType = async (goniTypeId: string) => {
   });
   return Boolean(goniType);
 };
+
+export const getVendorReturnDueForFarmer = async (
+  vendorId: string,
+  farmerId: string,
+  goniTypeId?: string,
+) => {
+  const trackedType = await getTrackedType(goniTypeId);
+  if (!trackedType) {
+    return {
+      goniTypeId: goniTypeId ?? "",
+      goniTypeName: "",
+      receivedFromFarmer: 0,
+      returnedToFarmer: 0,
+      returnDue: 0,
+    };
+  }
+
+  const trackedId = trackedType.id;
+
+  const [receivedAgg, returnedAgg] = await Promise.all([
+    prisma.bagMovement.aggregate({
+      where: {
+        vendorId,
+        farmerId,
+        goniTypeId: trackedId,
+        movementType: BagMovementType.FARMER_TO_VENDOR,
+      },
+      _sum: { bagCount: true },
+    }),
+    prisma.bagMovement.aggregate({
+      where: {
+        vendorId,
+        farmerId,
+        goniTypeId: trackedId,
+        movementType: BagMovementType.VENDOR_TO_FARMER,
+      },
+      _sum: { bagCount: true },
+    }),
+  ]);
+
+  const receivedFromFarmer = receivedAgg._sum.bagCount ?? 0;
+  const returnedToFarmer = returnedAgg._sum.bagCount ?? 0;
+  const returnDue = Math.max(receivedFromFarmer - returnedToFarmer, 0);
+
+  return {
+    goniTypeId: trackedId,
+    goniTypeName: trackedType.name,
+    receivedFromFarmer,
+    returnedToFarmer,
+    returnDue,
+  };
+};

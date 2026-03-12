@@ -70,6 +70,14 @@ router.post(
   bagController.returnBagsToFarmer,
 );
 
+// Get vendor return due to farmer
+router.get(
+  "/bags/return-due/:farmerId",
+  authMiddleware,
+  authorize("VENDOR"),
+  bagController.getVendorReturnDueToFarmer,
+);
+
 // Get stock by ID
 router.get(
   "/:stockId",
