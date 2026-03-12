@@ -6,6 +6,7 @@ import { createdResponse, successResponse } from "../utils/response";
 import {
   getVendorBagLedgerSummary,
   getVendorCurrentBagsForType,
+  getVendorReturnDueForFarmer,
   isTrackedGoniType,
 } from "../services/bagLedger.service";
 
@@ -109,6 +110,34 @@ export const returnBagsToFarmer = async (
     });
 
     createdResponse(res, movement, "Bags returned to farmer");
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getVendorReturnDueToFarmer = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    debugger;
+    const vendorId = req.user?.id;
+    if (!vendorId) throw new AppError("Unauthorized", 401);
+
+    const { farmerId } = req.params;
+
+    const mapping = await prisma.vendorFarmer.findFirst({
+      where: { vendorId, farmerId, isActive: true },
+      select: { id: true },
+    });
+    if (!mapping) {
+      throw new AppError("Farmer is not linked to this vendor", 400);
+    }
+
+    const summary = await getVendorReturnDueForFarmer(vendorId, farmerId);
+
+    successResponse(res, summary, "Vendor return due fetched");
   } catch (error) {
     next(error);
   }
