@@ -24,6 +24,10 @@ type VendorBagSummary = {
     farmer: { id: string; name: string; phone: string };
     bagCount: number;
   }>;
+  receivedFromAdminByAdmin: Array<{
+    goniTypeId: string;
+    bagCount: number;
+  }>;
 };
 
 const emptySummary: VendorBagSummary = {
@@ -36,6 +40,7 @@ const emptySummary: VendorBagSummary = {
   },
   byType: [],
   returnedToFarmersByFarmer: [],
+  receivedFromAdminByAdmin: [],
 };
 
 const addCount = (map: CountByType, key: string, count: number) => {
@@ -66,92 +71,80 @@ export const getVendorBagLedgerSummary = async (
 
   const trackedId = trackedType.id;
 
-  const receivedFromFarmersRows = await prisma.bagMovement.findMany({
-    where: {
-      vendorId,
-      goniTypeId: trackedId,
-      movementType: BagMovementType.FARMER_TO_VENDOR,
-    },
-    select: {
-      goniTypeId: true,
-      bagCount: true,
-    },
-  });
+  const [farmerToVendor, adminToVendor, vendorToFarmer, vendorToAdmin] =
+    await Promise.all([
+      prisma.bagMovement.aggregate({
+        where: {
+          vendorId,
+          goniTypeId: trackedId,
+          movementType: BagMovementType.FARMER_TO_VENDOR,
+        },
+        _sum: { bagCount: true },
+      }),
 
-  const vendorToAdminRows = await prisma.stockTransfer.findMany({
-    where: {
-      vendorId,
-      status: "COMPLETED",
-      goniTypeId: trackedId,
-    },
-    select: {
-      goniTypeId: true,
-      bagCount: true,
-    },
-  });
+      prisma.bagMovement.findMany({
+        where: {
+          vendorId,
+          goniTypeId: trackedId,
+          movementType: BagMovementType.ADMIN_TO_VENDOR,
+        },
+        select: {
+          goniTypeId: true,
+          bagCount: true,
+        },
+      }),
 
-  const adminToVendorRows = await prisma.bagMovement.findMany({
-    where: {
-      vendorId,
-      movementType: "ADMIN_TO_VENDOR",
-      goniTypeId: trackedId,
-    },
-    select: {
-      goniTypeId: true,
-      bagCount: true,
-    },
-  });
+      prisma.bagMovement.findMany({
+        where: {
+          vendorId,
+          goniTypeId: trackedId,
+          movementType: BagMovementType.VENDOR_TO_FARMER,
+        },
+        select: {
+          farmerId: true,
+          bagCount: true,
+        },
+      }),
 
-  const vendorToFarmerRows = await prisma.bagMovement.findMany({
-    where: {
-      vendorId,
-      movementType: "VENDOR_TO_FARMER",
-      goniTypeId: trackedId,
-    },
-    select: {
-      goniTypeId: true,
-      bagCount: true,
-      farmerId: true,
-    },
-  });
+      prisma.stockTransfer.aggregate({
+        where: {
+          vendorId,
+          goniTypeId: trackedId,
+          status: "COMPLETED",
+        },
+        _sum: { bagCount: true },
+      }),
+    ]);
 
-  const receivedFromFarmers: CountByType = {};
-  const sentToAdmin: CountByType = {};
-  const receivedFromAdmin: CountByType = {};
-  const returnedToFarmers: CountByType = {};
+  const receivedFarmer = farmerToVendor._sum.bagCount ?? 0;
+  const sentAdmin = vendorToAdmin._sum.bagCount ?? 0;
 
-  for (const row of receivedFromFarmersRows) {
-    addCount(receivedFromFarmers, row.goniTypeId, row.bagCount);
+  // total admin -> vendor bags
+  const receivedAdmin = adminToVendor.reduce(
+    (sum, row) => sum + row.bagCount,
+    0,
+  );
+
+  // vendor -> farmer tracking
+  const returnedToFarmersByFarmerMap: Record<string, number> = {};
+  let returnedFarmer = 0;
+
+  for (const row of vendorToFarmer) {
+    returnedFarmer += row.bagCount;
+
+    if (!row.farmerId) continue;
+
+    returnedToFarmersByFarmerMap[row.farmerId] =
+      (returnedToFarmersByFarmerMap[row.farmerId] ?? 0) + row.bagCount;
   }
-  for (const row of vendorToAdminRows) {
-    if (!row.goniTypeId) continue;
-    addCount(sentToAdmin, row.goniTypeId, row.bagCount);
-  }
-  for (const row of adminToVendorRows) {
-    addCount(receivedFromAdmin, row.goniTypeId, row.bagCount);
-  }
-  for (const row of vendorToFarmerRows) {
-    addCount(returnedToFarmers, row.goniTypeId, row.bagCount);
-  }
 
-  const receivedFarmer = receivedFromFarmers[trackedId] ?? 0;
-  const receivedAdmin = receivedFromAdmin[trackedId] ?? 0;
-  const sentAdmin = sentToAdmin[trackedId] ?? 0;
-  const returnedFarmer = returnedToFarmers[trackedId] ?? 0;
   const currentWithVendor = Math.max(
     receivedFarmer + receivedAdmin - sentAdmin - returnedFarmer,
     0,
   );
 
-  const returnedToFarmersByFarmerMap = vendorToFarmerRows.reduce<
-    Record<string, number>
-  >((acc, row) => {
-    if (!row.farmerId) return acc;
-    acc[row.farmerId] = (acc[row.farmerId] ?? 0) + row.bagCount;
-    return acc;
-  }, {});
-
   const farmerIds = Object.keys(returnedToFarmersByFarmerMap);
+
   const farmers = farmerIds.length
     ? await prisma.farmer.findMany({
         where: { id: { in: farmerIds } },
@@ -176,6 +169,7 @@ export const getVendorBagLedgerSummary = async (
       returnedToFarmers: returnedFarmer,
       currentWithVendor,
     },
+
     byType: [
       {
         goniTypeId: trackedId,
@@ -188,6 +182,9 @@ export const getVendorBagLedgerSummary = async (
       },
     ],
     returnedToFarmersByFarmer,
+
+    // ADMIN -> VENDOR LIST (what you wanted)
+    receivedFromAdminByAdmin: adminToVendor,
   };
 };
 
