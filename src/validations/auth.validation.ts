@@ -25,6 +25,7 @@ export const updateVendorSchema = Joi.object({
   phone: Joi.string()
     .pattern(/^[0-9]{10,15}$/)
     .optional(),
+  password: Joi.string().min(6).optional(),
   vendorRate: Joi.number().min(0).optional(),
   villageAdd: Joi.string().max(255).allow("", null).optional(),
   taluka: Joi.string().max(100).allow("", null).optional(),

@@ -100,7 +100,8 @@ export const updateVendor = async (
 ) => {
   try {
     const { id } = req.params; // vendor id
-    const { phone, name, villageAdd, taluka, district, vendorRate } = req.body;
+    const { phone, name, villageAdd, taluka, district, vendorRate, password } =
+      req.body;
 
     // Check if vendor exists
     const existingVendor = await prisma.user.findUnique({
@@ -109,6 +110,13 @@ export const updateVendor = async (
     });
     if (!existingVendor || existingVendor.role !== "VENDOR") {
       throw new AppError("Vendor not found", 404);
+    }
+
+    let hashedPassword: string | undefined = undefined;
+
+    if (password) {
+      // Hash new password if provided
+      hashedPassword = await bcrypt.hash(password, 10);
     }
 
     // Update vendor
@@ -120,6 +128,7 @@ export const updateVendor = async (
         villageAdd,
         taluka,
         district,
+        ...(hashedPassword !== undefined ? { password: hashedPassword } : {}),
         ...(vendorRate !== undefined ? { vendorRate } : {}),
       },
     });
@@ -165,18 +174,23 @@ export const getVendorList = async (
   next: NextFunction,
 ) => {
   try {
-    // Get query parameters with defaults
-    const { page = "1", limit = "10", search, isActive } = req.query;
+    const {
+      page = "1",
+      limit = "10",
+      search,
+      isActive,
+      sort = "desc",
+      sortBy = "createdAt",
+    } = req.query;
 
     const take = Number(limit);
     const skip = (Number(page) - 1) * take;
 
-    // Build the "where" clause
     const where: any = {
       role: "VENDOR",
     };
 
-    // Add search filter if provided
+    // Search filter
     if (search) {
       where.OR = [
         { name: { contains: String(search), mode: "insensitive" } },
@@ -185,18 +199,23 @@ export const getVendorList = async (
       ];
     }
 
-    // Add isActive filter if provided
+    // Active filter
     if (isActive !== undefined) {
-      // Convert string "true"/"false" to boolean
       where.isActive = isActive === "true";
     }
 
-    // Fetch vendors with pagination
+    // Dynamic sorting
+    const allowedSortFields = ["name", "createdAt", "vendorRate", "email"];
+
+    const orderBy: any = allowedSortFields.includes(String(sortBy))
+      ? { [String(sortBy)]: sort === "asc" ? "asc" : "desc" }
+      : { createdAt: "desc" };
+
     const vendors = await prisma.user.findMany({
       where,
       skip,
       take,
-      orderBy: { createdAt: "desc" },
+      orderBy,
       select: {
         id: true,
         name: true,
@@ -211,10 +230,8 @@ export const getVendorList = async (
       },
     });
 
-    // Get total count for pagination
     const total = await prisma.user.count({ where });
 
-    // Send success response
     successResponse(
       res,
       {

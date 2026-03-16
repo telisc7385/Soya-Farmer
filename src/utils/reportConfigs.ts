@@ -11,6 +11,7 @@ export type ReportKey =
 type ReportConfig<T> = {
   filenamePrefix: string;
   columns: CsvColumn<T>[];
+  totalsRow?: (rows: T[]) => T | null;
 };
 
 export const billReportConfig: ReportConfig<any> = {
@@ -34,6 +35,20 @@ export const billReportConfig: ReportConfig<any> = {
     { key: "bagCount", header: "Bag Count", value: (r) => r.bagCount },
     { key: "goniWeight", header: "Goni Weight", value: (r) => r.goniWeight },
   ],
+  totalsRow: (rows) => {
+    if (!rows.length) return null;
+    const sum = (key: string) =>
+      rows.reduce((acc, row) => acc + (Number(row?.[key]) || 0), 0);
+    return {
+      billNo: "TOTAL",
+      primaryQuantity: sum("primaryQuantity"),
+      grossAmount: sum("grossAmount"),
+      totalAmount: sum("totalAmount"),
+      netPayable: sum("netPayable"),
+      bagCount: sum("bagCount"),
+      goniWeight: sum("goniWeight"),
+    };
+  },
 };
 
 export const paymentReportConfig: ReportConfig<any> = {
@@ -49,6 +64,14 @@ export const paymentReportConfig: ReportConfig<any> = {
     { key: "paidDate", header: "Paid Date", value: (r) => formatDate(r.paidDate) },
     { key: "reference", header: "Reference", value: (r) => r.reference },
   ],
+  totalsRow: (rows) => {
+    if (!rows.length) return null;
+    const totalAmount = rows.reduce(
+      (acc, row) => acc + (Number(row?.amount) || 0),
+      0,
+    );
+    return { bill: { billNo: "TOTAL" }, amount: totalAmount };
+  },
 };
 
 export const stockTransferReportConfig: ReportConfig<any> = {
@@ -68,6 +91,16 @@ export const stockTransferReportConfig: ReportConfig<any> = {
     { key: "shopLocation", header: "Shop Location", value: (r) => r.shopLocation },
     { key: "vehicalNumber", header: "Vehicle Number", value: (r) => r.vehicalNumber },
   ],
+  totalsRow: (rows) => {
+    if (!rows.length) return null;
+    const sum = (key: string) =>
+      rows.reduce((acc, row) => acc + (Number(row?.[key]) || 0), 0);
+    return {
+      transferNo: "TOTAL",
+      weight: sum("weight"),
+      bagCount: sum("bagCount"),
+    };
+  },
 };
 
 export const stockReportConfig: ReportConfig<any> = {
@@ -84,6 +117,16 @@ export const stockReportConfig: ReportConfig<any> = {
     { key: "unit", header: "Unit", value: (r) => r.unit },
     { key: "bagCount", header: "Bag Count", value: (r) => r.bagCount },
   ],
+  totalsRow: (rows) => {
+    if (!rows.length) return null;
+    const sum = (key: string) =>
+      rows.reduce((acc, row) => acc + (Number(row?.[key]) || 0), 0);
+    return {
+      bill: { billNo: "TOTAL" },
+      weight: sum("weight"),
+      bagCount: sum("bagCount"),
+    };
+  },
 };
 
 export const farmerReportConfig: ReportConfig<any> = {

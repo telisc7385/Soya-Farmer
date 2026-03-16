@@ -29,9 +29,7 @@ export const createFarmer = async (
 
     // 🔍 check existing farmer with document count
     const existingFarmer = await prisma.farmer.findFirst({
-      where: {
-        OR: [{ phone }, { aadhaarNo }],
-      },
+      where: { aadhaarNo },
       include: {
         _count: {
           select: { documents: true, banks: true },
@@ -517,6 +515,8 @@ export const getFarmers = async (
             { name: { contains: String(search), mode: "insensitive" } },
             { phone: { contains: String(search), mode: "insensitive" } },
             { aadhaarNo: { contains: String(search), mode: "insensitive" } },
+            { taluka: { contains: String(search), mode: "insensitive" } },
+            { district: { contains: String(search), mode: "insensitive" } },
           ],
         }),
       },
