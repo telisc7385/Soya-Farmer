@@ -58,7 +58,6 @@ export const changeQualityRateStatus = async (
   try {
     const { qualityId } = req.params;
 
-    // Check if quality rate exists
     const existingQualityRate = await prisma.qualityRate.findUnique({
       where: { id: qualityId },
     });
@@ -67,10 +66,19 @@ export const changeQualityRateStatus = async (
       throw new AppError("Quality rate not found", 404);
     }
 
-    // Toggle isActive (true <-> false)
-    const updatedQualityRate = await prisma.qualityRate.update({
-      where: { id: qualityId },
-      data: { isActive: !existingQualityRate.isActive },
+    const updatedQualityRate = await prisma.$transaction(async (tx) => {
+      // If we are activating this record, deactivate others
+      if (!existingQualityRate.isActive) {
+        await tx.qualityRate.updateMany({
+          where: { isActive: true },
+          data: { isActive: false },
+        });
+      }
+
+      return tx.qualityRate.update({
+        where: { id: qualityId },
+        data: { isActive: !existingQualityRate.isActive },
+      });
     });
 
     successResponse(
@@ -78,6 +86,42 @@ export const changeQualityRateStatus = async (
       updatedQualityRate,
       "Quality rate status changed successfully",
     );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const deleteQualityRate = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { qualityId } = req.params;
+
+    // Check if record exists
+    const existingQualityRate = await prisma.qualityRate.findUnique({
+      where: { id: qualityId },
+    });
+
+    if (!existingQualityRate) {
+      throw new AppError("Quality rate not found", 404);
+    }
+
+    // Prevent deleting active quality rate (optional but recommended)
+    if (existingQualityRate.isActive) {
+      throw new AppError(
+        "Active quality rate cannot be deleted. Please deactivate it first.",
+        400,
+      );
+    }
+
+    // Delete record
+    await prisma.qualityRate.delete({
+      where: { id: qualityId },
+    });
+
+    successResponse(res, null, "Quality rate deleted successfully");
   } catch (error) {
     next(error);
   }

@@ -20,6 +20,7 @@ import {
 } from "../controllers/admin/goniType.controller";
 import {
   changeQualityRateStatus,
+  deleteQualityRate,
   listAllQualityRates,
   saveQualityRate,
 } from "../controllers/qualityRate.controller";
@@ -138,6 +139,13 @@ router.put(
   authMiddleware,
   authorize("ADMIN"),
   changeQualityRateStatus,
+);
+
+router.delete(
+  "/quality-rates/:qualityId",
+  authMiddleware,
+  authorize("ADMIN"),
+  deleteQualityRate,
 );
 
 // =====================

@@ -5,6 +5,7 @@ import { successResponse } from "../../utils/response";
 import { attachDeductionDetails } from "../../utils/deductionDetails";
 import { buildBillingCalculationDetails } from "../../utils/billingCalculation";
 import { roundTo } from "../../utils/number";
+import { AuthRequest } from "../../middleware/auth.middleware";
 
 const withGoniAmount = (bill: any) => {
   const calculationDetails = buildBillingCalculationDetails(bill);
@@ -162,6 +163,98 @@ export const getBillById = async (
     const billWithDetails = attachDeductionDetails(bill);
     const withGoni = withGoniAmount(billWithDetails);
     successResponse(res, withGoni, "Bill details");
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getVendorLastSixMonthsBillSummary = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const vendorId = req.user?.id;
+    if (!vendorId) throw new AppError("Unauthorized", 401);
+
+    const now = new Date();
+    const startMonth = new Date(now.getFullYear(), now.getMonth() - 5, 1);
+    const endMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+
+    const bills = await prisma.bill.findMany({
+      where: {
+        vendorId,
+        billDate: {
+          gte: startMonth,
+          lt: endMonth,
+        },
+        status: {
+          in: ["PENDING", "COMPLETED"],
+        },
+      },
+      select: {
+        billDate: true,
+        netPayable: true,
+      },
+    });
+
+    const monthLabels = [
+      "Jan",
+      "Feb",
+      "Mar",
+      "Apr",
+      "May",
+      "Jun",
+      "Jul",
+      "Aug",
+      "Sep",
+      "Oct",
+      "Nov",
+      "Dec",
+    ];
+
+    const monthKeys: string[] = [];
+    const monthTotals = new Map<string, number>();
+
+    for (let i = 5; i >= 0; i -= 1) {
+      const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+        2,
+        "0",
+      )}`;
+      monthKeys.push(key);
+      monthTotals.set(key, 0);
+    }
+
+    for (const bill of bills) {
+      const date = bill.billDate;
+      const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(
+        2,
+        "0",
+      )}`;
+      if (!monthTotals.has(key)) continue;
+      const current = monthTotals.get(key) ?? 0;
+      monthTotals.set(key, roundTo(current + (bill.netPayable ?? 0)));
+    }
+
+    const data = monthKeys.map((key) => {
+      const [year, month] = key.split("-").map((value) => Number(value));
+      const label = `${monthLabels[month - 1]} ${year}`;
+      return {
+        month: label,
+        amount: monthTotals.get(key) ?? 0,
+      };
+    });
+
+    successResponse(
+      res,
+      {
+        startDate: startMonth.toISOString(),
+        endDate: new Date(endMonth.getTime() - 1).toISOString(),
+        data,
+      },
+      "Vendor last six months bill summary",
+    );
   } catch (error) {
     next(error);
   }

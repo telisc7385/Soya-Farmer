@@ -256,7 +256,9 @@ export const exportAdminReport = async (
     }
 
     const data = await reportHandlers[reportType](req.query);
-    const csv = toCsv(config.columns, data);
+    const totalsRow = config.totalsRow ? config.totalsRow(data) : null;
+    const rows = totalsRow ? [...data, totalsRow] : data;
+    const csv = toCsv(config.columns, rows);
     const filename = buildCsvFilename(config.filenamePrefix);
 
     res.setHeader("Content-Type", "text/csv");
