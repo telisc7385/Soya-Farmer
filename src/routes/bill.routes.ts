@@ -39,6 +39,13 @@ router.post("/:billId/confirm", authMiddleware, billingFlow.confirmDraft);
 // Get bills
 router.get("/", authMiddleware, billController.getBills);
 
+// Vendor last six months bill summary
+router.get(
+  "/graph/last-six-months",
+  authMiddleware,
+  billController.getVendorLastSixMonthsBillSummary,
+);
+
 // Get bill by ID
 router.get("/:billId", authMiddleware, billController.getBillById);
 
