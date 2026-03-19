@@ -232,6 +232,7 @@ export const createDraftBill = async (
       vehicleNumber,
       vehicleType,
       driverName,
+      billLocation,
     } = req.body;
 
     let quantity = rawQuantity;
@@ -262,6 +263,7 @@ export const createDraftBill = async (
         vehicleNumber,
         vehicleType,
         driverName,
+        billLocation,
         totalAmount: grossAmount,
         netPayable: grossAmount,
       },

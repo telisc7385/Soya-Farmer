@@ -9,6 +9,7 @@ export const createDraftSchema = Joi.object({
   vehicleNumber: Joi.string().trim().required(),
   vehicleType: Joi.string().trim().required(),
   driverName: Joi.string().trim().required(),
+  billLocation: Joi.string().trim().optional(),
 });
 
 export const calculateDeductionSchema = Joi.object({

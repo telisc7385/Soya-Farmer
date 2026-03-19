@@ -188,6 +188,7 @@ model Bill {
   vehicleNumber   String?
   vehicleType     String?
   driverName      String?
+  billLocation    String?
 
   goniWeight Float @default(0)
   netPayable Float @default(0)
