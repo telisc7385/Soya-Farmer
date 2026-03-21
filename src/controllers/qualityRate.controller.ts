@@ -136,14 +136,16 @@ export const listActiveQualityRates = async (
   try {
     if (!req.user) throw new AppError("Unauthorized", 401);
 
+    console.log("Fetching active quality rates for vendor:", req.user.id);
+
     const vendor = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { vendorRate: true },
+      select: { vendorRate: true, factoryRateDiff: true },
     });
 
     if (!vendor) throw new AppError("Vendor not found", 404);
 
-    const qualityRates = await prisma.qualityRate.findMany({
+    const qualityRatesResponse = await prisma.qualityRate.findMany({
       where: { isActive: true },
       orderBy: { quality: "asc" },
       select: {
@@ -151,6 +153,11 @@ export const listActiveQualityRates = async (
         rate: true,
       },
     });
+
+    const qualityRates = qualityRatesResponse.map((qr) => ({
+      quality: qr.quality,
+      rate: qr.rate + vendor.factoryRateDiff,
+    }));
 
     successResponse(
       res,

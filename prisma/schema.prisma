@@ -73,18 +73,19 @@ enum BagMovementType {
 // USER (ADMIN / VENDOR)
 // =====================
 model User {
-  id         String   @id @default(uuid())
-  name       String
-  phone      String
-  email      String   @unique
-  password   String
-  role       Role
-  isActive   Boolean  @default(true)
-  vendorRate Float    @default(0)
-  createdAt  DateTime @default(now())
-  villageAdd String?
-  taluka     String?
-  district   String?
+  id              String   @id @default(uuid())
+  name            String
+  phone           String
+  email           String   @unique
+  password        String
+  role            Role
+  isActive        Boolean  @default(true)
+  vendorRate      Float    @default(0)
+  factoryRateDiff Float    @default(0)
+  createdAt       DateTime @default(now())
+  villageAdd      String?
+  taluka          String?
+  district        String?
 
   vendorFarmers    VendorFarmer[]
   bills            Bill[]
