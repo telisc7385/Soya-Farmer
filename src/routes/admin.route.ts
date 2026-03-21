@@ -48,6 +48,11 @@ import {
 } from "../validations/stock.validation";
 import { exportReportSchema } from "../validations/report.validation";
 import { exportAdminReport } from "../controllers/admin/adminReport.controller";
+import {
+  getAdminDashboardSummary,
+  getVendorTrends,
+} from "../controllers/admin/adminAnalytics.controller";
+import { adminAnalyticsQuerySchema } from "../validations/adminAnalytics.validation";
 const router = Router();
 
 router.get("/payments", authMiddleware, authorize("ADMIN"), getPayments);
@@ -194,6 +199,25 @@ router.get(
   authorize("ADMIN"),
   validateQuery(exportReportSchema),
   exportAdminReport,
+);
+
+// =====================
+// ADMIN ANALYTICS
+// =====================
+router.get(
+  "/analytics/dashboard",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateQuery(adminAnalyticsQuerySchema),
+  getAdminDashboardSummary,
+);
+
+router.get(
+  "/analytics/vendor-trends",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateQuery(adminAnalyticsQuerySchema),
+  getVendorTrends,
 );
 
 export default router;

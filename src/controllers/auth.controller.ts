@@ -55,6 +55,7 @@ export const register = async (
       villageAdd,
       taluka,
       district,
+      factoryRateDiff,
     } = req.body;
 
     const existingUser = await prisma.user.findUnique({
@@ -77,6 +78,7 @@ export const register = async (
         district,
         password: hashedPassword,
         role,
+        factoryRateDiff,
         ...(vendorRate !== undefined ? { vendorRate } : {}),
       },
     });
@@ -100,8 +102,16 @@ export const updateVendor = async (
 ) => {
   try {
     const { id } = req.params; // vendor id
-    const { phone, name, villageAdd, taluka, district, vendorRate, password } =
-      req.body;
+    const {
+      phone,
+      name,
+      villageAdd,
+      taluka,
+      district,
+      vendorRate,
+      password,
+      factoryRateDiff,
+    } = req.body;
 
     // Check if vendor exists
     const existingVendor = await prisma.user.findUnique({
@@ -128,6 +138,7 @@ export const updateVendor = async (
         villageAdd,
         taluka,
         district,
+        factoryRateDiff,
         ...(hashedPassword !== undefined ? { password: hashedPassword } : {}),
         ...(vendorRate !== undefined ? { vendorRate } : {}),
       },
