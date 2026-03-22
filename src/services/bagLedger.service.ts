@@ -8,6 +8,8 @@ type VendorBagSummary = {
     receivedFromFarmers: number;
     sentToAdmin: number;
     receivedFromAdmin: number;
+    receivedFromVendorSelf: number;
+    receivedAdminAdd: number;
     returnedToFarmers: number;
     currentWithVendor: number;
   };
@@ -17,6 +19,8 @@ type VendorBagSummary = {
     receivedFromFarmers: number;
     sentToAdmin: number;
     receivedFromAdmin: number;
+    receivedFromVendorSelf: number;
+    receivedAdminAdd: number;
     returnedToFarmers: number;
     currentWithVendor: number;
   }>;
@@ -35,6 +39,8 @@ const emptySummary: VendorBagSummary = {
     receivedFromFarmers: 0,
     sentToAdmin: 0,
     receivedFromAdmin: 0,
+    receivedFromVendorSelf: 0,
+    receivedAdminAdd: 0,
     returnedToFarmers: 0,
     currentWithVendor: 0,
   },
@@ -71,53 +77,79 @@ export const getVendorBagLedgerSummary = async (
 
   const trackedId = trackedType.id;
 
-  const [farmerToVendor, adminToVendor, vendorToFarmer, vendorToAdmin] =
-    await Promise.all([
-      prisma.bagMovement.aggregate({
-        where: {
-          vendorId,
-          goniTypeId: trackedId,
-          movementType: BagMovementType.FARMER_TO_VENDOR,
-        },
-        _sum: { bagCount: true },
-      }),
+  const [
+    farmerToVendor,
+    adminToVendor,
+    vendorSelfAdd,
+    adminToVendorAdd,
+    vendorToFarmer,
+    vendorToAdmin,
+  ] = await Promise.all([
+    prisma.bagMovement.aggregate({
+      where: {
+        vendorId,
+        goniTypeId: trackedId,
+        movementType: BagMovementType.FARMER_TO_VENDOR,
+      },
+      _sum: { bagCount: true },
+    }),
 
-      prisma.bagMovement.findMany({
-        where: {
-          vendorId,
-          goniTypeId: trackedId,
-          movementType: BagMovementType.ADMIN_TO_VENDOR,
-        },
-        select: {
-          goniTypeId: true,
-          bagCount: true,
-        },
-      }),
+    prisma.bagMovement.findMany({
+      where: {
+        vendorId,
+        goniTypeId: trackedId,
+        movementType: BagMovementType.ADMIN_TO_VENDOR,
+      },
+      select: {
+        goniTypeId: true,
+        bagCount: true,
+      },
+    }),
 
-      prisma.bagMovement.findMany({
-        where: {
-          vendorId,
-          goniTypeId: trackedId,
-          movementType: BagMovementType.VENDOR_TO_FARMER,
-        },
-        select: {
-          farmerId: true,
-          bagCount: true,
-        },
-      }),
+    prisma.bagMovement.aggregate({
+      where: {
+        vendorId,
+        goniTypeId: trackedId,
+        movementType: BagMovementType.VENDOR_SELF_ADD,
+      },
+      _sum: { bagCount: true },
+    }),
 
-      prisma.stockTransfer.aggregate({
-        where: {
-          vendorId,
-          goniTypeId: trackedId,
-          status: "COMPLETED",
-        },
-        _sum: { bagCount: true },
-      }),
-    ]);
+    prisma.bagMovement.aggregate({
+      where: {
+        vendorId,
+        goniTypeId: trackedId,
+        movementType: BagMovementType.ADMIN_TO_VENDOR_ADD,
+      },
+      _sum: { bagCount: true },
+    }),
+
+    prisma.bagMovement.findMany({
+      where: {
+        vendorId,
+        goniTypeId: trackedId,
+        movementType: BagMovementType.VENDOR_TO_FARMER,
+      },
+      select: {
+        farmerId: true,
+        bagCount: true,
+      },
+    }),
+
+    prisma.stockTransfer.aggregate({
+      where: {
+        vendorId,
+        goniTypeId: trackedId,
+        status: "COMPLETED",
+      },
+      _sum: { bagCount: true },
+    }),
+  ]);
 
   const receivedFarmer = farmerToVendor._sum.bagCount ?? 0;
   const sentAdmin = vendorToAdmin._sum.bagCount ?? 0;
+  const receivedSelf = vendorSelfAdd._sum.bagCount ?? 0;
+  const receivedAdminAdd = adminToVendorAdd._sum.bagCount ?? 0;
 
   // total admin -> vendor bags
   const receivedAdmin = adminToVendor.reduce(
@@ -139,7 +171,12 @@ export const getVendorBagLedgerSummary = async (
   }
 
   const currentWithVendor = Math.max(
-    receivedFarmer + receivedAdmin - sentAdmin - returnedFarmer,
+    receivedFarmer +
+      receivedAdmin +
+      receivedSelf +
+      receivedAdminAdd -
+      sentAdmin -
+      returnedFarmer,
     0,
   );
 
@@ -166,6 +203,8 @@ export const getVendorBagLedgerSummary = async (
       receivedFromFarmers: receivedFarmer,
       sentToAdmin: sentAdmin,
       receivedFromAdmin: receivedAdmin,
+      receivedFromVendorSelf: receivedSelf,
+      receivedAdminAdd,
       returnedToFarmers: returnedFarmer,
       currentWithVendor,
     },
@@ -177,6 +216,8 @@ export const getVendorBagLedgerSummary = async (
         receivedFromFarmers: receivedFarmer,
         sentToAdmin: sentAdmin,
         receivedFromAdmin: receivedAdmin,
+        receivedFromVendorSelf: receivedSelf,
+        receivedAdminAdd,
         returnedToFarmers: returnedFarmer,
         currentWithVendor,
       },

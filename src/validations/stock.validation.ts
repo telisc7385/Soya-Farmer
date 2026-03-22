@@ -57,3 +57,15 @@ export const adminReturnBagsToVendorSchema = Joi.object({
   bagCount: Joi.number().integer().min(1).required(),
   notes: Joi.string().max(500).optional(),
 });
+
+export const adminOpeningBagsToVendorSchema = Joi.object({
+  goniTypeId: Joi.string().uuid().required(),
+  bagCount: Joi.number().integer().min(1).required(),
+  notes: Joi.string().max(500).optional(),
+});
+
+export const vendorAddOwnBagsSchema = Joi.object({
+  goniTypeId: Joi.string().uuid().required(),
+  bagCount: Joi.number().integer().min(1).required(),
+  notes: Joi.string().max(500).optional(),
+});
