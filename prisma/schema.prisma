@@ -67,6 +67,8 @@ enum BagMovementType {
   ADMIN_TO_VENDOR
   VENDOR_TO_FARMER
   VENDOR_TO_ADMIN
+  VENDOR_SELF_ADD
+  ADMIN_TO_VENDOR_ADD
 }
 
 // =====================

@@ -44,6 +44,7 @@ import {
 } from "../validations/admin.validation";
 import {
   adminReturnBagsToVendorSchema,
+  adminOpeningBagsToVendorSchema,
   updateTransferSchema,
 } from "../validations/stock.validation";
 import { exportReportSchema } from "../validations/report.validation";
@@ -122,6 +123,14 @@ router.post(
   authorize("ADMIN"),
   validateRequest(adminReturnBagsToVendorSchema),
   bagController.adminReturnBagsToVendor,
+);
+
+router.post(
+  "/bags/vendor/:vendorId/opening",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateRequest(adminOpeningBagsToVendorSchema),
+  bagController.adminOpeningBagsToVendor,
 );
 
 router.post(

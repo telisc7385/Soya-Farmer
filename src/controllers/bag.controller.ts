@@ -206,3 +206,121 @@ export const adminReturnBagsToVendor = async (
     next(error);
   }
 };
+
+export const adminOpeningBagsToVendor = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const adminId = req.user?.id;
+    if (!adminId) throw new AppError("Unauthorized", 401);
+
+    const { vendorId } = req.params;
+    const { goniTypeId, bagCount, notes } = req.body as {
+      goniTypeId: string;
+      bagCount: number;
+      notes?: string;
+    };
+
+    const [vendor, goniType, isTracked] = await Promise.all([
+      prisma.user.findFirst({
+        where: { id: vendorId, role: "VENDOR", isActive: true },
+        select: { id: true, name: true },
+      }),
+      prisma.goniType.findFirst({
+        where: { id: goniTypeId, isActive: true },
+        select: { id: true, name: true },
+      }),
+      isTrackedGoniType(goniTypeId),
+    ]);
+
+    if (!vendor) {
+      throw new AppError("Vendor not found or inactive", 404);
+    }
+    if (!goniType) {
+      throw new AppError("Goni type not found or inactive", 404);
+    }
+    if (!isTracked) {
+      throw new AppError(
+        "Only tracked bag type is allowed for bag ledger flow",
+        400,
+      );
+    }
+
+    const movement = await prisma.bagMovement.create({
+      data: {
+        vendorId,
+        goniTypeId,
+        bagCount,
+        movementType: "ADMIN_TO_VENDOR_ADD",
+        notes: notes?.trim()
+          ? notes
+          : `Opening stock issued to vendor ${vendor.name}`,
+        createdById: adminId,
+      },
+      include: {
+        vendor: { select: { id: true, name: true, phone: true } },
+        goniType: { select: { id: true, name: true } },
+      },
+    });
+
+    createdResponse(res, movement, "Opening stock added to vendor");
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const vendorAddOwnBags = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const vendorId = req.user?.id;
+    if (!vendorId) throw new AppError("Unauthorized", 401);
+
+    const { goniTypeId, bagCount, notes } = req.body as {
+      goniTypeId: string;
+      bagCount: number;
+      notes?: string;
+    };
+
+    const [goniType, isTracked] = await Promise.all([
+      prisma.goniType.findFirst({
+        where: { id: goniTypeId, isActive: true },
+        select: { id: true, name: true },
+      }),
+      isTrackedGoniType(goniTypeId),
+    ]);
+
+    if (!goniType) {
+      throw new AppError("Goni type not found or inactive", 404);
+    }
+    if (!isTracked) {
+      throw new AppError(
+        "Only tracked bag type is allowed for bag ledger flow",
+        400,
+      );
+    }
+
+    const movement = await prisma.bagMovement.create({
+      data: {
+        vendorId,
+        goniTypeId,
+        bagCount,
+        movementType: "VENDOR_SELF_ADD",
+        notes: notes?.trim() ? notes : "Vendor self-added opening stock",
+        createdById: vendorId,
+      },
+      include: {
+        vendor: { select: { id: true, name: true, phone: true } },
+        goniType: { select: { id: true, name: true } },
+      },
+    });
+
+    createdResponse(res, movement, "Vendor opening stock added");
+  } catch (error) {
+    next(error);
+  }
+};

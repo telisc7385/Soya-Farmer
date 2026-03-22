@@ -9,6 +9,7 @@ import { listActiveQualityRates } from "../controllers/qualityRate.controller";
 import {
   createTransferSchema,
   returnBagsToFarmerSchema,
+  vendorAddOwnBagsSchema,
 } from "../validations/stock.validation";
 
 const router = Router();
@@ -68,6 +69,15 @@ router.post(
   authorize("VENDOR"),
   validateRequest(returnBagsToFarmerSchema),
   bagController.returnBagsToFarmer,
+);
+
+// Vendor adds own tracked bags (opening stock)
+router.post(
+  "/bags/own-add",
+  authMiddleware,
+  authorize("VENDOR"),
+  validateRequest(vendorAddOwnBagsSchema),
+  bagController.vendorAddOwnBags,
 );
 
 // Get vendor return due to farmer
