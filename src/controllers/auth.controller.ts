@@ -233,6 +233,7 @@ export const getVendorList = async (
         email: true,
         phone: true,
         vendorRate: true,
+        factoryRateDiff: true,
         villageAdd: true,
         taluka: true,
         district: true,
