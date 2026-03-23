@@ -232,7 +232,6 @@ export const getVendorList = async (
         name: true,
         email: true,
         phone: true,
-        vendorRate: true,
         factoryRateDiff: true,
         villageAdd: true,
         taluka: true,
@@ -244,10 +243,28 @@ export const getVendorList = async (
 
     const total = await prisma.user.count({ where });
 
+    const qualityRatesResponse = await prisma.qualityRate.findFirst({
+      where: {
+        isActive: true,
+      },
+      select: {
+        quality: true,
+        rate: true,
+      },
+    });
+
+    const vendorsWithFactoryRate = vendors.map((vendor) => ({
+      ...vendor,
+      ...(qualityRatesResponse?.rate
+        ? { actualFactoryRate: qualityRatesResponse.rate }
+        : {}),
+      vendorRate: (qualityRatesResponse?.rate || 0) + vendor.factoryRateDiff,
+    }));
+
     successResponse(
       res,
       {
-        vendors,
+        vendors: vendorsWithFactoryRate,
         total,
         page: Number(page),
         limit: take,
