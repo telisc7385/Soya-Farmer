@@ -4,6 +4,7 @@ import prisma from "../database/prisma";
 import { AppError } from "../core/appError";
 import { createdResponse, successResponse } from "../utils/response";
 import { NextFunction, Request, Response } from "express";
+import { BagMovementType } from "@prisma/client";
 
 export const login = async (
   req: Request,
@@ -215,51 +216,79 @@ export const getVendorList = async (
       where.isActive = isActive === "true";
     }
 
-    // Dynamic sorting
+    // Sorting
     const allowedSortFields = ["name", "createdAt", "vendorRate", "email"];
 
     const orderBy: any = allowedSortFields.includes(String(sortBy))
       ? { [String(sortBy)]: sort === "asc" ? "asc" : "desc" }
       : { createdAt: "desc" };
 
-    const vendors = await prisma.user.findMany({
-      where,
-      skip,
-      take,
-      orderBy,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        factoryRateDiff: true,
-        villageAdd: true,
-        taluka: true,
-        district: true,
-        isActive: true,
-        createdAt: true,
-      },
-    });
+    // Fetch vendors + total + qualityRate in parallel
+    const [vendors, total, qualityRatesResponse] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        skip,
+        take,
+        orderBy,
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          factoryRateDiff: true,
+          villageAdd: true,
+          taluka: true,
+          district: true,
+          isActive: true,
+          createdAt: true,
+        },
+      }),
+      prisma.user.count({ where }),
+      prisma.qualityRate.findFirst({
+        where: { isActive: true },
+        select: { quality: true, rate: true },
+      }),
+    ]);
 
-    const total = await prisma.user.count({ where });
+    const vendorIds = vendors.map((v) => v.id);
 
-    const qualityRatesResponse = await prisma.qualityRate.findFirst({
+    // 🔥 Aggregate bags in ONE query
+    const bagData = await prisma.bagMovement.groupBy({
+      by: ["vendorId", "movementType"],
       where: {
-        isActive: true,
+        vendorId: { in: vendorIds },
       },
-      select: {
-        quality: true,
-        rate: true,
+      _sum: {
+        bagCount: true,
       },
     });
 
-    const vendorsWithFactoryRate = vendors.map((vendor) => ({
-      ...vendor,
-      ...(qualityRatesResponse?.rate
-        ? { actualFactoryRate: qualityRatesResponse.rate }
-        : {}),
-      vendorRate: (qualityRatesResponse?.rate || 0) + vendor.factoryRateDiff,
-    }));
+    // Convert to map for fast lookup
+    const bagMap: Record<string, number> = {};
+
+    for (const item of bagData) {
+      const key = item.vendorId;
+
+      if (!bagMap[key]) bagMap[key] = 0;
+
+      if (item.movementType === BagMovementType.ADMIN_TO_VENDOR_ADD) {
+        bagMap[key] += item._sum.bagCount || 0;
+      } else if (item.movementType === BagMovementType.VENDOR_SELF_ADD) {
+        bagMap[key] -= item._sum.bagCount || 0;
+      }
+    }
+
+    // Final mapping
+    const vendorsWithFactoryRate = vendors.map((vendor) => {
+      const openingBagsAdded = bagMap[vendor.id] || 0;
+
+      return {
+        ...vendor,
+        actualFactoryRate: qualityRatesResponse?.rate || 0,
+        vendorRate: (qualityRatesResponse?.rate || 0) + vendor.factoryRateDiff,
+        openingBagsAdded,
+      };
+    });
 
     successResponse(
       res,
