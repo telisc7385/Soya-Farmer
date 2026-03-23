@@ -156,14 +156,13 @@ export const listActiveQualityRates = async (
 
     const qualityRates = qualityRatesResponse.map((qr) => ({
       quality: qr.quality,
-      rate: qr.rate + vendor.factoryRateDiff,
+      rate: qr.rate,
     }));
 
-    successResponse(
-      res,
-      { vendorRate: vendor.vendorRate, qualityRates },
-      "Quality rates fetched",
-    );
+    const vendorRate =
+      (qualityRatesResponse?.[0]?.rate || 0) + vendor.factoryRateDiff;
+
+    successResponse(res, { vendorRate, qualityRates }, "Quality rates fetched");
   } catch (error) {
     next(error);
   }

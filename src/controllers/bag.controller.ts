@@ -5,10 +5,10 @@ import { AppError } from "../core/appError";
 import { createdResponse, successResponse } from "../utils/response";
 import {
   getVendorBagLedgerSummary,
-  getVendorCurrentBagsForType,
   getVendorReturnDueForFarmer,
   isTrackedGoniType,
 } from "../services/bagLedger.service";
+import { BagMovementType } from "@prisma/client";
 
 export const getVendorBagSummary = async (
   req: AuthRequest,
@@ -47,6 +47,7 @@ export const returnBagsToFarmer = async (
   next: NextFunction,
 ) => {
   try {
+    debugger;
     const vendorId = req.user?.id;
     if (!vendorId) throw new AppError("Unauthorized", 401);
 
@@ -82,13 +83,35 @@ export const returnBagsToFarmer = async (
       );
     }
 
-    const availableBags = await getVendorCurrentBagsForType(
-      vendorId,
-      goniTypeId,
-    );
-    if (bagCount > availableBags) {
+    const [availableBagsForSelectedFarmer, returnedBagsForSelectedFarmer] =
+      await Promise.all([
+        prisma.bagMovement.aggregate({
+          where: {
+            vendorId,
+            goniTypeId,
+            movementType: BagMovementType.FARMER_TO_VENDOR,
+            farmerId,
+          },
+          _sum: { bagCount: true },
+        }),
+
+        prisma.bagMovement.aggregate({
+          where: {
+            vendorId,
+            goniTypeId,
+            movementType: BagMovementType.VENDOR_TO_FARMER,
+            farmerId,
+          },
+          _sum: { bagCount: true },
+        }),
+      ]);
+
+    const availableBags = availableBagsForSelectedFarmer._sum.bagCount || 0;
+    const returnedBags = returnedBagsForSelectedFarmer._sum.bagCount || 0;
+
+    if (bagCount > availableBags - returnedBags) {
       throw new AppError(
-        `Return bag count (${bagCount}) exceeds available ${goniType.name} bags (${availableBags})`,
+        `Return bag count (${bagCount}) exceeds available ${goniType.name} bags (${availableBags - returnedBags})`,
         400,
       );
     }

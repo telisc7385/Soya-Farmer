@@ -49,11 +49,7 @@ const emptySummary: VendorBagSummary = {
   receivedFromAdminByAdmin: [],
 };
 
-const addCount = (map: CountByType, key: string, count: number) => {
-  map[key] = (map[key] ?? 0) + count;
-};
-
-const getTrackedType = async (goniTypeId?: string) => {
+export const getTrackedType = async (goniTypeId?: string) => {
   if (goniTypeId) {
     return prisma.goniType.findFirst({
       where: { id: goniTypeId, isTracked: true, isActive: true },
