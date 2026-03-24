@@ -223,7 +223,7 @@ export const getVendorList = async (
       ? { [String(sortBy)]: sort === "asc" ? "asc" : "desc" }
       : { createdAt: "desc" };
 
-    // Fetch vendors + total + qualityRate in parallel
+    //  Parallel queries
     const [vendors, total, qualityRatesResponse] = await Promise.all([
       prisma.user.findMany({
         where,
@@ -252,7 +252,7 @@ export const getVendorList = async (
 
     const vendorIds = vendors.map((v) => v.id);
 
-    // 🔥 Aggregate bags in ONE query
+    // Aggregate bag movements
     const bagData = await prisma.bagMovement.groupBy({
       by: ["vendorId", "movementType"],
       where: {
@@ -263,30 +263,75 @@ export const getVendorList = async (
       },
     });
 
-    // Convert to map for fast lookup
-    const bagMap: Record<string, number> = {};
+    // Structured bag map
+    const bagMap: Record<
+      string,
+      {
+        openingBagsAdded: number;
+        totalReceived: number;
+        totalReturned: number;
+      }
+    > = {};
 
     for (const item of bagData) {
       const key = item.vendorId;
 
-      if (!bagMap[key]) bagMap[key] = 0;
+      if (!bagMap[key]) {
+        bagMap[key] = {
+          openingBagsAdded: 0,
+          totalReceived: 0,
+          totalReturned: 0,
+        };
+      }
 
+      const count = item._sum.bagCount || 0;
+
+      // ✅ Opening bags (ONLY this type)
       if (item.movementType === BagMovementType.ADMIN_TO_VENDOR_ADD) {
-        bagMap[key] += item._sum.bagCount || 0;
-      } else if (item.movementType === BagMovementType.VENDOR_SELF_ADD) {
-        bagMap[key] -= item._sum.bagCount || 0;
+        bagMap[key].openingBagsAdded += count;
+        bagMap[key].totalReceived += count;
+      }
+
+      // ✅ Other incoming
+      else if (
+        item.movementType === BagMovementType.ADMIN_TO_VENDOR ||
+        item.movementType === BagMovementType.FARMER_TO_VENDOR
+      ) {
+        bagMap[key].totalReceived += count;
+      }
+
+      // ❌ Outgoing
+      else if (
+        item.movementType === BagMovementType.VENDOR_TO_ADMIN ||
+        item.movementType === BagMovementType.VENDOR_TO_FARMER ||
+        item.movementType === BagMovementType.VENDOR_SELF_ADD
+      ) {
+        bagMap[key].totalReturned += count;
       }
     }
 
-    // Final mapping
+    console.log("Bag Map:", bagMap);
+
+    // Final response mapping
     const vendorsWithFactoryRate = vendors.map((vendor) => {
-      const openingBagsAdded = bagMap[vendor.id] || 0;
+      const stats = bagMap[vendor.id] || {
+        openingBagsAdded: 0,
+        totalReceived: 0,
+        totalReturned: 0,
+      };
+
+      const remainingBags = stats.totalReceived - stats.totalReturned;
 
       return {
         ...vendor,
         actualFactoryRate: qualityRatesResponse?.rate || 0,
         vendorRate: (qualityRatesResponse?.rate || 0) + vendor.factoryRateDiff,
-        openingBagsAdded,
+
+        // ✅ All required fields
+        openingBagsAdded: stats.openingBagsAdded,
+        totalReceived: stats.totalReceived,
+        totalReturned: stats.totalReturned,
+        remainingBags,
       };
     });
 

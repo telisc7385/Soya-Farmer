@@ -207,6 +207,37 @@ export const adminReturnBagsToVendor = async (
       );
     }
 
+    const [availableBagsForSelectedVendor, returnedBagsForSelectedVendor] =
+      await Promise.all([
+        prisma.bagMovement.aggregate({
+          where: {
+            vendorId,
+            goniTypeId,
+            movementType: BagMovementType.VENDOR_TO_ADMIN,
+          },
+          _sum: { bagCount: true },
+        }),
+
+        prisma.bagMovement.aggregate({
+          where: {
+            vendorId,
+            goniTypeId,
+            movementType: BagMovementType.ADMIN_TO_VENDOR,
+          },
+          _sum: { bagCount: true },
+        }),
+      ]);
+
+    const availableBags = availableBagsForSelectedVendor._sum.bagCount || 0;
+    const returnedBags = returnedBagsForSelectedVendor._sum.bagCount || 0;
+
+    if (bagCount > availableBags - returnedBags) {
+      throw new AppError(
+        `Return bag count (${bagCount}) exceeds available ${goniType.name} bags (${availableBags - returnedBags})`,
+        400,
+      );
+    }
+
     const movement = await prisma.bagMovement.create({
       data: {
         vendorId,
