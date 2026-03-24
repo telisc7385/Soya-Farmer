@@ -490,7 +490,7 @@ export const getFarmers = async (
   next: NextFunction,
 ) => {
   try {
-    const { page = "1", limit = "10", search } = req.query;
+    const { page = "1", limit = "10", search, vendorId } = req.query;
     const take = Number(limit);
     const skip = (Number(page) - 1) * take;
 
@@ -510,6 +510,11 @@ export const getFarmers = async (
     const farmers = await prisma.farmer.findMany({
       where: {
         id: { in: farmerIds },
+        ...(vendorId && {
+          vendors: {
+            some: { vendorId: String(vendorId), isActive: true },
+          },
+        }),
         ...(search && {
           OR: [
             { name: { contains: String(search), mode: "insensitive" } },
@@ -563,7 +568,14 @@ export const getFarmers = async (
     }));
 
     const total = await prisma.farmer.count({
-      where: { id: { in: farmerIds } },
+      where: {
+        id: { in: farmerIds },
+        ...(vendorId && {
+          vendors: {
+            some: { vendorId: String(vendorId), isActive: true },
+          },
+        }),
+      },
     });
 
     successResponse(
