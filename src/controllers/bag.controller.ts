@@ -59,8 +59,8 @@ export const returnBagsToFarmer = async (
     };
 
     const [mapping, goniType, isTracked] = await Promise.all([
-      prisma.vendorFarmer.findFirst({
-        where: { vendorId, farmerId, isActive: true },
+      prisma.bill.findFirst({
+        where: { vendorId, farmerId },
         select: { id: true },
       }),
       prisma.goniType.findFirst({
@@ -71,7 +71,7 @@ export const returnBagsToFarmer = async (
     ]);
 
     if (!mapping) {
-      throw new AppError("Farmer is not linked to this vendor", 400);
+      throw new AppError("Create bill first", 400);
     }
     if (!goniType) {
       throw new AppError("Goni type not found or inactive", 404);
