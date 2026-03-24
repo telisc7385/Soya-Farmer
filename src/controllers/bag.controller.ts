@@ -59,8 +59,8 @@ export const returnBagsToFarmer = async (
     };
 
     const [mapping, goniType, isTracked] = await Promise.all([
-      prisma.vendorFarmer.findFirst({
-        where: { vendorId, farmerId, isActive: true },
+      prisma.bill.findFirst({
+        where: { vendorId, farmerId },
         select: { id: true },
       }),
       prisma.goniType.findFirst({
@@ -71,7 +71,7 @@ export const returnBagsToFarmer = async (
     ]);
 
     if (!mapping) {
-      throw new AppError("Farmer is not linked to this vendor", 400);
+      throw new AppError("Create bill first", 400);
     }
     if (!goniType) {
       throw new AppError("Goni type not found or inactive", 404);
@@ -203,6 +203,37 @@ export const adminReturnBagsToVendor = async (
     if (!isTracked) {
       throw new AppError(
         "Only tracked bag type is allowed for bag ledger flow",
+        400,
+      );
+    }
+
+    const [availableBagsForSelectedVendor, returnedBagsForSelectedVendor] =
+      await Promise.all([
+        prisma.bagMovement.aggregate({
+          where: {
+            vendorId,
+            goniTypeId,
+            movementType: BagMovementType.VENDOR_TO_ADMIN,
+          },
+          _sum: { bagCount: true },
+        }),
+
+        prisma.bagMovement.aggregate({
+          where: {
+            vendorId,
+            goniTypeId,
+            movementType: BagMovementType.ADMIN_TO_VENDOR,
+          },
+          _sum: { bagCount: true },
+        }),
+      ]);
+
+    const availableBags = availableBagsForSelectedVendor._sum.bagCount || 0;
+    const returnedBags = returnedBagsForSelectedVendor._sum.bagCount || 0;
+
+    if (bagCount > availableBags - returnedBags) {
+      throw new AppError(
+        `Return bag count (${bagCount}) exceeds available ${goniType.name} bags (${availableBags - returnedBags})`,
         400,
       );
     }
