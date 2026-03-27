@@ -3,6 +3,7 @@ import prisma from "../database/prisma";
 import { successResponse } from "../utils/response";
 import { AppError } from "../core/appError";
 import { AuthRequest } from "../middleware/auth.middleware";
+import { getVendorBagLedgerSummary } from "../services/bagLedger.service";
 
 // =====================
 // VENDOR STOCK MANAGEMENT
@@ -114,29 +115,42 @@ export const getStockSummary = async (
   try {
     const vendorId = req?.user?.id as string;
 
-    const summary = await prisma.stock.groupBy({
-      by: ["status"],
-      where: { vendorId },
-      _sum: {
-        weight: true,
-        bagCount: true,
-      },
-      _count: true,
-    });
+    const [summary, totalStock, bagLedger] = await Promise.all([
+      prisma.stock.groupBy({
+        by: ["status"],
+        where: { vendorId },
+        _sum: {
+          weight: true,
+          bagCount: true,
+        },
+        _count: true,
+      }),
 
-    const totalStock = await prisma.stock.aggregate({
-      where: { vendorId, status: "AVAILABLE" },
-      _sum: {
-        weight: true,
-        bagCount: true,
-      },
-    });
+      prisma.stock.aggregate({
+        where: { vendorId, status: "AVAILABLE" },
+        _sum: {
+          weight: true,
+          bagCount: true,
+        },
+      }),
+
+      getVendorBagLedgerSummary(vendorId),
+    ]);
 
     successResponse(
       res,
       {
         summary,
         totalAvailable: totalStock._sum,
+        bagLedgerTotals: {
+          totalReceivedFromFarmers: bagLedger.totals.receivedFromFarmers,
+          totalSentToAdmin: bagLedger.totals.sentToAdmin,
+          totalReturnedToFarmers: bagLedger.totals.returnedToFarmers,
+          totalReceivedFromAdmin: bagLedger.totals.receivedFromAdmin,
+          totalReceivedFromVendorSelf: bagLedger.totals.receivedFromVendorSelf,
+          totalAdminAdded: bagLedger.totals.receivedAdminAdd,
+          totalRemainingWithVendor: bagLedger.totals.currentWithVendor,
+        },
       },
       "Stock summary fetched",
     );
