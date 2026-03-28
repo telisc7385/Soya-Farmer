@@ -195,6 +195,7 @@ export const getVendorLastSixMonthsBillSummary = async (
       select: {
         billDate: true,
         netPayable: true,
+        primaryQuantity: true,
       },
     });
 
@@ -215,6 +216,7 @@ export const getVendorLastSixMonthsBillSummary = async (
 
     const monthKeys: string[] = [];
     const monthTotals = new Map<string, number>();
+    const monthQuantities = new Map<string, number>();
 
     for (let i = 5; i >= 0; i -= 1) {
       const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
@@ -224,6 +226,7 @@ export const getVendorLastSixMonthsBillSummary = async (
       )}`;
       monthKeys.push(key);
       monthTotals.set(key, 0);
+      monthQuantities.set(key, 0);
     }
 
     for (const bill of bills) {
@@ -235,6 +238,11 @@ export const getVendorLastSixMonthsBillSummary = async (
       if (!monthTotals.has(key)) continue;
       const current = monthTotals.get(key) ?? 0;
       monthTotals.set(key, roundTo(current + (bill.netPayable ?? 0)));
+      const qtyCurrent = monthQuantities.get(key) ?? 0;
+      monthQuantities.set(
+        key,
+        roundTo(qtyCurrent + (bill.primaryQuantity ?? 0)),
+      );
     }
 
     const data = monthKeys.map((key) => {
@@ -243,6 +251,7 @@ export const getVendorLastSixMonthsBillSummary = async (
       return {
         month: label,
         amount: monthTotals.get(key) ?? 0,
+        quantity: monthQuantities.get(key) ?? 0,
       };
     });
 
