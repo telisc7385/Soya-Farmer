@@ -1,4 +1,5 @@
 import prisma from "../database/prisma";
+import { Prisma } from "@prisma/client";
 import { AppError } from "../core/appError";
 import { createdResponse, successResponse } from "../utils/response";
 import { Response, NextFunction, Request } from "express";
@@ -494,22 +495,11 @@ export const getFarmers = async (
     const take = Number(limit);
     const skip = (Number(page) - 1) * take;
 
-    // 1️⃣ Get only KYC-complete farmer IDs
-    const kycFarmers = await prisma.farmerDocument.groupBy({
-      by: ["farmerId"],
-      having: {
-        farmerId: {
-          _count: { gte: 1 },
-        },
-      },
-    });
-
-    const farmerIds = kycFarmers.map((f) => f.farmerId);
-
-    // 2️⃣ Fetch paginated farmers
+    // 1️⃣ Fetch only KYC-complete farmers (documents + bank details present)
     const farmers = await prisma.farmer.findMany({
       where: {
-        id: { in: farmerIds },
+        documents: { some: {} },
+        banks: { some: {} },
         ...(vendorId && {
           vendors: {
             some: { vendorId: String(vendorId), isActive: true },
@@ -569,7 +559,8 @@ export const getFarmers = async (
 
     const total = await prisma.farmer.count({
       where: {
-        id: { in: farmerIds },
+        documents: { some: {} },
+        banks: { some: {} },
         ...(vendorId && {
           vendors: {
             some: { vendorId: String(vendorId), isActive: true },
@@ -588,6 +579,132 @@ export const getFarmers = async (
         pages: Math.ceil(total / take),
       },
       "KYC-complete farmers fetched successfully",
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+// Get non-KYC-complete Farmers
+export const getNonKycFarmers = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { page = "1", limit = "10", search, vendorId } = req.query;
+    const take = Number(limit);
+    const skip = (Number(page) - 1) * take;
+
+    // Non-KYC: missing documents or missing bank details
+    const where: Prisma.FarmerWhereInput = {
+      AND: [
+        { OR: [{ documents: { none: {} } }, { banks: { none: {} } }] },
+        ...(vendorId
+          ? [
+              {
+                vendors: {
+                  some: { vendorId: String(vendorId), isActive: true },
+                },
+              },
+            ]
+          : []),
+        ...(search
+          ? [
+              {
+                OR: [
+                  {
+                    name: {
+                      contains: String(search),
+                      mode: Prisma.QueryMode.insensitive,
+                    },
+                  },
+                  {
+                    phone: {
+                      contains: String(search),
+                      mode: Prisma.QueryMode.insensitive,
+                    },
+                  },
+                  {
+                    aadhaarNo: {
+                      contains: String(search),
+                      mode: Prisma.QueryMode.insensitive,
+                    },
+                  },
+                  {
+                    taluka: {
+                      contains: String(search),
+                      mode: Prisma.QueryMode.insensitive,
+                    },
+                  },
+                  {
+                    district: {
+                      contains: String(search),
+                      mode: Prisma.QueryMode.insensitive,
+                    },
+                  },
+                ],
+              },
+            ]
+          : []),
+      ],
+    };
+
+    const farmers = await prisma.farmer.findMany({
+      where,
+      skip,
+      take,
+      orderBy: { createdAt: "desc" },
+      include: {
+        banks: {
+          select: {
+            id: true,
+            bankName: true,
+            accountNo: true,
+            ifsc: true,
+            holderName: true,
+            passbookImage: true,
+          },
+        },
+        vendors: {
+          take: 1,
+          orderBy: { createdAt: "asc" },
+          select: {
+            vendor: {
+              select: {
+                name: true,
+              },
+            },
+          },
+        },
+        _count: {
+          select: {
+            documents: true,
+            lands: true,
+          },
+        },
+      },
+    });
+
+    const formattedFarmers = farmers.map(({ vendors, _count, ...farmer }) => ({
+      ...farmer,
+      vendorName: vendors?.[0]?.vendor?.name ?? null,
+      totalKycDocuments: _count.documents,
+      totalLands: _count.lands,
+    }));
+
+    const total = await prisma.farmer.count({ where });
+
+    successResponse(
+      res,
+      {
+        farmers: formattedFarmers,
+        total,
+        page: Number(page),
+        limit: take,
+        pages: Math.ceil(total / take),
+      },
+      "Non-KYC-complete farmers fetched successfully",
     );
   } catch (error) {
     next(error);

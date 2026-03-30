@@ -18,6 +18,11 @@ router.post(
 );
 
 router.get("/list", authMiddleware, farmerControllers.getFarmers);
+router.get(
+  "/list/non-kyc",
+  authMiddleware,
+  farmerControllers.getNonKycFarmers,
+);
 router.get("/:farmerId", authMiddleware, farmerControllers.getFarmerById);
 
 router.put("/update/:farmerId", authMiddleware, farmerControllers.updateFarmer);
