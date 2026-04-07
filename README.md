@@ -150,3 +150,7 @@ npm run dev
 - Vendor inventory creation from confirmed bills
 - Admin-governed stock transfer lifecycle
 - Farmer payment and rejection workflows
+
+  
+## PM2 start command
+  -`pm2 start dist/src/server.js --name soya-farmer`
