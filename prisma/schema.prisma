@@ -84,6 +84,7 @@ model User {
   isActive        Boolean  @default(true)
   vendorRate      Float    @default(0)
   factoryRateDiff Float    @default(0)
+  masterVendor    Boolean  @default(false)
   createdAt       DateTime @default(now())
   villageAdd      String?
   taluka          String?
