@@ -11,20 +11,16 @@ export const saveQualityRate = async (
 ) => {
   try {
     if (!req.user) throw new AppError("Unauthorized", 401);
+
     const { quality, rate, isActive } = req.body;
     const userId = req.user.id;
 
-    const qualityRate = await prisma.qualityRate.upsert({
-      where: { quality },
-      create: {
+    const qualityRate = await prisma.qualityRate.create({
+      data: {
         quality,
         rate,
         isActive: isActive ?? true,
         createdBy: userId,
-      },
-      update: {
-        rate,
-        ...(isActive !== undefined ? { isActive } : {}),
       },
     });
 
@@ -136,33 +132,62 @@ export const listActiveQualityRates = async (
   try {
     if (!req.user) throw new AppError("Unauthorized", 401);
 
-    console.log("Fetching active quality rates for vendor:", req.user.id);
-
     const vendor = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { vendorRate: true, factoryRateDiff: true },
+      select: {
+        vendorRate: true,
+        factoryRateDiff: true,
+        masterVendor: true,
+      },
     });
 
     if (!vendor) throw new AppError("Vendor not found", 404);
 
     const qualityRatesResponse = await prisma.qualityRate.findMany({
       where: { isActive: true },
-      orderBy: { quality: "asc" },
+      orderBy: { createdAt: "asc" },
       select: {
         quality: true,
         rate: true,
       },
     });
 
-    const qualityRates = qualityRatesResponse.map((qr) => ({
-      quality: qr.quality,
-      rate: qr.rate,
-    }));
+    if (!qualityRatesResponse.length) {
+      throw new AppError("No active quality rates found", 404);
+    }
+
+    const baseRate = qualityRatesResponse[0].rate;
+
+    // MASTER VENDOR → all rates
+    if (vendor.masterVendor) {
+      const vendorRate =
+        baseRate + (vendor.factoryRateDiff || 0);
+
+      return successResponse(
+        res,
+        {
+          vendorRate,
+          qualityRates: qualityRatesResponse,
+        },
+        "Quality rates fetched",
+      );
+    }
+
+    // NORMAL VENDOR → only last rate
+    const lastRate =
+      qualityRatesResponse[qualityRatesResponse.length - 1];
 
     const vendorRate =
-      (qualityRatesResponse?.[0]?.rate || 0) + vendor.factoryRateDiff;
+      lastRate.rate + (vendor.factoryRateDiff || 0);
 
-    successResponse(res, { vendorRate, qualityRates }, "Quality rates fetched");
+    return successResponse(
+      res,
+      {
+        vendorRate,
+        qualityRates: [lastRate],
+      },
+      "Latest quality rate fetched",
+    );
   } catch (error) {
     next(error);
   }

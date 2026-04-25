@@ -13,6 +13,7 @@ export const registerSchema = Joi.object({
   district: Joi.string().max(100).allow("", null).optional(),
   role: Joi.string().valid("VENDOR").optional(),
   factoryRateDiff: Joi.number().optional(),
+  masterVendor: Joi.boolean().optional(),
 });
 
 export const loginSchema = Joi.object({
@@ -32,4 +33,5 @@ export const updateVendorSchema = Joi.object({
   taluka: Joi.string().max(100).allow("", null).optional(),
   district: Joi.string().max(100).allow("", null).optional(),
   factoryRateDiff: Joi.number().optional(),
+  masterVendor: Joi.boolean().optional(),
 }).min(1);
