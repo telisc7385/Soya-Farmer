@@ -6,7 +6,8 @@ export type ReportKey =
   | "stock-transfers"
   | "stocks"
   | "farmers"
-  | "vendors";
+  | "vendors"
+  | "quality-rates";
 
 type ReportConfig<T> = {
   filenamePrefix: string;
@@ -163,6 +164,28 @@ export const vendorReportConfig: ReportConfig<any> = {
   ],
 };
 
+export const qualityRateReportConfig: ReportConfig<any> = {
+  filenamePrefix: "quality-rates-report",
+  columns: [
+    { key: "quality", header: "Quality", value: (r) => r.quality },
+    { key: "rate", header: "Rate", value: (r) => r.rate },
+    { key: "isActive", header: "Active", value: (r) => r.isActive },
+    { key: "createdAt", header: "Created At", value: (r) => formatDate(r.createdAt) },
+    { key: "updatedAt", header: "Updated At", value: (r) => formatDate(r.updatedAt) },
+    { key: "avgRateInRange", header: "Avg Rate In Range", value: (r) => r.avgRateInRange },
+  ],
+  totalsRow: (rows) => {
+    if (!rows.length) return null;
+    const sum = rows.reduce((acc, row) => acc + (Number(row?.rate) || 0), 0);
+    const avg = rows.length ? sum / rows.length : 0;
+    return {
+      quality: "AVERAGE",
+      rate: avg,
+      avgRateInRange: avg,
+    };
+  },
+};
+
 export const reportConfigs: Record<ReportKey, ReportConfig<any>> = {
   bills: billReportConfig,
   payments: paymentReportConfig,
@@ -170,4 +193,5 @@ export const reportConfigs: Record<ReportKey, ReportConfig<any>> = {
   stocks: stockReportConfig,
   farmers: farmerReportConfig,
   vendors: vendorReportConfig,
+  "quality-rates": qualityRateReportConfig,
 };

@@ -35,6 +35,30 @@ const buildDateFilter = (startDate?: string, endDate?: string) => {
   return filter;
 };
 
+const getQualityRatesReport = async (query: any) => {
+  const createdAt = buildDateFilter(query.startDate, query.endDate);
+
+  const rates = await prisma.qualityRate.findMany({
+    where: {
+      ...(createdAt && { createdAt }),
+      ...(query.isActive !== undefined && {
+        isActive: String(query.isActive) === "true",
+      }),
+    },
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (rates.length === 0) return [];
+
+  const totalRate = rates.reduce((sum, r) => sum + r.rate, 0);
+  const avgRate = totalRate / rates.length;
+
+  return rates.map((r) => ({
+    ...r,
+    avgRateInRange: avgRate,
+  }));
+};
+
 const getBillsReport = async (query: any) => {
   const createdAt = buildDateFilter(query.startDate, query.endDate);
   const status = parseStatusFilter(query.status);
@@ -240,6 +264,7 @@ const reportHandlers: Record<ReportKey, (query: any) => Promise<any[]>> = {
   stocks: getStocksReport,
   farmers: getFarmersReport,
   vendors: getVendorsReport,
+  "quality-rates": getQualityRatesReport,
 };
 
 export const exportAdminReport = async (
