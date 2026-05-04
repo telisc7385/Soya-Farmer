@@ -245,6 +245,7 @@ export const getVendorList = async (
           district: true,
           isActive: true,
           createdAt: true,
+          masterVendor: true,
         },
       }),
       prisma.user.count({ where }),
