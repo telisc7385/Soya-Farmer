@@ -149,6 +149,7 @@ export const listActiveQualityRates = async (
       select: {
         quality: true,
         rate: true,
+        createdAt: true,
       },
     });
 
@@ -160,8 +161,7 @@ export const listActiveQualityRates = async (
 
     // MASTER VENDOR → all rates
     if (vendor.masterVendor) {
-      const vendorRate =
-        baseRate + (vendor.factoryRateDiff || 0);
+      const vendorRate = baseRate + (vendor.factoryRateDiff || 0);
 
       return successResponse(
         res,
@@ -174,11 +174,9 @@ export const listActiveQualityRates = async (
     }
 
     // NORMAL VENDOR → only last rate
-    const lastRate =
-      qualityRatesResponse[qualityRatesResponse.length - 1];
+    const lastRate = qualityRatesResponse[qualityRatesResponse.length - 1];
 
-    const vendorRate =
-      lastRate.rate + (vendor.factoryRateDiff || 0);
+    const vendorRate = lastRate.rate + (vendor.factoryRateDiff || 0);
 
     return successResponse(
       res,
