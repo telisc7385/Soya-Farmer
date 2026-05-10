@@ -257,6 +257,7 @@ model FarmerBank {
 model BankDetails {
   id        String   @id @default(uuid())
   bankName  String
+  ifsc      String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
