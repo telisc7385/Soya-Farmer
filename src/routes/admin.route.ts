@@ -47,6 +47,12 @@ import {
   adminOpeningBagsToVendorSchema,
   updateTransferSchema,
 } from "../validations/stock.validation";
+import { rejectKycSchema } from "../validations/farmer.validation";
+import {
+  verifyFarmerKyc,
+  rejectFarmerKyc,
+  getPendingKycFarmers,
+} from "../controllers/farmer.controller";
 import { exportReportSchema } from "../validations/report.validation";
 import { exportAdminReport } from "../controllers/admin/adminReport.controller";
 import {
@@ -227,6 +233,31 @@ router.get(
   authorize("ADMIN"),
   validateQuery(adminAnalyticsQuerySchema),
   getVendorTrends,
+);
+
+// =====================
+// ADMIN KYC VERIFICATION
+// =====================
+router.get(
+  "/kyc/pending",
+  authMiddleware,
+  authorize("ADMIN"),
+  getPendingKycFarmers,
+);
+
+router.put(
+  "/kyc/:farmerId/verify",
+  authMiddleware,
+  authorize("ADMIN"),
+  verifyFarmerKyc,
+);
+
+router.put(
+  "/kyc/:farmerId/reject",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateRequest(rejectKycSchema),
+  rejectFarmerKyc,
 );
 
 export default router;

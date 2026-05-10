@@ -7,6 +7,23 @@ import { AuthRequest } from "../middleware/auth.middleware";
 import { checkFarmer } from "../repositories/checkFarmer.repository";
 import { saveUploadedFile } from "../utils/upload";
 
+const requireKycEditable = async (farmerId: string) => {
+  const farmer = await prisma.farmer.findUnique({
+    where: { id: farmerId },
+    select: { id: true, kycStatus: true },
+  });
+  if (!farmer) throw new AppError("Farmer not found", 404);
+  if (
+    farmer.kycStatus !== "NOT_SUBMITTED" &&
+    farmer.kycStatus !== "REJECTED"
+  ) {
+    throw new AppError(
+      `KYC is ${farmer.kycStatus}. Editing only allowed when status is NOT_SUBMITTED or REJECTED.`,
+      400,
+    );
+  }
+};
+
 // Farmer Controllers
 export const createFarmer = async (
   req: AuthRequest,
@@ -72,6 +89,7 @@ export const createFarmer = async (
           gutNumber,
           taluka,
           district,
+          kycStatus: "NOT_SUBMITTED",
           ...(profileUrl && { profileUrl }),
         },
       });
@@ -151,7 +169,7 @@ export const updateFarmer = async (
     const { farmerId } = req.params;
     const { name, phone, villageAdd, district, taluka, gutNumber } = req.body;
 
-    await checkFarmer(farmerId);
+    await requireKycEditable(farmerId);
 
     const farmer = await prisma.farmer.update({
       where: { id: farmerId },
@@ -166,6 +184,144 @@ export const updateFarmer = async (
     });
 
     successResponse(res, farmer, "Farmer updated successfully");
+  } catch (error) {
+    next(error);
+  }
+};
+
+// =====================
+// ADMIN KYC VERIFICATION
+// =====================
+export const verifyFarmerKyc = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { farmerId } = req.params;
+    const adminId = req.user!.id;
+
+    const farmer = await prisma.farmer.findUnique({
+      where: { id: farmerId },
+      select: { id: true, kycStatus: true },
+    });
+    if (!farmer) throw new AppError("Farmer not found", 404);
+    if (farmer.kycStatus !== "PENDING_VERIFICATION") {
+      throw new AppError(
+        `KYC is ${farmer.kycStatus}. Only PENDING_VERIFICATION can be approved.`,
+        400,
+      );
+    }
+
+    const reKycDate = new Date();
+    reKycDate.setFullYear(reKycDate.getFullYear() + 2);
+
+    const updated = await prisma.farmer.update({
+      where: { id: farmerId },
+      data: {
+        kycStatus: "VERIFIED",
+        kycVerifiedAt: new Date(),
+        kycVerifiedById: adminId,
+        kycRejectionReason: null,
+        reKycDate,
+        reKycStatus: "NOT_REQUIRED",
+      },
+    });
+
+    successResponse(res, updated, "KYC verified successfully");
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const rejectFarmerKyc = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { farmerId } = req.params;
+    const { reason } = req.body;
+
+    const farmer = await prisma.farmer.findUnique({
+      where: { id: farmerId },
+      select: { id: true, kycStatus: true },
+    });
+    if (!farmer) throw new AppError("Farmer not found", 404);
+    if (farmer.kycStatus !== "PENDING_VERIFICATION") {
+      throw new AppError(
+        `KYC is ${farmer.kycStatus}. Only PENDING_VERIFICATION can be rejected.`,
+        400,
+      );
+    }
+
+    const updated = await prisma.farmer.update({
+      where: { id: farmerId },
+      data: {
+        kycStatus: "REJECTED",
+        kycRejectionReason: reason || "KYC documents did not meet requirements",
+      },
+    });
+
+    successResponse(res, updated, "KYC rejected");
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getPendingKycFarmers = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { page = "1", limit = "10", search } = req.query;
+    const take = Number(limit);
+    const skip = (Number(page) - 1) * take;
+
+    const where: Prisma.FarmerWhereInput = {
+      kycStatus: "PENDING_VERIFICATION",
+      ...(search && {
+        OR: [
+          { name: { contains: String(search), mode: "insensitive" } },
+          { phone: { contains: String(search), mode: "insensitive" } },
+          { aadhaarNo: { contains: String(search), mode: "insensitive" } },
+        ],
+      }),
+    };
+
+    const farmers = await prisma.farmer.findMany({
+      where,
+      skip,
+      take,
+      orderBy: { kycSubmittedAt: "asc" },
+      include: {
+        documents: true,
+        banks: true,
+        lands: true,
+        vendors: {
+          take: 1,
+          orderBy: { createdAt: "asc" },
+          select: {
+            vendor: { select: { name: true } },
+          },
+        },
+      },
+    });
+
+    const total = await prisma.farmer.count({ where });
+
+    successResponse(
+      res,
+      {
+        farmers,
+        total,
+        page: Number(page),
+        limit: take,
+        pages: Math.ceil(total / take),
+      },
+      "Pending KYC farmers fetched",
+    );
   } catch (error) {
     next(error);
   }
@@ -194,13 +350,15 @@ export const addFarmerAllDocuments = async (
       }
     }
 
-    await checkFarmer(farmerId);
-    const docCount = await prisma.farmerDocument.count({
-      where: { farmerId },
-    });
+    await requireKycEditable(farmerId);
 
-    if (docCount > 0) {
-      throw new AppError("Documents already exist for this farmer", 400);
+    // If resubmitting after rejection, delete old docs first
+    const existingDocs = await prisma.farmerDocument.findMany({
+      where: { farmerId },
+      select: { id: true },
+    });
+    if (existingDocs.length > 0) {
+      await prisma.farmerDocument.deleteMany({ where: { farmerId } });
     }
 
     const data = [];
@@ -230,11 +388,18 @@ export const addFarmerAllDocuments = async (
       });
     }
 
-    const createdDocs = await prisma.farmerDocument.createMany({
-      data,
+    await prisma.farmerDocument.createMany({ data });
+
+    // Set KYC to pending verification
+    await prisma.farmer.update({
+      where: { id: farmerId },
+      data: {
+        kycStatus: "PENDING_VERIFICATION",
+        kycSubmittedAt: new Date(),
+      },
     });
 
-    createdResponse(res, createdDocs, "All documents uploaded successfully");
+    createdResponse(res, data, "All documents uploaded successfully");
   } catch (error) {
     next(error);
   }
@@ -272,6 +437,13 @@ export const updateFarmerDocument = async (
       throw new AppError("Document file is required", 400);
     }
 
+    const existing = await prisma.farmerDocument.findUnique({
+      where: { id: documentId },
+      select: { farmerId: true },
+    });
+    if (!existing) throw new AppError("Document not found", 404);
+    await requireKycEditable(existing.farmerId);
+
     const { publicUrl: imageUrl } = await saveUploadedFile(
       req.file,
       "farmers/documents",
@@ -302,7 +474,7 @@ export const addFarmerLand = async (
       throw new AppError("Land document is required", 400);
     }
 
-    await checkFarmer(farmerId);
+    await requireKycEditable(farmerId);
     if (landType === "OWN") {
       const existingOwnedLand = await prisma.farmerLand.findFirst({
         where: { farmerId, landType: "OWN" },
@@ -364,6 +536,13 @@ export const updateFarmerLand = async (
     const { landId } = req.params;
     const { area, villageAdd, taluka, district } = req.body;
 
+    const existingLand = await prisma.farmerLand.findUnique({
+      where: { id: landId },
+      select: { farmerId: true },
+    });
+    if (!existingLand) throw new AppError("Land not found", 404);
+    await requireKycEditable(existingLand.farmerId);
+
     const updateData: any = {};
     if (area) updateData.area = Number(area);
     if (villageAdd !== undefined) updateData.villageAdd = villageAdd;
@@ -400,7 +579,7 @@ export const addFarmerBank = async (
       throw new AppError("Document image is required", 400);
     }
 
-    await checkFarmer(farmerId);
+    await requireKycEditable(farmerId);
 
     const { publicUrl: passbookImage } = await saveUploadedFile(
       req.file,
@@ -414,6 +593,14 @@ export const addFarmerBank = async (
     if (existingBank) {
       throw new AppError("Bank account already exists for this farmer", 400);
     }
+
+    await prisma.farmer.update({
+      where: { id: farmerId },
+      data: {
+        kycStatus: "PENDING_VERIFICATION",
+        kycSubmittedAt: new Date(),
+      },
+    });
 
     const bank = await prisma.farmerBank.create({
       data: {
@@ -462,6 +649,8 @@ export const updateFarmerBank = async (
     const { bankName, accountNo, ifsc, holderName } = req.body;
     let passbookImage;
 
+    await requireKycEditable(farmerId);
+
     if (req.file) {
       const { publicUrl } = await saveUploadedFile(req.file, "farmers/bank");
       passbookImage = publicUrl;
@@ -495,11 +684,9 @@ export const getFarmers = async (
     const take = Number(limit);
     const skip = (Number(page) - 1) * take;
 
-    // 1️⃣ Fetch only KYC-complete farmers (documents + bank details present)
     const farmers = await prisma.farmer.findMany({
       where: {
-        documents: { some: {} },
-        banks: { some: {} },
+        kycStatus: "VERIFIED",
         ...(vendorId && {
           vendors: {
             some: { vendorId: String(vendorId), isActive: true },
@@ -559,8 +746,7 @@ export const getFarmers = async (
 
     const total = await prisma.farmer.count({
       where: {
-        documents: { some: {} },
-        banks: { some: {} },
+        kycStatus: "VERIFIED",
         ...(vendorId && {
           vendors: {
             some: { vendorId: String(vendorId), isActive: true },
@@ -596,58 +782,22 @@ export const getNonKycFarmers = async (
     const take = Number(limit);
     const skip = (Number(page) - 1) * take;
 
-    // Non-KYC: missing documents or missing bank details
     const where: Prisma.FarmerWhereInput = {
-      AND: [
-        { OR: [{ documents: { none: {} } }, { banks: { none: {} } }] },
-        ...(vendorId
-          ? [
-              {
-                vendors: {
-                  some: { vendorId: String(vendorId), isActive: true },
-                },
-              },
-            ]
-          : []),
-        ...(search
-          ? [
-              {
-                OR: [
-                  {
-                    name: {
-                      contains: String(search),
-                      mode: Prisma.QueryMode.insensitive,
-                    },
-                  },
-                  {
-                    phone: {
-                      contains: String(search),
-                      mode: Prisma.QueryMode.insensitive,
-                    },
-                  },
-                  {
-                    aadhaarNo: {
-                      contains: String(search),
-                      mode: Prisma.QueryMode.insensitive,
-                    },
-                  },
-                  {
-                    taluka: {
-                      contains: String(search),
-                      mode: Prisma.QueryMode.insensitive,
-                    },
-                  },
-                  {
-                    district: {
-                      contains: String(search),
-                      mode: Prisma.QueryMode.insensitive,
-                    },
-                  },
-                ],
-              },
-            ]
-          : []),
-      ],
+      kycStatus: { not: "VERIFIED" },
+      ...(vendorId && {
+        vendors: {
+          some: { vendorId: String(vendorId), isActive: true },
+        },
+      }),
+      ...(search && {
+        OR: [
+          { name: { contains: String(search), mode: "insensitive" } },
+          { phone: { contains: String(search), mode: "insensitive" } },
+          { aadhaarNo: { contains: String(search), mode: "insensitive" } },
+          { taluka: { contains: String(search), mode: "insensitive" } },
+          { district: { contains: String(search), mode: "insensitive" } },
+        ],
+      }),
     };
 
     const farmers = await prisma.farmer.findMany({

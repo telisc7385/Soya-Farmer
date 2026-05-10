@@ -31,3 +31,7 @@ export const farmerBankSchema = Joi.object({
   ifsc: Joi.string().required(),
   holderName: Joi.string().required(),
 });
+
+export const rejectKycSchema = Joi.object({
+  reason: Joi.string().min(3).required(),
+});
