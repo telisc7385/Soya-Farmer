@@ -14,8 +14,11 @@ export const login = async (
   try {
     const { email, password, role = "VENDOR" } = req.body;
 
-    const user = await prisma.user.findUnique({
-      where: { email, role },
+    const user = await prisma.user.findFirst({
+      where: {
+        OR: [{ email }, { phone: email }],
+        role,
+      },
     });
 
     if (!user) {
@@ -60,12 +63,13 @@ export const register = async (
       masterVendor = false,
     } = req.body;
 
-    const existingUser = await prisma.user.findUnique({
-      where: { email },
+    const existingUser = await prisma.user.findFirst({
+      where: { OR: [{ email }, { phone }] },
     });
 
     if (existingUser) {
-      throw new AppError("User already exists", 409);
+      const field = existingUser.email === email ? "Email" : "Phone";
+      throw new AppError(`${field} already registered`, 409);
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
