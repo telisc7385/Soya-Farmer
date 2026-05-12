@@ -62,6 +62,19 @@ enum StockTransferStatus {
   CANCELLED
 }
 
+enum KycStatus {
+  NOT_SUBMITTED
+  PENDING_VERIFICATION
+  VERIFIED
+  REJECTED
+}
+
+enum ReKycStatus {
+  NOT_REQUIRED
+  REQUIRED
+  OVERDUE
+}
+
 enum BagMovementType {
   FARMER_TO_VENDOR
   ADMIN_TO_VENDOR
@@ -77,7 +90,7 @@ enum BagMovementType {
 model User {
   id              String   @id @default(uuid())
   name            String
-  phone           String
+  phone           String   @unique
   email           String   @unique
   password        String
   role            Role
@@ -96,8 +109,9 @@ model User {
   goniTypes        GoniType[]        @relation("UserGoniTypes")
   stocks           Stock[]           @relation("VendorStock")
   vendorTransfers  StockTransfer[]   @relation("VendorTransfers")
-  vendorBagMoves   BagMovement[]     @relation("VendorBagMovements")
-  createdBagMoves  BagMovement[]     @relation("CreatedBagMovements")
+  vendorBagMoves    BagMovement[]     @relation("VendorBagMovements")
+  createdBagMoves   BagMovement[]     @relation("CreatedBagMovements")
+  kycVerifiedFarmers Farmer[]         @relation("KycVerifiedBy")
 }
 
 // =====================
@@ -116,6 +130,15 @@ model Farmer {
   taluka     String?
   district   String?
   createdAt  DateTime @default(now())
+
+  kycStatus          KycStatus      @default(NOT_SUBMITTED)
+  kycSubmittedAt     DateTime?
+  kycVerifiedAt      DateTime?
+  kycVerifiedById    String?
+  kycVerifiedBy      User?          @relation("KycVerifiedBy", fields: [kycVerifiedById], references: [id])
+  kycRejectionReason String?
+  reKycDate          DateTime?
+  reKycStatus        ReKycStatus    @default(NOT_REQUIRED)
 
   documents FarmerDocument[]
   lands     FarmerLand[]
@@ -257,6 +280,7 @@ model FarmerBank {
 model BankDetails {
   id        String   @id @default(uuid())
   bankName  String
+  ifsc      String   @unique
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }

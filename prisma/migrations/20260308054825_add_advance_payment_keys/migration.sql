@@ -1,2 +1,0 @@
--- AlterTable
-ALTER TABLE "Bill" ADD COLUMN     "advancedAmount" DOUBLE PRECISION NOT NULL DEFAULT 0;
