@@ -13,10 +13,7 @@ const requireKycEditable = async (farmerId: string) => {
     select: { id: true, kycStatus: true },
   });
   if (!farmer) throw new AppError("Farmer not found", 404);
-  if (
-    farmer.kycStatus !== "NOT_SUBMITTED" &&
-    farmer.kycStatus !== "REJECTED"
-  ) {
+  if (farmer.kycStatus !== "NOT_SUBMITTED" && farmer.kycStatus !== "REJECTED") {
     throw new AppError(
       `KYC is ${farmer.kycStatus}. Editing only allowed when status is NOT_SUBMITTED or REJECTED.`,
       400,
@@ -474,7 +471,7 @@ export const addFarmerLand = async (
       throw new AppError("Land document is required", 400);
     }
 
-    await requireKycEditable(farmerId);
+    // await requireKycEditable(farmerId);
     if (landType === "OWN") {
       const existingOwnedLand = await prisma.farmerLand.findFirst({
         where: { farmerId, landType: "OWN" },
@@ -541,7 +538,7 @@ export const updateFarmerLand = async (
       select: { farmerId: true },
     });
     if (!existingLand) throw new AppError("Land not found", 404);
-    await requireKycEditable(existingLand.farmerId);
+    // await requireKycEditable(existingLand.farmerId);
 
     const updateData: any = {};
     if (area) updateData.area = Number(area);
@@ -579,7 +576,7 @@ export const addFarmerBank = async (
       throw new AppError("Document image is required", 400);
     }
 
-    await requireKycEditable(farmerId);
+    // await requireKycEditable(farmerId);
 
     const { publicUrl: passbookImage } = await saveUploadedFile(
       req.file,
@@ -649,7 +646,7 @@ export const updateFarmerBank = async (
     const { bankName, accountNo, ifsc, holderName } = req.body;
     let passbookImage;
 
-    await requireKycEditable(farmerId);
+    // await requireKycEditable(farmerId);
 
     if (req.file) {
       const { publicUrl } = await saveUploadedFile(req.file, "farmers/bank");
