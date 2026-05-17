@@ -7,6 +7,7 @@ import { AppError } from "../../core/appError";
 import { generateBillNo } from "../../utils/billNo";
 import { checkFarmer } from "../../repositories/checkFarmer.repository";
 import { formulaEngine } from "../../services/formulaEngine.service";
+import { applyAdvanceAdjustmentOnBillConfirm } from "../../services/paymentManagement.service";
 import { roundTo } from "../../utils/number";
 import { attachDeductionDetails } from "../../utils/deductionDetails";
 import { buildBillingCalculationDetails } from "../../utils/billingCalculation";
@@ -674,6 +675,8 @@ export const confirmDraft = async (
           status: "PENDING",
         },
       });
+
+      await applyAdvanceAdjustmentOnBillConfirm(tx, billId, vendorId);
 
       const gonis = await prisma.billGoni.findMany({
         where: { billId },

@@ -46,6 +46,26 @@ enum PaymentStatus {
   FAILED
 }
 
+enum AdvanceSource {
+  PROFILE
+  BILLING
+}
+
+enum AdvanceReason {
+  PRE_SEASON_ADVANCE
+  VEHICLE_RENT
+  LABOUR_CHARGES
+  DIESEL_EXPENSE
+  EMERGENCY_EXPENSE
+  OTHER
+}
+
+enum AdvanceTxnType {
+  CREDIT
+  ADJUSTMENT
+  REVERSAL
+}
+
 enum DeductionType {
   FIXED
   FORMULA
@@ -112,6 +132,8 @@ model User {
   vendorBagMoves    BagMovement[]     @relation("VendorBagMovements")
   createdBagMoves   BagMovement[]     @relation("CreatedBagMovements")
   kycVerifiedFarmers Farmer[]         @relation("KycVerifiedBy")
+  createdAdvances   FarmerAdvance[]   @relation("CreatedAdvances")
+  createdSettlements BillSettlement[] @relation("CreatedSettlements")
 }
 
 // =====================
@@ -146,6 +168,8 @@ model Farmer {
   bills     Bill[]
   banks     FarmerBank[]
   payments  FarmerPayment[]
+  advances  FarmerAdvance[]
+  settlements BillSettlement[]
   bagMoves  BagMovement[]
 }
 
@@ -206,7 +230,6 @@ model Bill {
   farmerId String
 
   totalAmount     Float
-  advancedAmount  Float         @default(0)
   status          BillStatus    @default(PENDING)
   primaryQuantity Float?
   primaryUnit     QuantityUnit?
@@ -227,6 +250,8 @@ model Bill {
   deductions BillDeduction[]
   gonis      BillGoni[]      @relation("BillGonis")
   payment    FarmerPayment?
+  advances   FarmerAdvance[]
+  settlements BillSettlement[]
   stock      Stock?
 }
 
@@ -299,6 +324,45 @@ model FarmerPayment {
 
   bill   Bill   @relation(fields: [billId], references: [id])
   farmer Farmer @relation(fields: [farmerId], references: [id])
+}
+
+model FarmerAdvance {
+  id          String         @id @default(uuid())
+  farmerId    String
+  billId      String?
+  amount      Float
+  txnType     AdvanceTxnType
+  source      AdvanceSource
+  reason      AdvanceReason
+  remarks     String?
+  createdById String
+  createdAt   DateTime       @default(now())
+
+  farmer    Farmer @relation(fields: [farmerId], references: [id])
+  bill      Bill?  @relation(fields: [billId], references: [id])
+  createdBy User   @relation("CreatedAdvances", fields: [createdById], references: [id])
+
+  @@index([farmerId, createdAt])
+  @@index([billId])
+}
+
+model BillSettlement {
+  id          String   @id @default(uuid())
+  billId      String
+  farmerId    String
+  amount      Float
+  paidDate    DateTime?
+  reference   String?
+  remarks     String?
+  createdById String
+  createdAt   DateTime @default(now())
+
+  bill      Bill   @relation(fields: [billId], references: [id])
+  farmer    Farmer @relation(fields: [farmerId], references: [id])
+  createdBy User   @relation("CreatedSettlements", fields: [createdById], references: [id])
+
+  @@index([billId, createdAt])
+  @@index([farmerId, createdAt])
 }
 
 // =====================
