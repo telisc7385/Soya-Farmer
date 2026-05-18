@@ -25,7 +25,12 @@ router.get(
 );
 router.get("/:farmerId", authMiddleware, farmerControllers.getFarmerById);
 
-router.put("/update/:farmerId", authMiddleware, farmerControllers.updateFarmer);
+router.put(
+  "/update/:farmerId",
+  authMiddleware,
+  upload.single("profile"),
+  farmerControllers.updateFarmer,
+);
 
 // Farmer Documents
 router.post(

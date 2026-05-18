@@ -164,7 +164,14 @@ export const updateFarmer = async (
 ) => {
   try {
     const { farmerId } = req.params;
-    const { name, phone, villageAdd, district, taluka, gutNumber } = req.body;
+    const { name, phone, villageAdd, district, taluka, gutNumber } =
+      req.body || {};
+    let profileUrl: string | undefined;
+
+    if (req.file) {
+      const uploaded = await saveUploadedFile(req.file, "farmers/profile");
+      profileUrl = uploaded.publicUrl;
+    }
 
     await requireKycEditable(farmerId);
 
@@ -177,6 +184,7 @@ export const updateFarmer = async (
         district,
         taluka,
         gutNumber,
+        ...(profileUrl && { profileUrl }),
       },
     });
 
