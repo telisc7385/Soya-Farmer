@@ -17,8 +17,8 @@ export const createTransferSchema = Joi.object({
     )
     .min(1)
     .optional(),
-  shopName: Joi.string().max(255).required(),
-  shopLocation: Joi.string().max(255).required(),
+  sourceLocationId: Joi.string().uuid().required(),
+  destinationLocationId: Joi.string().uuid().required(),
   vehicalNumber: Joi.string().max(50).required(),
 }).custom((value, helpers) => {
   const hasItems = Array.isArray(value.items) && value.items.length > 0;
@@ -28,6 +28,12 @@ export const createTransferSchema = Joi.object({
     return helpers.error("any.custom", {
       message:
         "Provide either items[] for multi-type transfer or goniTypeId + bagCount for single type",
+    });
+  }
+
+  if (value.sourceLocationId === value.destinationLocationId) {
+    return helpers.error("any.custom", {
+      message: "Source and destination locations must be different",
     });
   }
 

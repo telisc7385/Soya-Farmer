@@ -88,8 +88,16 @@ export const stockTransferReportConfig: ReportConfig<any> = {
     { key: "weight", header: "Weight", value: (r) => r.weight },
     { key: "unit", header: "Unit", value: (r) => r.unit },
     { key: "bagCount", header: "Bag Count", value: (r) => r.bagCount },
-    { key: "shopName", header: "Shop Name", value: (r) => r.shopName },
-    { key: "shopLocation", header: "Shop Location", value: (r) => r.shopLocation },
+    {
+      key: "sourceLocation",
+      header: "Source Location",
+      value: (r) => r.sourceLocation?.name,
+    },
+    {
+      key: "destinationLocation",
+      header: "Destination Location",
+      value: (r) => r.destinationLocation?.name,
+    },
     { key: "vehicalNumber", header: "Vehicle Number", value: (r) => r.vehicalNumber },
   ],
   totalsRow: (rows) => {

@@ -140,6 +140,8 @@ const getStockTransfersReport = async (query: any) => {
     include: {
       vendor: true,
       goniType: true,
+      sourceLocation: true,
+      destinationLocation: true,
     },
   });
 };
