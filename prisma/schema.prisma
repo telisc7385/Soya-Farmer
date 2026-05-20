@@ -104,6 +104,12 @@ enum BagMovementType {
   ADMIN_TO_VENDOR_ADD
 }
 
+enum InventoryLocationType {
+  VENDOR
+  GODOWN
+  PLANT
+}
+
 // =====================
 // USER (ADMIN / VENDOR)
 // =====================
@@ -123,17 +129,18 @@ model User {
   taluka          String?
   district        String?
 
-  vendorFarmers    VendorFarmer[]
-  bills            Bill[]
-  deductionMasters DeductionMaster[] @relation("UserDeductionMasters")
-  goniTypes        GoniType[]        @relation("UserGoniTypes")
-  stocks           Stock[]           @relation("VendorStock")
-  vendorTransfers  StockTransfer[]   @relation("VendorTransfers")
-  vendorBagMoves    BagMovement[]     @relation("VendorBagMovements")
-  createdBagMoves   BagMovement[]     @relation("CreatedBagMovements")
-  kycVerifiedFarmers Farmer[]         @relation("KycVerifiedBy")
-  createdAdvances   FarmerAdvance[]   @relation("CreatedAdvances")
-  createdSettlements BillSettlement[] @relation("CreatedSettlements")
+  vendorFarmers             VendorFarmer[]
+  bills                     Bill[]
+  deductionMasters          DeductionMaster[]   @relation("UserDeductionMasters")
+  goniTypes                 GoniType[]          @relation("UserGoniTypes")
+  stocks                    Stock[]             @relation("VendorStock")
+  vendorTransfers           StockTransfer[]     @relation("VendorTransfers")
+  vendorBagMoves            BagMovement[]       @relation("VendorBagMovements")
+  createdBagMoves           BagMovement[]       @relation("CreatedBagMovements")
+  kycVerifiedFarmers        Farmer[]            @relation("KycVerifiedBy")
+  createdAdvances           FarmerAdvance[]     @relation("CreatedAdvances")
+  createdSettlements        BillSettlement[]    @relation("CreatedSettlements")
+  createdInventoryLocations InventoryLocation[] @relation("CreatedInventoryLocations")
 }
 
 // =====================
@@ -153,24 +160,24 @@ model Farmer {
   district   String?
   createdAt  DateTime @default(now())
 
-  kycStatus          KycStatus      @default(NOT_SUBMITTED)
+  kycStatus          KycStatus   @default(NOT_SUBMITTED)
   kycSubmittedAt     DateTime?
   kycVerifiedAt      DateTime?
   kycVerifiedById    String?
-  kycVerifiedBy      User?          @relation("KycVerifiedBy", fields: [kycVerifiedById], references: [id])
+  kycVerifiedBy      User?       @relation("KycVerifiedBy", fields: [kycVerifiedById], references: [id])
   kycRejectionReason String?
   reKycDate          DateTime?
-  reKycStatus        ReKycStatus    @default(NOT_REQUIRED)
+  reKycStatus        ReKycStatus @default(NOT_REQUIRED)
 
-  documents FarmerDocument[]
-  lands     FarmerLand[]
-  vendors   VendorFarmer[]
-  bills     Bill[]
-  banks     FarmerBank[]
-  payments  FarmerPayment[]
-  advances  FarmerAdvance[]
+  documents   FarmerDocument[]
+  lands       FarmerLand[]
+  vendors     VendorFarmer[]
+  bills       Bill[]
+  banks       FarmerBank[]
+  payments    FarmerPayment[]
+  advances    FarmerAdvance[]
   settlements BillSettlement[]
-  bagMoves  BagMovement[]
+  bagMoves    BagMovement[]
 }
 
 // =====================
@@ -245,14 +252,14 @@ model Bill {
 
   createdAt DateTime @default(now())
 
-  vendor     User            @relation(fields: [vendorId], references: [id])
-  farmer     Farmer          @relation(fields: [farmerId], references: [id])
-  deductions BillDeduction[]
-  gonis      BillGoni[]      @relation("BillGonis")
-  payment    FarmerPayment?
-  advances   FarmerAdvance[]
+  vendor      User             @relation(fields: [vendorId], references: [id])
+  farmer      Farmer           @relation(fields: [farmerId], references: [id])
+  deductions  BillDeduction[]
+  gonis       BillGoni[]       @relation("BillGonis")
+  payment     FarmerPayment?
+  advances    FarmerAdvance[]
   settlements BillSettlement[]
-  stock      Stock?
+  stock       Stock?
 }
 
 model BillGoni {
@@ -347,7 +354,7 @@ model FarmerAdvance {
 }
 
 model BillSettlement {
-  id          String   @id @default(uuid())
+  id          String    @id @default(uuid())
   billId      String
   farmerId    String
   amount      Float
@@ -355,7 +362,7 @@ model BillSettlement {
   reference   String?
   remarks     String?
   createdById String
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
 
   bill      Bill   @relation(fields: [billId], references: [id])
   farmer    Farmer @relation(fields: [farmerId], references: [id])
@@ -453,29 +460,34 @@ model Stock {
 // STOCK TRANSFER (VENDOR → ADMIN)
 // =====================
 model StockTransfer {
-  id                  String              @id @default(uuid())
-  transferNo          String              @unique
-  vendorId            String
-  goniTypeId          String?
-  vendorEnteredWeight Float?
-  vendorEnteredUnit   QuantityUnit?
-  adminAdjustedWeight Float?
-  adminAdjustedUnit   QuantityUnit?
-  adminAdjustedAt     DateTime?
-  weight              Float?
-  unit                QuantityUnit?
-  shopName            String?
-  shopLocation        String
-  vehicalNumber       String
-  bagCount            Int
-  status              StockTransferStatus @default(PENDING)
-  createdAt           DateTime            @default(now())
-  completedAt         DateTime?
+  id                    String              @id @default(uuid())
+  transferNo            String              @unique
+  vendorId              String
+  goniTypeId            String?
+  vendorEnteredWeight   Float?
+  vendorEnteredUnit     QuantityUnit?
+  adminAdjustedWeight   Float?
+  adminAdjustedUnit     QuantityUnit?
+  adminAdjustedAt       DateTime?
+  weight                Float?
+  unit                  QuantityUnit?
+  sourceLocationId      String?
+  destinationLocationId String?
+  vehicalNumber         String
+  bagCount              Int
+  status                StockTransferStatus @default(PENDING)
+  createdAt             DateTime            @default(now())
+  completedAt           DateTime?
 
-  vendor   User                @relation("VendorTransfers", fields: [vendorId], references: [id])
-  goniType GoniType?           @relation(fields: [goniTypeId], references: [id])
-  items    StockTransferItem[]
-  bagMoves BagMovement[]
+  vendor              User                @relation("VendorTransfers", fields: [vendorId], references: [id])
+  goniType            GoniType?           @relation(fields: [goniTypeId], references: [id])
+  sourceLocation      InventoryLocation?  @relation("SourceLocationTransfers", fields: [sourceLocationId], references: [id])
+  destinationLocation InventoryLocation?  @relation("DestinationLocationTransfers", fields: [destinationLocationId], references: [id])
+  items               StockTransferItem[]
+  bagMoves            BagMovement[]
+
+  @@index([sourceLocationId])
+  @@index([destinationLocationId])
 }
 
 model StockTransferItem {
@@ -514,4 +526,21 @@ model BagMovement {
   @@index([vendorId, goniTypeId, movementType])
   @@index([farmerId])
   @@index([transferId])
+}
+
+model InventoryLocation {
+  id          String                @id @default(uuid())
+  name        String
+  code        String?               @unique
+  type        InventoryLocationType
+  isActive    Boolean               @default(true)
+  createdById String?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  createdBy         User?           @relation("CreatedInventoryLocations", fields: [createdById], references: [id])
+  outgoingTransfers StockTransfer[] @relation("SourceLocationTransfers")
+  incomingTransfers StockTransfer[] @relation("DestinationLocationTransfers")
+
+  @@index([type, isActive])
 }

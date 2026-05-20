@@ -67,6 +67,16 @@ import {
   getVendorTrends,
 } from "../controllers/admin/adminAnalytics.controller";
 import { adminAnalyticsQuerySchema } from "../validations/adminAnalytics.validation";
+import {
+  createInventoryLocation,
+  listInventoryLocations,
+  updateInventoryLocation,
+} from "../controllers/inventoryLocation.controller";
+import {
+  createInventoryLocationSchema,
+  listInventoryLocationQuerySchema,
+  updateInventoryLocationSchema,
+} from "../validations/inventoryLocation.validation";
 const router = Router();
 
 router.get("/payments", authMiddleware, authorize("ADMIN"), getPayments);
@@ -277,6 +287,33 @@ router.get(
   authorize("ADMIN"),
   validateQuery(adminAnalyticsQuerySchema),
   getVendorTrends,
+);
+
+// =====================
+// INVENTORY LOCATIONS (ADMIN)
+// =====================
+router.post(
+  "/inventory-locations",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateRequest(createInventoryLocationSchema),
+  createInventoryLocation,
+);
+
+router.get(
+  "/inventory-locations",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateQuery(listInventoryLocationQuerySchema),
+  listInventoryLocations,
+);
+
+router.put(
+  "/inventory-locations/:locationId",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateRequest(updateInventoryLocationSchema),
+  updateInventoryLocation,
 );
 
 // =====================

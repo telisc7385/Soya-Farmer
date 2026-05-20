@@ -8,6 +8,7 @@ import {
   getVendorCurrentBagsForType,
   isTrackedGoniType,
 } from "../services/bagLedger.service";
+import { toQtl } from "../utils/quantity";
 
 // =====================
 // VENDOR TRANSFER OPERATIONS
@@ -30,8 +31,8 @@ export const createTransfer = async (
       bagCount,
       goniTypeId,
       items,
-      shopName,
-      shopLocation,
+      sourceLocationId,
+      destinationLocationId,
       vehicalNumber,
     } = req.body as {
       weight?: number;
@@ -39,8 +40,8 @@ export const createTransfer = async (
       bagCount?: number;
       goniTypeId?: string;
       items?: Array<{ goniTypeId: string; bagCount: number }>;
-      shopName: string;
-      shopLocation: string;
+      sourceLocationId: string;
+      destinationLocationId: string;
       vehicalNumber: string;
     };
 
@@ -74,6 +75,8 @@ export const createTransfer = async (
       (sum, item) => sum + item.bagCount,
       0,
     );
+    const normalizedWeightQtl =
+      typeof weight === "number" ? toQtl(weight, unit ?? "QTL") : undefined;
 
     // Get vendor's total available stock
     const availableStock = await prisma.stock.aggregate({
@@ -91,9 +94,12 @@ export const createTransfer = async (
     const availableBags = availableStock._sum.bagCount || 0;
 
     // Validate transfer doesn't exceed available stock
-    if (typeof weight === "number" && weight > availableWeight) {
+    if (
+      typeof normalizedWeightQtl === "number" &&
+      normalizedWeightQtl > availableWeight
+    ) {
       throw new AppError(
-        `Transfer weight (${weight}) exceeds available stock (${availableWeight})`,
+        `Transfer weight exceeds available stock (${availableWeight} QTL)`,
         400,
       );
     }
@@ -144,6 +150,28 @@ export const createTransfer = async (
       }
     }
 
+    const [sourceLocation, destinationLocation] = await Promise.all([
+      prisma.inventoryLocation.findFirst({
+        where: { id: sourceLocationId, isActive: true },
+        select: { id: true },
+      }),
+      prisma.inventoryLocation.findFirst({
+        where: { id: destinationLocationId, isActive: true },
+        select: { id: true },
+      }),
+    ]);
+
+    if (!sourceLocation || !destinationLocation) {
+      throw new AppError("Invalid or inactive source/destination location", 400);
+    }
+
+    if (sourceLocationId === destinationLocationId) {
+      throw new AppError(
+        "Source and destination locations must be different",
+        400,
+      );
+    }
+
     const transferNo = await generateTransferNo();
 
     const transfer = await prisma.$transaction(async (tx) => {
@@ -155,11 +183,11 @@ export const createTransfer = async (
             transferItems.length === 1 ? transferItems[0].goniTypeId : null,
           vendorEnteredWeight: weight,
           vendorEnteredUnit: unit,
-          weight,
-          unit,
+          weight: normalizedWeightQtl,
+          unit: "QTL",
           bagCount: totalBagCount,
-          shopName,
-          shopLocation,
+          sourceLocationId,
+          destinationLocationId,
           vehicalNumber,
           status: "PENDING",
         },
@@ -183,6 +211,8 @@ export const createTransfer = async (
           items: {
             include: { goniType: true },
           },
+          sourceLocation: true,
+          destinationLocation: true,
         },
       });
     });
@@ -222,6 +252,8 @@ export const getVendorTransfers = async (
           items: {
             include: { goniType: true },
           },
+          sourceLocation: true,
+          destinationLocation: true,
         },
       }),
       prisma.stockTransfer.count({ where }),
@@ -279,6 +311,8 @@ export const getAdminTransfers = async (
           items: {
             include: { goniType: true },
           },
+          sourceLocation: true,
+          destinationLocation: true,
         },
       }),
       prisma.stockTransfer.count({ where }),
@@ -365,7 +399,10 @@ export const completeTransfer = async (
       for (const stock of availableStocks) {
         if (remainingWeight <= 0 && remainingBags <= 0) break;
 
-        const deductWeight = Math.min(stock.weight, Math.max(remainingWeight, 0));
+        const deductWeight = Math.min(
+          stock.weight,
+          Math.max(remainingWeight, 0),
+        );
         const deductBags = Math.min(stock.bagCount, Math.max(remainingBags, 0));
 
         const newWeight = stock.weight - deductWeight;
@@ -471,21 +508,32 @@ export const updateTransfer = async (
       throw new AppError("Only pending transfers can be updated", 400);
     }
 
+    if (unit !== undefined && weight === undefined) {
+      throw new AppError(
+        "Weight is required when updating unit to avoid ambiguous conversion",
+        400,
+      );
+    }
+
     const now = new Date();
     const updateData: any = {};
 
     if (weight !== undefined) {
-      updateData.weight = weight;
+      const normalizedWeightQtl = toQtl(
+        weight,
+        (unit ?? transfer.unit ?? "QTL") as "QTL" | "MT",
+      );
+      updateData.weight = normalizedWeightQtl;
+      updateData.unit = "QTL";
       updateData.adminAdjustedWeight = weight;
-      updateData.vendorEnteredWeight =
-        transfer.vendorEnteredWeight ?? transfer.weight ?? null;
+      updateData.vendorEnteredWeight = transfer.vendorEnteredWeight ?? null;
       updateData.adminAdjustedAt = now;
     }
 
     if (unit !== undefined) {
-      updateData.unit = unit;
       updateData.adminAdjustedUnit = unit;
-      updateData.vendorEnteredUnit = transfer.vendorEnteredUnit ?? transfer.unit;
+      updateData.vendorEnteredUnit =
+        transfer.vendorEnteredUnit ?? transfer.unit;
       updateData.adminAdjustedAt = now;
     }
 
@@ -500,6 +548,8 @@ export const updateTransfer = async (
         items: {
           include: { goniType: true },
         },
+        sourceLocation: true,
+        destinationLocation: true,
       },
     });
 
@@ -564,7 +614,9 @@ export const getAdminStockSummary = async (
       where: { status: "COMPLETED" },
       select: {
         vendorEnteredWeight: true,
+        vendorEnteredUnit: true,
         adminAdjustedWeight: true,
+        adminAdjustedUnit: true,
         weight: true,
       },
     });
@@ -572,8 +624,21 @@ export const getAdminStockSummary = async (
     const analysis = completedTransfersForAnalysis.reduce(
       (acc, transfer) => {
         const vendorWeight =
-          transfer.vendorEnteredWeight ?? transfer.weight ?? 0;
-        const adminWeight = transfer.adminAdjustedWeight ?? transfer.weight ?? 0;
+          transfer.vendorEnteredWeight !== null &&
+          transfer.vendorEnteredWeight !== undefined
+            ? toQtl(
+                transfer.vendorEnteredWeight,
+                transfer.vendorEnteredUnit ?? "QTL",
+              )
+            : (transfer.weight ?? 0);
+        const adminWeight =
+          transfer.adminAdjustedWeight !== null &&
+          transfer.adminAdjustedWeight !== undefined
+            ? toQtl(
+                transfer.adminAdjustedWeight,
+                transfer.adminAdjustedUnit ?? "QTL",
+              )
+            : (transfer.weight ?? 0);
 
         acc.vendorEnteredWeight += vendorWeight;
         acc.adminAdjustedWeight += adminWeight;
