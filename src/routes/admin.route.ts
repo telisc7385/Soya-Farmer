@@ -3,6 +3,11 @@ import { Router } from "express";
 import { authMiddleware } from "../middleware/auth.middleware";
 import { authorize } from "../middleware/role.middleware";
 import {
+  createAgainstSettlement,
+  createFarmerAdvance,
+  getBillSettlements,
+  getFarmerAdvanceBalanceController,
+  getFarmerAdvances,
   getPayments,
   payFarmer,
   rejectBill,
@@ -31,8 +36,10 @@ import {
   validateQuery,
 } from "../middleware/validateRequest.middleware";
 import {
+  createAdvanceSchema,
   payFarmerSchema,
   rejectFarmerSchema,
+  createSettlementSchema as createSettlementValidationSchema,
 } from "../validations/payment.validation";
 import {
   createDeductionMasterSchema,
@@ -78,6 +85,43 @@ router.post(
   authorize("ADMIN"),
   validateRequest(rejectFarmerSchema),
   rejectBill,
+);
+
+router.post(
+  "/farmers/:farmerId/advances",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateRequest(createAdvanceSchema),
+  createFarmerAdvance,
+);
+
+router.get(
+  "/farmers/:farmerId/advances",
+  authMiddleware,
+  authorize("ADMIN"),
+  getFarmerAdvances,
+);
+
+router.get(
+  "/farmers/:farmerId/advance-balance",
+  authMiddleware,
+  authorize("ADMIN"),
+  getFarmerAdvanceBalanceController,
+);
+
+router.post(
+  "/bills/:billId/settlements",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateRequest(createSettlementValidationSchema),
+  createAgainstSettlement,
+);
+
+router.get(
+  "/bills/:billId/settlements",
+  authMiddleware,
+  authorize("ADMIN"),
+  getBillSettlements,
 );
 router.post(
   "/deductions",

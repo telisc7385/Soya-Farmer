@@ -6,8 +6,12 @@ import { attachDeductionDetails } from "../../utils/deductionDetails";
 import { buildBillingCalculationDetails } from "../../utils/billingCalculation";
 import { roundTo } from "../../utils/number";
 import { AuthRequest } from "../../middleware/auth.middleware";
+import { getBillFinancialMap, getBillSettlementSummary } from "../../services/paymentManagement.service";
 
-const withGoniAmount = (bill: any) => {
+const withGoniAmount = (
+  bill: any,
+  financials?: { adjustedAdvanceAmount: number; settledAmount: number; pendingAmount: number },
+) => {
   const calculationDetails = buildBillingCalculationDetails(bill);
   const perQtlLabDeduction = roundTo(
     ((bill.ratePerUnit ?? 0) *
@@ -15,13 +19,17 @@ const withGoniAmount = (bill: any) => {
       100,
   );
   const totalAmount = Number(bill?.totalAmount ?? 0);
-  const advancedAmount = Number(bill?.advancedAmount ?? 0);
-  const balanceAmount = roundTo(Math.max(totalAmount - advancedAmount, 0));
+  const adjustedAdvanceAmount = Number(financials?.adjustedAdvanceAmount ?? 0);
+  const settledAmount = Number(financials?.settledAmount ?? 0);
+  const balanceAmount = roundTo(
+    Number(financials?.pendingAmount ?? Math.max(totalAmount - adjustedAdvanceAmount, 0)),
+  );
 
   return {
     ...bill,
     totalAmount,
-    advancedAmount,
+    adjustedAdvanceAmount,
+    settledAmount,
     balanceAmount,
     goniDeductionAmount: calculationDetails.goniDeductionAmount,
     calculationDetails,
@@ -110,9 +118,11 @@ export const getBills = async (
     );
 
     // 🔄 Transform data
+    const billIds = bills.map((bill) => bill.id);
+    const billFinancialsMap = await getBillFinancialMap(billIds);
     const formattedBills = bills
       .map(attachDeductionDetails)
-      .map(withGoniAmount);
+      .map((bill) => withGoniAmount(bill, billFinancialsMap.get(bill.id)));
 
     successResponse(
       res,
@@ -161,7 +171,12 @@ export const getBillById = async (
     if (!bill) throw new AppError("Bill not found", 404);
 
     const billWithDetails = attachDeductionDetails(bill);
-    const withGoni = withGoniAmount(billWithDetails);
+    const summary = await getBillSettlementSummary(bill.id);
+    const withGoni = withGoniAmount(billWithDetails, {
+      adjustedAdvanceAmount: summary.adjustedAdvanceAmount,
+      settledAmount: summary.settledAmount,
+      pendingAmount: summary.pendingAmount,
+    });
     successResponse(res, withGoni, "Bill details");
   } catch (error) {
     next(error);

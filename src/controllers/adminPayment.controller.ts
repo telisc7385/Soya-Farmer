@@ -1,88 +1,48 @@
 import { NextFunction, Request, Response } from "express";
+import { AdvanceReason, AdvanceSource } from "@prisma/client";
 import prisma from "../database/prisma";
 import { AppError } from "../core/appError";
 import { successResponse } from "../utils/response";
+import {
+  createBillSettlement,
+  createProfileAdvance,
+  getBillSettlementSummary,
+  getFarmerAdvanceBalance,
+} from "../services/paymentManagement.service";
+import { AuthRequest } from "../middleware/auth.middleware";
 
 export const payFarmer = async (
-  req: Request,
+  req: AuthRequest,
   res: Response,
   next: NextFunction,
 ) => {
   try {
     const { billId } = req.params;
-    const { amount, paidDate, reference } = req.body;
+    const { amount, paidDate, reference, remarks } = req.body;
+    const actorId = req.user?.id;
+    if (!actorId) throw new AppError("Unauthorized", 401);
 
-    const bill = await prisma.bill.findUnique({
-      where: { id: billId },
-      include: { payment: true },
-    });
-
-    if (!bill) throw new AppError("Bill not found", 404);
-    if (bill.status !== "PENDING")
-      throw new AppError("Bill not ready for payment", 400);
-    if (typeof amount !== "number" || amount <= 0) {
-      throw new AppError("Payment amount must be greater than 0", 400);
-    }
-
-    const totalAmount = Number(bill.totalAmount ?? 0);
-    const advancedAmount = Number((bill as any).advancedAmount ?? 0);
-    const remainingAmount = Number((totalAmount - advancedAmount).toFixed(2));
-
-    if (amount > remainingAmount) {
-      throw new AppError(
-        `Payment amount cannot exceed remaining amount (${remainingAmount})`,
-        400,
-      );
-    }
-
-    const updatedAdvancedAmount = Number((advancedAmount + amount).toFixed(2));
-    const isFullyPaid = updatedAdvancedAmount >= totalAmount;
-
-    await prisma.$transaction(async (tx) => {
-      if (bill.payment) {
-        await tx.farmerPayment.update({
-          where: { billId },
-          data: {
-            amount: updatedAdvancedAmount,
-            status: isFullyPaid ? "PAID" : "PENDING",
-            paidDate: paidDate ? new Date(paidDate) : new Date(),
-            reference,
-          },
-        });
-      } else {
-        await tx.farmerPayment.create({
-          data: {
-            billId,
-            farmerId: bill.farmerId,
-            amount: updatedAdvancedAmount,
-            status: isFullyPaid ? "PAID" : "PENDING",
-            paidDate: paidDate ? new Date(paidDate) : new Date(),
-            reference,
-          },
-        });
-      }
-
-      await tx.bill.update({
-        where: { id: billId },
-        data: {
-          advancedAmount: updatedAdvancedAmount,
-          status: isFullyPaid ? "COMPLETED" : "PENDING",
-        },
-      });
+    const settlement = await createBillSettlement({
+      billId,
+      amount,
+      paidDate,
+      reference,
+      remarks,
+      createdById: actorId,
     });
 
     successResponse(
       res,
       {
-        totalAmount,
-        advancedAmount: updatedAdvancedAmount,
-        remainingAmount: Number(
-          Math.max(totalAmount - updatedAdvancedAmount, 0).toFixed(2),
-        ),
+        totalAmount: settlement.totalAmount,
+        adjustedAdvanceAmount: settlement.adjustedAdvanceAmount,
+        settledAmount: settlement.settledAmount,
+        remainingAmount: settlement.pendingAmount,
+        settlement: settlement.createdSettlement,
       },
-      isFullyPaid
+      settlement.isFullyPaid
         ? "Farmer payment completed successfully"
-        : "Advance payment recorded successfully",
+        : "Against payment recorded successfully",
     );
   } catch (error) {
     next(error);
@@ -113,10 +73,151 @@ export const rejectBill = async (
       },
     });
 
-    // Optional: log reason (recommended)
+    // Keep this console log for current operations until rejection reason persistence is added.
     console.log("Bill rejected:", reason);
 
     successResponse(res, null, "Bill rejected successfully");
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createFarmerAdvance = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { farmerId } = req.params;
+    const { amount, reason, remarks, source, billId } = req.body;
+    const actorId = req.user?.id;
+    if (!actorId) throw new AppError("Unauthorized", 401);
+
+    const farmer = await prisma.farmer.findUnique({ where: { id: farmerId } });
+    if (!farmer) throw new AppError("Farmer not found", 404);
+
+    const advance = await createProfileAdvance({
+      farmerId,
+      amount,
+      reason: reason as AdvanceReason,
+      remarks,
+      source: source as AdvanceSource,
+      billId,
+      createdById: actorId,
+    });
+
+    const balance = await getFarmerAdvanceBalance(farmerId);
+    successResponse(
+      res,
+      {
+        advance,
+        balance,
+      },
+      "Advance recorded successfully",
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getFarmerAdvances = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { farmerId } = req.params;
+    const advances = await prisma.farmerAdvance.findMany({
+      where: { farmerId },
+      orderBy: { createdAt: "desc" },
+      include: {
+        bill: {
+          select: {
+            id: true,
+            billNo: true,
+          },
+        },
+      },
+    });
+    successResponse(res, advances, "Advance history fetched successfully");
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getFarmerAdvanceBalanceController = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { farmerId } = req.params;
+    const balance = await getFarmerAdvanceBalance(farmerId);
+    successResponse(res, { farmerId, balance }, "Advance balance fetched successfully");
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createAgainstSettlement = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { billId } = req.params;
+    const { amount, paidDate, reference, remarks } = req.body;
+    const actorId = req.user?.id;
+    if (!actorId) throw new AppError("Unauthorized", 401);
+
+    const settlement = await createBillSettlement({
+      billId,
+      amount,
+      paidDate,
+      reference,
+      remarks,
+      createdById: actorId,
+    });
+
+    successResponse(
+      res,
+      {
+        settlement: settlement.createdSettlement,
+        totalAmount: settlement.totalAmount,
+        adjustedAdvanceAmount: settlement.adjustedAdvanceAmount,
+        settledAmount: settlement.settledAmount,
+        pendingAmount: settlement.pendingAmount,
+      },
+      "Bill settlement recorded successfully",
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getBillSettlements = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { billId } = req.params;
+    const settlements = await prisma.billSettlement.findMany({
+      where: { billId },
+      orderBy: { createdAt: "desc" },
+    });
+    const summary = await getBillSettlementSummary(billId);
+    successResponse(
+      res,
+      {
+        settlements,
+        totalAmount: summary.baseAmount,
+        adjustedAdvanceAmount: summary.adjustedAdvanceAmount,
+        settledAmount: summary.settledAmount,
+        pendingAmount: summary.pendingAmount,
+      },
+      "Bill settlements fetched successfully",
+    );
   } catch (error) {
     next(error);
   }

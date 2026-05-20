@@ -38,7 +38,7 @@ async function main() {
       variableValues: ["10+2+2", "10+2+3"],
       variables: [
         {
-          code: "moisture",
+          code: "Moisture",
           label: "Moisture %",
           unitHint: "range:<=variableValue:0,10-13:1,14-16:1.5,>16:2",
         },
