@@ -52,6 +52,8 @@ import {
 import {
   adminReturnBagsToVendorSchema,
   adminOpeningBagsToVendorSchema,
+  dispatchTransferSchema,
+  receiveTransferSchema,
   updateTransferSchema,
 } from "../validations/stock.validation";
 import { rejectKycSchema } from "../validations/farmer.validation";
@@ -239,7 +241,16 @@ router.put(
   "/transfers/:transferId/complete",
   authMiddleware,
   authorize("ADMIN"),
+  validateRequest(dispatchTransferSchema),
   transferController.completeTransfer,
+);
+
+router.put(
+  "/transfers/:transferId/receive",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateRequest(receiveTransferSchema),
+  transferController.receiveTransfer,
 );
 
 // Update transfer (only weight and unit)

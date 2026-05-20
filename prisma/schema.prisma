@@ -78,6 +78,9 @@ enum StockStatus {
 
 enum StockTransferStatus {
   PENDING
+  DISPATCHED
+  RECEIVED
+  DISCREPANCY
   COMPLETED
   CANCELLED
 }
@@ -475,6 +478,14 @@ model StockTransfer {
   destinationLocationId String?
   vehicalNumber         String
   bagCount              Int
+  dispatchedWeight      Float?
+  dispatchedBagCount    Int?
+  dispatchedAt          DateTime?
+  receivedWeight        Float?
+  receivedBagCount      Int?
+  receivedAt            DateTime?
+  weightShortage        Float?
+  bagShortage           Int?
   status                StockTransferStatus @default(PENDING)
   createdAt             DateTime            @default(now())
   completedAt           DateTime?

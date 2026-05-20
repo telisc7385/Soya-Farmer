@@ -41,7 +41,16 @@ export const createTransferSchema = Joi.object({
 }, "transfer item validation");
 
 export const listTransferQuerySchema = Joi.object({
-  status: Joi.string().valid("PENDING", "COMPLETED", "CANCELLED").optional(),
+  status: Joi.string()
+    .valid(
+      "PENDING",
+      "DISPATCHED",
+      "RECEIVED",
+      "DISCREPANCY",
+      "COMPLETED",
+      "CANCELLED",
+    )
+    .optional(),
   page: Joi.number().integer().min(1).optional(),
   limit: Joi.number().integer().min(1).max(100).optional(),
 });
@@ -50,6 +59,18 @@ export const updateTransferSchema = Joi.object({
   weight: Joi.number().positive().optional(),
   unit: Joi.string().valid("QTL", "MT").optional(),
 }).or("weight", "unit");
+
+export const dispatchTransferSchema = Joi.object({
+  weight: Joi.number().positive().optional(),
+  unit: Joi.string().valid("QTL", "MT").optional(),
+  bagCount: Joi.number().integer().min(1).optional(),
+});
+
+export const receiveTransferSchema = Joi.object({
+  receivedWeight: Joi.number().positive().required(),
+  receivedUnit: Joi.string().valid("QTL", "MT").optional(),
+  receivedBagCount: Joi.number().integer().min(0).required(),
+});
 
 export const returnBagsToFarmerSchema = Joi.object({
   farmerId: Joi.string().uuid().required(),

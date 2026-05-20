@@ -41,7 +41,7 @@ export const getAdminDashboardSummary = async (
     };
 
     const transferWhere: Prisma.StockTransferWhereInput = {
-      status: "COMPLETED",
+      status: { in: ["RECEIVED", "DISCREPANCY", "COMPLETED"] },
       ...(dateFilter && { completedAt: dateFilter }),
     };
 
@@ -74,8 +74,10 @@ export const getAdminDashboardSummary = async (
         where: transferWhere,
         select: {
           weight: true,
+          receivedWeight: true,
           unit: true,
           bagCount: true,
+          receivedBagCount: true,
         },
       }),
     ]);
@@ -86,8 +88,8 @@ export const getAdminDashboardSummary = async (
 
     const transferred = transfers.reduce(
       (acc, row) => {
-        acc.weightMt += toMt(row.weight, row.unit);
-        acc.bags += row.bagCount ?? 0;
+        acc.weightMt += toMt(row.receivedWeight ?? row.weight, row.unit);
+        acc.bags += row.receivedBagCount ?? row.bagCount ?? 0;
         return acc;
       },
       { weightMt: 0, bags: 0 },

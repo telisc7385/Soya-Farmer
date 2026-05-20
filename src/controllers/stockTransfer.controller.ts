@@ -346,6 +346,11 @@ export const completeTransfer = async (
 ) => {
   try {
     const { transferId } = req.params;
+    const { weight, unit, bagCount } = req.body as {
+      weight?: number;
+      unit?: "QTL" | "MT";
+      bagCount?: number;
+    };
 
     const transfer = await prisma.stockTransfer.findFirst({
       where: {
@@ -361,6 +366,13 @@ export const completeTransfer = async (
       throw new AppError("Transfer not found or already processed", 404);
     }
 
+    const dispatchWeightQtl =
+      typeof weight === "number"
+        ? toQtl(weight, unit ?? "QTL")
+        : (transfer.weight ?? 0);
+    const dispatchBagCount =
+      typeof bagCount === "number" ? bagCount : (transfer.bagCount ?? 0);
+
     // Get vendor's available stocks ordered by createdAt (FIFO)
     const availableStocks = await prisma.stock.findMany({
       where: {
@@ -370,8 +382,8 @@ export const completeTransfer = async (
       orderBy: { createdAt: "asc" },
     });
 
-    let remainingWeight = transfer.weight || 0;
-    let remainingBags = transfer.bagCount || 0;
+    let remainingWeight = dispatchWeightQtl;
+    let remainingBags = dispatchBagCount;
 
     if (remainingWeight <= 0 && remainingBags <= 0) {
       throw new AppError("Transfer has no weight or bag count to process", 400);
@@ -430,8 +442,13 @@ export const completeTransfer = async (
       await tx.stockTransfer.update({
         where: { id: transferId },
         data: {
-          status: "COMPLETED",
-          completedAt: new Date(),
+          weight: dispatchWeightQtl,
+          unit: "QTL",
+          bagCount: dispatchBagCount,
+          dispatchedWeight: dispatchWeightQtl,
+          dispatchedBagCount: dispatchBagCount,
+          dispatchedAt: new Date(),
+          status: "DISPATCHED",
         },
       });
 
@@ -471,7 +488,71 @@ export const completeTransfer = async (
       }
     });
 
-    successResponse(res, null, "Transfer completed successfully");
+    successResponse(res, null, "Transfer dispatched successfully");
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Receive transfer (Admin) - captures received quantity and computes shortages
+ */
+export const receiveTransfer = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { transferId } = req.params;
+    const { receivedWeight, receivedUnit, receivedBagCount } = req.body as {
+      receivedWeight: number;
+      receivedUnit?: "QTL" | "MT";
+      receivedBagCount: number;
+    };
+
+    const transfer = await prisma.stockTransfer.findFirst({
+      where: {
+        id: transferId,
+        status: "DISPATCHED",
+      },
+    });
+
+    if (!transfer) {
+      throw new AppError("Transfer not found or not in dispatched state", 404);
+    }
+
+    const dispatchedWeight = transfer.dispatchedWeight ?? transfer.weight ?? 0;
+    const dispatchedBags = transfer.dispatchedBagCount ?? transfer.bagCount ?? 0;
+    const receivedWeightQtl = toQtl(receivedWeight, receivedUnit ?? "QTL");
+
+    const weightShortage = Math.max(dispatchedWeight - receivedWeightQtl, 0);
+    const bagShortage = Math.max(dispatchedBags - receivedBagCount, 0);
+    const nextStatus = weightShortage > 0 || bagShortage > 0 ? "DISCREPANCY" : "RECEIVED";
+
+    const updated = await prisma.stockTransfer.update({
+      where: { id: transferId },
+      data: {
+        receivedWeight: receivedWeightQtl,
+        receivedBagCount,
+        receivedAt: new Date(),
+        weightShortage,
+        bagShortage,
+        status: nextStatus,
+        completedAt: new Date(),
+      },
+      include: {
+        vendor: {
+          select: { id: true, name: true, phone: true },
+        },
+        sourceLocation: true,
+        destinationLocation: true,
+        items: {
+          include: { goniType: true },
+        },
+      },
+    });
+
+    successResponse(res, updated, "Transfer received and verified");
   } catch (error) {
     next(error);
   }
@@ -568,19 +649,31 @@ export const getAdminStockSummary = async (
   next: NextFunction,
 ) => {
   try {
-    // Total completed transfers
-    const totalReceived = await prisma.stockTransfer.aggregate({
-      where: { status: "COMPLETED" },
-      _sum: {
+    const receivedLikeStatuses = ["RECEIVED", "DISCREPANCY", "COMPLETED"] as const;
+
+    // Total received transfers
+    const receivedTransfers = await prisma.stockTransfer.findMany({
+      where: { status: { in: receivedLikeStatuses as any } },
+      select: {
         weight: true,
         bagCount: true,
+        receivedWeight: true,
+        receivedBagCount: true,
       },
-      _count: true,
     });
+    const totalReceived = receivedTransfers.reduce(
+      (acc, t) => {
+        acc.weight += t.receivedWeight ?? t.weight ?? 0;
+        acc.bagCount += t.receivedBagCount ?? t.bagCount ?? 0;
+        acc.transfers += 1;
+        return acc;
+      },
+      { weight: 0, bagCount: 0, transfers: 0 },
+    );
 
     // Pending transfers
     const pendingTransfers = await prisma.stockTransfer.aggregate({
-      where: { status: "PENDING" },
+      where: { status: { in: ["PENDING", "DISPATCHED"] } },
       _sum: {
         weight: true,
         bagCount: true,
@@ -591,8 +684,10 @@ export const getAdminStockSummary = async (
     // By vendor
     const byVendor = await prisma.stockTransfer.groupBy({
       by: ["vendorId"],
-      where: { status: "COMPLETED" },
+      where: { status: { in: receivedLikeStatuses as any } },
       _sum: {
+        receivedWeight: true,
+        receivedBagCount: true,
         weight: true,
         bagCount: true,
       },
@@ -611,7 +706,7 @@ export const getAdminStockSummary = async (
     }));
 
     const completedTransfersForAnalysis = await prisma.stockTransfer.findMany({
-      where: { status: "COMPLETED" },
+      where: { status: { in: receivedLikeStatuses as any } },
       select: {
         vendorEnteredWeight: true,
         vendorEnteredUnit: true,
@@ -656,9 +751,9 @@ export const getAdminStockSummary = async (
       res,
       {
         totalReceived: {
-          weight: totalReceived._sum.weight || 0,
-          bagCount: totalReceived._sum.bagCount || 0,
-          transfers: totalReceived._count,
+          weight: totalReceived.weight || 0,
+          bagCount: totalReceived.bagCount || 0,
+          transfers: totalReceived.transfers,
         },
         pendingTransfers: {
           weight: pendingTransfers._sum.weight || 0,
@@ -666,7 +761,14 @@ export const getAdminStockSummary = async (
           count: pendingTransfers._count,
         },
         analysis,
-        byVendor: byVendorWithDetails,
+        byVendor: byVendorWithDetails.map((v) => ({
+          ...v,
+          _sum: {
+            ...v._sum,
+            weight: v._sum.receivedWeight ?? v._sum.weight ?? 0,
+            bagCount: v._sum.receivedBagCount ?? v._sum.bagCount ?? 0,
+          },
+        })),
       },
       "Admin stock summary fetched",
     );
