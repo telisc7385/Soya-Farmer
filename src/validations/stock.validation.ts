@@ -64,12 +64,18 @@ export const dispatchTransferSchema = Joi.object({
   weight: Joi.number().positive().optional(),
   unit: Joi.string().valid("QTL", "MT").optional(),
   bagCount: Joi.number().integer().min(1).optional(),
+  dispatchLatitude: Joi.number().min(-90).max(90).required(),
+  dispatchLongitude: Joi.number().min(-180).max(180).required(),
+  dispatchLocationText: Joi.string().trim().max(255).required(),
 });
 
 export const receiveTransferSchema = Joi.object({
   receivedWeight: Joi.number().positive().required(),
   receivedUnit: Joi.string().valid("QTL", "MT").optional(),
   receivedBagCount: Joi.number().integer().min(0).required(),
+  receiveLatitude: Joi.number().min(-90).max(90).required(),
+  receiveLongitude: Joi.number().min(-180).max(180).required(),
+  receiveLocationText: Joi.string().trim().max(255).required(),
 });
 
 export const returnBagsToFarmerSchema = Joi.object({

@@ -172,3 +172,138 @@ export const getVendorTrends = async (
     next(error);
   }
 };
+
+export const getLocationWiseStockSummary = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { startDate, endDate } = req.query as {
+      startDate?: string;
+      endDate?: string;
+    };
+    const dateFilter = buildDateFilter(startDate, endDate);
+
+    const transfers = await prisma.stockTransfer.findMany({
+      where: {
+        status: { in: ["DISPATCHED", "RECEIVED", "DISCREPANCY", "COMPLETED"] },
+        ...(dateFilter && { createdAt: dateFilter }),
+      },
+      select: {
+        sourceLocationId: true,
+        destinationLocationId: true,
+        weight: true,
+        bagCount: true,
+        dispatchedWeight: true,
+        dispatchedBagCount: true,
+        receivedWeight: true,
+        receivedBagCount: true,
+        sourceLocation: {
+          select: { id: true, name: true, type: true },
+        },
+        destinationLocation: {
+          select: { id: true, name: true, type: true },
+        },
+      },
+    });
+
+    type LocAgg = {
+      locationId: string;
+      locationName: string;
+      locationType: string;
+      inboundWeightQtl: number;
+      inboundBags: number;
+      outboundWeightQtl: number;
+      outboundBags: number;
+    };
+
+    const byLocation = new Map<string, LocAgg>();
+    const upsert = (
+      locationId: string,
+      locationName: string,
+      locationType: string,
+    ) => {
+      const existing = byLocation.get(locationId);
+      if (existing) return existing;
+      const created: LocAgg = {
+        locationId,
+        locationName,
+        locationType,
+        inboundWeightQtl: 0,
+        inboundBags: 0,
+        outboundWeightQtl: 0,
+        outboundBags: 0,
+      };
+      byLocation.set(locationId, created);
+      return created;
+    };
+
+    for (const transfer of transfers) {
+      const outboundWeight = transfer.dispatchedWeight ?? transfer.weight ?? 0;
+      const outboundBags = transfer.dispatchedBagCount ?? transfer.bagCount ?? 0;
+      const inboundWeight = transfer.receivedWeight ?? outboundWeight;
+      const inboundBags = transfer.receivedBagCount ?? outboundBags;
+
+      if (transfer.sourceLocationId && transfer.sourceLocation) {
+        const row = upsert(
+          transfer.sourceLocationId,
+          transfer.sourceLocation.name,
+          transfer.sourceLocation.type,
+        );
+        row.outboundWeightQtl += outboundWeight;
+        row.outboundBags += outboundBags;
+      }
+
+      if (transfer.destinationLocationId && transfer.destinationLocation) {
+        const row = upsert(
+          transfer.destinationLocationId,
+          transfer.destinationLocation.name,
+          transfer.destinationLocation.type,
+        );
+        row.inboundWeightQtl += inboundWeight;
+        row.inboundBags += inboundBags;
+      }
+    }
+
+    const locations = Array.from(byLocation.values()).map((row) => ({
+      ...row,
+      netWeightQtl: roundTo(row.inboundWeightQtl - row.outboundWeightQtl, 3),
+      netBags: row.inboundBags - row.outboundBags,
+    }));
+
+    const totals = locations.reduce(
+      (acc, row) => {
+        acc.inboundWeightQtl += row.inboundWeightQtl;
+        acc.outboundWeightQtl += row.outboundWeightQtl;
+        acc.inboundBags += row.inboundBags;
+        acc.outboundBags += row.outboundBags;
+        return acc;
+      },
+      {
+        inboundWeightQtl: 0,
+        outboundWeightQtl: 0,
+        inboundBags: 0,
+        outboundBags: 0,
+      },
+    );
+
+    successResponse(
+      res,
+      {
+        totals: {
+          ...totals,
+          netWeightQtl: roundTo(
+            totals.inboundWeightQtl - totals.outboundWeightQtl,
+            3,
+          ),
+          netBags: totals.inboundBags - totals.outboundBags,
+        },
+        locations,
+      },
+      "Location-wise stock summary fetched",
+    );
+  } catch (error) {
+    next(error);
+  }
+};

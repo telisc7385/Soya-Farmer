@@ -9,6 +9,10 @@ import {
   isTrackedGoniType,
 } from "../services/bagLedger.service";
 import { toQtl } from "../utils/quantity";
+import {
+  buildTransferProofUrl,
+  enqueueTransferProofGeneration,
+} from "../services/transferProof.service";
 
 // =====================
 // VENDOR TRANSFER OPERATIONS
@@ -346,10 +350,20 @@ export const completeTransfer = async (
 ) => {
   try {
     const { transferId } = req.params;
-    const { weight, unit, bagCount } = req.body as {
+    const {
+      weight,
+      unit,
+      bagCount,
+      dispatchLatitude,
+      dispatchLongitude,
+      dispatchLocationText,
+    } = req.body as {
       weight?: number;
       unit?: "QTL" | "MT";
       bagCount?: number;
+      dispatchLatitude: number;
+      dispatchLongitude: number;
+      dispatchLocationText: string;
     };
 
     const transfer = await prisma.stockTransfer.findFirst({
@@ -448,6 +462,11 @@ export const completeTransfer = async (
           dispatchedWeight: dispatchWeightQtl,
           dispatchedBagCount: dispatchBagCount,
           dispatchedAt: new Date(),
+          dispatchLatitude,
+          dispatchLongitude,
+          dispatchLocationText,
+          dispatchById: req.user?.id,
+          dispatchProofUrl: buildTransferProofUrl(transfer.transferNo, "dispatch"),
           status: "DISPATCHED",
         },
       });
@@ -488,6 +507,12 @@ export const completeTransfer = async (
       }
     });
 
+    enqueueTransferProofGeneration({
+      transferId: transfer.id,
+      transferNo: transfer.transferNo,
+      stage: "dispatch",
+    });
+
     successResponse(res, null, "Transfer dispatched successfully");
   } catch (error) {
     next(error);
@@ -504,10 +529,20 @@ export const receiveTransfer = async (
 ) => {
   try {
     const { transferId } = req.params;
-    const { receivedWeight, receivedUnit, receivedBagCount } = req.body as {
+    const {
+      receivedWeight,
+      receivedUnit,
+      receivedBagCount,
+      receiveLatitude,
+      receiveLongitude,
+      receiveLocationText,
+    } = req.body as {
       receivedWeight: number;
       receivedUnit?: "QTL" | "MT";
       receivedBagCount: number;
+      receiveLatitude: number;
+      receiveLongitude: number;
+      receiveLocationText: string;
     };
 
     const transfer = await prisma.stockTransfer.findFirst({
@@ -535,6 +570,11 @@ export const receiveTransfer = async (
         receivedWeight: receivedWeightQtl,
         receivedBagCount,
         receivedAt: new Date(),
+        receiveLatitude,
+        receiveLongitude,
+        receiveLocationText,
+        receiveById: req.user?.id,
+        receiveProofUrl: buildTransferProofUrl(transfer.transferNo, "receive"),
         weightShortage,
         bagShortage,
         status: nextStatus,
@@ -550,6 +590,12 @@ export const receiveTransfer = async (
           include: { goniType: true },
         },
       },
+    });
+
+    enqueueTransferProofGeneration({
+      transferId: transfer.id,
+      transferNo: transfer.transferNo,
+      stage: "receive",
     });
 
     successResponse(res, updated, "Transfer received and verified");

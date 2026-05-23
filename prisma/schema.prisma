@@ -481,9 +481,19 @@ model StockTransfer {
   dispatchedWeight      Float?
   dispatchedBagCount    Int?
   dispatchedAt          DateTime?
+  dispatchLatitude      Float?
+  dispatchLongitude     Float?
+  dispatchLocationText  String?
+  dispatchById          String?
+  dispatchProofUrl      String?
   receivedWeight        Float?
   receivedBagCount      Int?
   receivedAt            DateTime?
+  receiveLatitude       Float?
+  receiveLongitude      Float?
+  receiveLocationText   String?
+  receiveById           String?
+  receiveProofUrl       String?
   weightShortage        Float?
   bagShortage           Int?
   status                StockTransferStatus @default(PENDING)

@@ -66,6 +66,7 @@ import { exportReportSchema } from "../validations/report.validation";
 import { exportAdminReport } from "../controllers/admin/adminReport.controller";
 import {
   getAdminDashboardSummary,
+  getLocationWiseStockSummary,
   getVendorTrends,
 } from "../controllers/admin/adminAnalytics.controller";
 import { adminAnalyticsQuerySchema } from "../validations/adminAnalytics.validation";
@@ -298,6 +299,14 @@ router.get(
   authorize("ADMIN"),
   validateQuery(adminAnalyticsQuerySchema),
   getVendorTrends,
+);
+
+router.get(
+  "/analytics/location-stock",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateQuery(adminAnalyticsQuerySchema),
+  getLocationWiseStockSummary,
 );
 
 // =====================
