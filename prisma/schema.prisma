@@ -122,10 +122,6 @@ enum ThappiMovementType {
   CREATE
   TRANSFER_OUT
   TRANSFER_IN
-  SPLIT_OUT
-  SPLIT_IN
-  MERGE_OUT
-  MERGE_IN
 }
 
 // =====================

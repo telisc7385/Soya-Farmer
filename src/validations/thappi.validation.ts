@@ -24,36 +24,3 @@ export const listThappiQuerySchema = Joi.object({
   page: Joi.number().integer().min(1).optional(),
   limit: Joi.number().integer().min(1).max(100).optional(),
 });
-
-export const splitThappiSchema = Joi.object({
-  parts: Joi.array()
-    .items(
-      Joi.object({
-        weightQtl: Joi.number().positive().required(),
-        moisture: Joi.number().min(0).max(100).optional(),
-        fm: Joi.number().min(0).max(100).optional(),
-        damage: Joi.number().min(0).max(100).optional(),
-        imageUrl: Joi.string().trim().max(500).optional(),
-        bagBreakdown: Joi.array()
-          .items(
-            Joi.object({
-              goniTypeId: Joi.string().uuid().required(),
-              bagCount: Joi.number().integer().min(1).required(),
-            }),
-          )
-          .min(1)
-          .required(),
-      }),
-    )
-    .min(2)
-    .required(),
-});
-
-export const mergeThappiSchema = Joi.object({
-  thappiIds: Joi.array().items(Joi.string().uuid()).min(2).required(),
-  locationId: Joi.string().uuid().required(),
-  moisture: Joi.number().min(0).max(100).optional(),
-  fm: Joi.number().min(0).max(100).optional(),
-  damage: Joi.number().min(0).max(100).optional(),
-  imageUrl: Joi.string().trim().max(500).optional(),
-});

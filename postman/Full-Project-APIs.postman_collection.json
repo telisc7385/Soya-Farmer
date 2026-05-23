@@ -1605,48 +1605,6 @@
           }
         },
         {
-          "name": "Stock Thappis - By Id (Create) - :ThappiId/Split",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{vendor_token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{base_url}}/stock/thappis/{{thappiId}}/split",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"parts\": [\n    {\n      \"code\": \"THP-001-A\",\n      \"weightQtl\": 12.5,\n      \"bagBreakdown\": [\n        {\n          \"goniTypeId\": \"{{goniTypeId}}\",\n          \"bagCount\": 15\n        }\n      ]\n    },\n    {\n      \"code\": \"THP-001-B\",\n      \"weightQtl\": 13,\n      \"bagBreakdown\": [\n        {\n          \"goniTypeId\": \"{{goniTypeId}}\",\n          \"bagCount\": 15\n        }\n      ]\n    }\n  ]\n}"
-            }
-          }
-        },
-        {
-          "name": "Stock Thappis - Create - Merge",
-          "request": {
-            "method": "POST",
-            "header": [
-              {
-                "key": "Authorization",
-                "value": "Bearer {{vendor_token}}"
-              },
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{base_url}}/stock/thappis/merge",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"thappiIds\": [\n    \"{{thappiId1}}\",\n    \"{{thappiId2}}\"\n  ],\n  \"code\": \"THP-M-001\",\n  \"locationId\": \"{{locationIdSource}}\",\n  \"moisture\": 8,\n  \"fm\": 1,\n  \"damage\": 0.3\n}"
-            }
-          }
-        },
-        {
           "name": "Stock :StockId - By Id (Get)",
           "request": {
             "method": "GET",

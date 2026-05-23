@@ -18,8 +18,6 @@ import {
 import {
   createThappiSchema,
   listThappiQuerySchema,
-  mergeThappiSchema,
-  splitThappiSchema,
 } from "../validations/thappi.validation";
 
 const router = Router();
@@ -112,22 +110,6 @@ router.get(
   authorize("VENDOR"),
   validateQuery(listThappiQuerySchema),
   thappiController.getVendorThappis,
-);
-
-router.post(
-  "/thappis/:thappiId/split",
-  authMiddleware,
-  authorize("VENDOR"),
-  validateRequest(splitThappiSchema),
-  thappiController.splitThappi,
-);
-
-router.post(
-  "/thappis/merge",
-  authMiddleware,
-  authorize("VENDOR"),
-  validateRequest(mergeThappiSchema),
-  thappiController.mergeThappis,
 );
 
 // Get stock by ID
