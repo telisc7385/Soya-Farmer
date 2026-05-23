@@ -66,6 +66,7 @@ import { exportReportSchema } from "../validations/report.validation";
 import { exportAdminReport } from "../controllers/admin/adminReport.controller";
 import {
   getAdminDashboardSummary,
+  getLocationDailyBalances,
   getLocationLedger,
   getLocationWiseStockSummary,
   getVendorTrends,
@@ -316,6 +317,14 @@ router.get(
   authorize("ADMIN"),
   validateQuery(adminAnalyticsQuerySchema),
   getLocationLedger,
+);
+
+router.get(
+  "/analytics/location-daily-balances",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateQuery(adminAnalyticsQuerySchema),
+  getLocationDailyBalances,
 );
 
 // =====================

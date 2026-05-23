@@ -573,6 +573,10 @@ export const completeTransfer = async (
       });
 
       if (transfer.thappis.length) {
+        const thappiRows = await tx.thappi.findMany({
+          where: { id: { in: transfer.thappis.map((t) => t.thappiId) } },
+          select: { id: true, weightQtl: true, bagCount: true, locationId: true },
+        });
         await tx.thappi.updateMany({
           where: {
             id: { in: transfer.thappis.map((t) => t.thappiId) },
@@ -582,6 +586,20 @@ export const completeTransfer = async (
             status: "TRANSFERRED",
           },
         });
+        if (thappiRows.length) {
+          await tx.thappiMovement.createMany({
+            data: thappiRows.map((t) => ({
+              thappiId: t.id,
+              transferId: transfer.id,
+              movementType: "TRANSFER_OUT",
+              weightQtl: t.weightQtl,
+              bagCount: t.bagCount,
+              fromLocationId: transfer.sourceLocationId,
+              toLocationId: transfer.destinationLocationId,
+              createdById: req.user?.id,
+            })),
+          });
+        }
       }
 
       const transferItemsForLedger =
@@ -764,6 +782,52 @@ export const receiveTransfer = async (
       locationText: receiveLocationText,
       status: nextStatus,
     });
+
+    if (updated.destinationLocationId && receivedWeightQtl > 0) {
+      const receiveThappiCode = `${updated.transferNo}-RCV`;
+      await prisma.$transaction(async (tx) => {
+        const bagMap = new Map<string, number>();
+        const items = await tx.stockTransferItem.findMany({
+          where: { transferId: updated.id },
+          select: { goniTypeId: true, bagCount: true },
+        });
+        for (const item of items) {
+          bagMap.set(item.goniTypeId, (bagMap.get(item.goniTypeId) ?? 0) + item.bagCount);
+        }
+        const created = await tx.thappi.create({
+          data: {
+            vendorId: updated.vendorId,
+            locationId: updated.destinationLocationId,
+            code: `${receiveThappiCode}-${Date.now().toString().slice(-6)}`,
+            weightQtl: receivedWeightQtl,
+            bagCount: receivedBagCount,
+            status: "AVAILABLE",
+            isActive: true,
+          },
+        });
+        if (bagMap.size) {
+          await tx.thappiBagBreakdown.createMany({
+            data: Array.from(bagMap.entries()).map(([goniTypeId, bagCount]) => ({
+              thappiId: created.id,
+              goniTypeId,
+              bagCount,
+            })),
+          });
+        }
+        await tx.thappiMovement.create({
+          data: {
+            thappiId: created.id,
+            transferId: updated.id,
+            movementType: "TRANSFER_IN",
+            weightQtl: receivedWeightQtl,
+            bagCount: receivedBagCount,
+            fromLocationId: updated.sourceLocationId,
+            toLocationId: updated.destinationLocationId,
+            createdById: req.user?.id,
+          },
+        });
+      });
+    }
 
     successResponse(res, updated, "Transfer received and verified");
   } catch (error) {

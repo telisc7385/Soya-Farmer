@@ -118,6 +118,16 @@ enum ThappiStatus {
   TRANSFERRED
 }
 
+enum ThappiMovementType {
+  CREATE
+  TRANSFER_OUT
+  TRANSFER_IN
+  SPLIT_OUT
+  SPLIT_IN
+  MERGE_OUT
+  MERGE_IN
+}
+
 // =====================
 // USER (ADMIN / VENDOR)
 // =====================
@@ -150,6 +160,7 @@ model User {
   createdSettlements        BillSettlement[]    @relation("CreatedSettlements")
   createdInventoryLocations InventoryLocation[] @relation("CreatedInventoryLocations")
   thappis                   Thappi[]            @relation("VendorThappis")
+  createdThappiMovements    ThappiMovement[]    @relation("CreatedThappiMovements")
 }
 
 // =====================
@@ -571,6 +582,8 @@ model InventoryLocation {
   outgoingTransfers StockTransfer[] @relation("SourceLocationTransfers")
   incomingTransfers StockTransfer[] @relation("DestinationLocationTransfers")
   thappis           Thappi[]
+  thappiMovementFrom ThappiMovement[] @relation("ThappiMoveFromLocation")
+  thappiMovementTo   ThappiMovement[] @relation("ThappiMoveToLocation")
 
   @@index([type, isActive])
 }
@@ -595,9 +608,33 @@ model Thappi {
   location      InventoryLocation     @relation(fields: [locationId], references: [id])
   bagBreakdown  ThappiBagBreakdown[]
   transferLinks StockTransferThappi[]
+  movements     ThappiMovement[]
 
   @@index([vendorId, status, isActive])
   @@index([locationId])
+}
+
+model ThappiMovement {
+  id             String            @id @default(uuid())
+  thappiId       String
+  transferId     String?
+  movementType   ThappiMovementType
+  weightQtl      Float
+  bagCount       Int
+  fromLocationId String?
+  toLocationId   String?
+  notes          String?
+  createdById    String?
+  createdAt      DateTime          @default(now())
+
+  thappi       Thappi             @relation(fields: [thappiId], references: [id])
+  transfer     StockTransfer?     @relation(fields: [transferId], references: [id])
+  fromLocation InventoryLocation? @relation("ThappiMoveFromLocation", fields: [fromLocationId], references: [id])
+  toLocation   InventoryLocation? @relation("ThappiMoveToLocation", fields: [toLocationId], references: [id])
+  createdBy    User?              @relation("CreatedThappiMovements", fields: [createdById], references: [id])
+
+  @@index([thappiId, createdAt])
+  @@index([transferId])
 }
 
 model ThappiBagBreakdown {
