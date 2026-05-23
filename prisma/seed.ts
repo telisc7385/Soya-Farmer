@@ -34,7 +34,7 @@ async function main() {
   const deductionSeeds = [
     {
       name: "Over All Deduction",
-      formulaExpression: "moisture + FM + Damage",
+      formulaExpression: "Moisture + FM + Damage",
       variableValues: ["10+2+2", "10+2+3"],
       variables: [
         {
