@@ -2,7 +2,6 @@ import Joi from "joi";
 
 export const createInventoryLocationSchema = Joi.object({
   name: Joi.string().trim().min(2).max(120).required(),
-  code: Joi.string().trim().max(40).optional(),
   type: Joi.string().valid("VENDOR", "GODOWN", "PLANT").required(),
   isActive: Joi.boolean().optional(),
 });

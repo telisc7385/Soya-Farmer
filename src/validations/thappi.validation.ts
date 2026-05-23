@@ -2,7 +2,6 @@ import Joi from "joi";
 
 export const createThappiSchema = Joi.object({
   locationId: Joi.string().uuid().required(),
-  code: Joi.string().trim().max(60).required(),
   weightQtl: Joi.number().positive().required(),
   moisture: Joi.number().min(0).max(100).optional(),
   fm: Joi.number().min(0).max(100).optional(),
@@ -30,7 +29,6 @@ export const splitThappiSchema = Joi.object({
   parts: Joi.array()
     .items(
       Joi.object({
-        code: Joi.string().trim().max(60).required(),
         weightQtl: Joi.number().positive().required(),
         moisture: Joi.number().min(0).max(100).optional(),
         fm: Joi.number().min(0).max(100).optional(),
@@ -53,7 +51,6 @@ export const splitThappiSchema = Joi.object({
 
 export const mergeThappiSchema = Joi.object({
   thappiIds: Joi.array().items(Joi.string().uuid()).min(2).required(),
-  code: Joi.string().trim().max(60).required(),
   locationId: Joi.string().uuid().required(),
   moisture: Joi.number().min(0).max(100).optional(),
   fm: Joi.number().min(0).max(100).optional(),

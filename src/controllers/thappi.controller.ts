@@ -4,6 +4,11 @@ import { createdResponse, successResponse } from "../utils/response";
 import { AppError } from "../core/appError";
 import { AuthRequest } from "../middleware/auth.middleware";
 
+const generateThappiCode = async () => {
+  const count = await prisma.thappi.count();
+  return `THP-${String(count + 1).padStart(6, "0")}`;
+};
+
 export const createThappi = async (
   req: AuthRequest,
   res: Response,
@@ -13,7 +18,6 @@ export const createThappi = async (
     const vendorId = req.user?.id as string;
     const {
       locationId,
-      code,
       weightQtl,
       moisture,
       fm,
@@ -22,7 +26,6 @@ export const createThappi = async (
       bagBreakdown,
     } = req.body as {
       locationId: string;
-      code: string;
       weightQtl: number;
       moisture?: number;
       fm?: number;
@@ -48,12 +51,14 @@ export const createThappi = async (
 
     const bagCount = bagBreakdown.reduce((sum, row) => sum + row.bagCount, 0);
 
+    const finalCode = await generateThappiCode();
+
     const thappi = await prisma.$transaction(async (tx) => {
       const created = await tx.thappi.create({
         data: {
           vendorId,
           locationId,
-          code: code.trim(),
+          code: finalCode,
           weightQtl,
           bagCount,
           moisture,
@@ -155,7 +160,6 @@ export const splitThappi = async (
     const { thappiId } = req.params;
     const { parts } = req.body as {
       parts: Array<{
-        code: string;
         weightQtl: number;
         moisture?: number;
         fm?: number;
@@ -202,13 +206,15 @@ export const splitThappi = async (
       });
 
       const out: any[] = [];
-      for (const part of parts) {
+      for (let idx = 0; idx < parts.length; idx++) {
+        const part = parts[idx];
+        const partCode = `${base.code}-S${String(idx + 1).padStart(2, "0")}`;
         const bagCount = part.bagBreakdown.reduce((s, r) => s + r.bagCount, 0);
         const t = await tx.thappi.create({
           data: {
             vendorId,
             locationId: base.locationId,
-            code: part.code.trim(),
+            code: partCode,
             weightQtl: part.weightQtl,
             bagCount,
             moisture: part.moisture,
@@ -265,10 +271,9 @@ export const mergeThappis = async (
 ) => {
   try {
     const vendorId = req.user?.id as string;
-    const { thappiIds, code, locationId, moisture, fm, damage, imageUrl } = req
+    const { thappiIds, locationId, moisture, fm, damage, imageUrl } = req
       .body as {
       thappiIds: string[];
-      code: string;
       locationId: string;
       moisture?: number;
       fm?: number;
@@ -309,6 +314,8 @@ export const mergeThappis = async (
       }
     }
 
+    const finalCode = await generateThappiCode();
+
     const merged = await prisma.$transaction(async (tx) => {
       await tx.thappi.updateMany({
         where: { id: { in: uniqueIds } },
@@ -333,7 +340,7 @@ export const mergeThappis = async (
         data: {
           vendorId,
           locationId,
-          code: code.trim(),
+          code: finalCode,
           weightQtl: sumWeight,
           bagCount: sumBags,
           moisture,

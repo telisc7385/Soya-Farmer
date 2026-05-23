@@ -4,19 +4,33 @@ import { AppError } from "../core/appError";
 import { createdResponse, successResponse } from "../utils/response";
 import { AuthRequest } from "../middleware/auth.middleware";
 
+const locationPrefixByType: Record<string, string> = {
+  VENDOR: "VND",
+  GODOWN: "GDN",
+  PLANT: "PLT",
+};
+
+const generateLocationCode = async (type: string) => {
+  const prefix = locationPrefixByType[type] ?? "LOC";
+  const count = await prisma.inventoryLocation.count({ where: { type } });
+  return `${prefix}-${String(count + 1).padStart(4, "0")}`;
+};
+
 export const createInventoryLocation = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction,
 ) => {
   try {
-    const { name, code, type, isActive } = req.body;
+    const { name, type, isActive } = req.body;
     const createdById = req.user?.id;
+
+    const generatedCode = await generateLocationCode(type);
 
     const location = await prisma.inventoryLocation.create({
       data: {
         name: name.trim(),
-        code: code?.trim() || null,
+        code: generatedCode,
         type,
         isActive: typeof isActive === "boolean" ? isActive : true,
         createdById,
