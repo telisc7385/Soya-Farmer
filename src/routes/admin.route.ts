@@ -52,6 +52,8 @@ import {
 import {
   adminReturnBagsToVendorSchema,
   adminOpeningBagsToVendorSchema,
+  dispatchTransferSchema,
+  receiveTransferSchema,
   updateTransferSchema,
 } from "../validations/stock.validation";
 import { rejectKycSchema } from "../validations/farmer.validation";
@@ -64,6 +66,9 @@ import { exportReportSchema } from "../validations/report.validation";
 import { exportAdminReport } from "../controllers/admin/adminReport.controller";
 import {
   getAdminDashboardSummary,
+  getLocationDailyBalances,
+  getLocationLedger,
+  getLocationWiseStockSummary,
   getVendorTrends,
 } from "../controllers/admin/adminAnalytics.controller";
 import { adminAnalyticsQuerySchema } from "../validations/adminAnalytics.validation";
@@ -239,7 +244,16 @@ router.put(
   "/transfers/:transferId/complete",
   authMiddleware,
   authorize("ADMIN"),
+  validateRequest(dispatchTransferSchema),
   transferController.completeTransfer,
+);
+
+router.put(
+  "/transfers/:transferId/receive",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateRequest(receiveTransferSchema),
+  transferController.receiveTransfer,
 );
 
 // Update transfer (only weight and unit)
@@ -287,6 +301,30 @@ router.get(
   authorize("ADMIN"),
   validateQuery(adminAnalyticsQuerySchema),
   getVendorTrends,
+);
+
+router.get(
+  "/analytics/location-stock",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateQuery(adminAnalyticsQuerySchema),
+  getLocationWiseStockSummary,
+);
+
+router.get(
+  "/analytics/location-ledger",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateQuery(adminAnalyticsQuerySchema),
+  getLocationLedger,
+);
+
+router.get(
+  "/analytics/location-daily-balances",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateQuery(adminAnalyticsQuerySchema),
+  getLocationDailyBalances,
 );
 
 // =====================

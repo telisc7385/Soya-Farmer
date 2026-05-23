@@ -125,6 +125,9 @@ const getStockTransfersReport = async (query: any) => {
   const status = parseStatusFilter(query.status);
   ensureAllowedStatus("stock-transfers", status, [
     "PENDING",
+    "DISPATCHED",
+    "RECEIVED",
+    "DISCREPANCY",
     "COMPLETED",
     "CANCELLED",
   ]);

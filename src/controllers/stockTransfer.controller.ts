@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import path from "node:path";
 import prisma from "../database/prisma";
 import { successResponse, createdResponse } from "../utils/response";
 import { AppError } from "../core/appError";
@@ -9,6 +10,11 @@ import {
   isTrackedGoniType,
 } from "../services/bagLedger.service";
 import { toQtl } from "../utils/quantity";
+import {
+  buildTransferProofUrl,
+  enqueueTransferProofGeneration,
+  writeTransferProofPdf,
+} from "../services/transferProof.service";
 
 // =====================
 // VENDOR TRANSFER OPERATIONS
@@ -30,6 +36,7 @@ export const createTransfer = async (
       unit,
       bagCount,
       goniTypeId,
+      thappiIds,
       items,
       sourceLocationId,
       destinationLocationId,
@@ -39,18 +46,52 @@ export const createTransfer = async (
       unit?: "QTL" | "MT";
       bagCount?: number;
       goniTypeId?: string;
+      thappiIds?: string[];
       items?: Array<{ goniTypeId: string; bagCount: number }>;
       sourceLocationId: string;
       destinationLocationId: string;
       vehicalNumber: string;
     };
 
-    const normalizedItems =
+    const selectedThappiIds =
+      Array.isArray(thappiIds) && thappiIds.length
+        ? Array.from(new Set(thappiIds))
+        : [];
+
+    let normalizedItems =
       Array.isArray(items) && items.length
         ? items
         : goniTypeId && typeof bagCount === "number"
           ? [{ goniTypeId, bagCount }]
           : [];
+
+    let thappiRows: Array<{
+      id: string;
+      weightQtl: number;
+      bagCount: number;
+      bagBreakdown: Array<{ goniTypeId: string; bagCount: number }>;
+    }> = [];
+
+    if (selectedThappiIds.length) {
+      const fetched = await prisma.thappi.findMany({
+        where: {
+          id: { in: selectedThappiIds },
+          vendorId,
+          isActive: true,
+          status: "AVAILABLE",
+        },
+        include: {
+          bagBreakdown: {
+            select: { goniTypeId: true, bagCount: true },
+          },
+        },
+      });
+      if (fetched.length !== selectedThappiIds.length) {
+        throw new AppError("One or more thappis are invalid or unavailable", 400);
+      }
+      thappiRows = fetched;
+      normalizedItems = fetched.flatMap((t) => t.bagBreakdown);
+    }
 
     if (!normalizedItems.length) {
       throw new AppError(
@@ -59,24 +100,23 @@ export const createTransfer = async (
       );
     }
 
-    const bagCountByType = new Map<string, number>();
+    const allBagCountByType = new Map<string, number>();
     for (const item of normalizedItems) {
-      const current = bagCountByType.get(item.goniTypeId) ?? 0;
-      bagCountByType.set(item.goniTypeId, current + item.bagCount);
+      const current = allBagCountByType.get(item.goniTypeId) ?? 0;
+      allBagCountByType.set(item.goniTypeId, current + item.bagCount);
     }
 
-    const transferItems = Array.from(bagCountByType.entries()).map(
+    const transferItems = Array.from(allBagCountByType.entries()).map(
       ([typeId, totalBags]) => ({
         goniTypeId: typeId,
         bagCount: totalBags,
       }),
     );
-    const totalBagCount = transferItems.reduce(
-      (sum, item) => sum + item.bagCount,
-      0,
-    );
-    const normalizedWeightQtl =
-      typeof weight === "number" ? toQtl(weight, unit ?? "QTL") : undefined;
+    const normalizedWeightQtl = selectedThappiIds.length
+      ? thappiRows.reduce((sum, t) => sum + t.weightQtl, 0)
+      : typeof weight === "number"
+        ? toQtl(weight, unit ?? "QTL")
+        : undefined;
 
     // Get vendor's total available stock
     const availableStock = await prisma.stock.aggregate({
@@ -104,13 +144,6 @@ export const createTransfer = async (
       );
     }
 
-    if (totalBagCount > availableBags) {
-      throw new AppError(
-        `Transfer bag count (${totalBagCount}) exceeds available stock (${availableBags})`,
-        400,
-      );
-    }
-
     // Validate goni types
     const goniTypes = await prisma.goniType.findMany({
       where: {
@@ -129,6 +162,17 @@ export const createTransfer = async (
       throw new AppError(
         `Goni type not found or inactive: ${invalidTypeIds.join(", ")}`,
         404,
+      );
+    }
+
+    const totalBagCount = transferItems.reduce((sum, item) => {
+      const currentType = goniTypeMap.get(item.goniTypeId)!;
+      return currentType.isTracked ? sum + item.bagCount : sum;
+    }, 0);
+    if (totalBagCount > availableBags) {
+      throw new AppError(
+        `Transfer tracked bag count (${totalBagCount}) exceeds available stock (${availableBags})`,
+        400,
       );
     }
 
@@ -153,11 +197,11 @@ export const createTransfer = async (
     const [sourceLocation, destinationLocation] = await Promise.all([
       prisma.inventoryLocation.findFirst({
         where: { id: sourceLocationId, isActive: true },
-        select: { id: true },
+        select: { id: true, name: true, type: true },
       }),
       prisma.inventoryLocation.findFirst({
         where: { id: destinationLocationId, isActive: true },
-        select: { id: true },
+        select: { id: true, name: true, type: true },
       }),
     ]);
 
@@ -168,6 +212,21 @@ export const createTransfer = async (
     if (sourceLocationId === destinationLocationId) {
       throw new AppError(
         "Source and destination locations must be different",
+        400,
+      );
+    }
+
+    const allowedPairs = new Set([
+      "VENDOR->VENDOR",
+      "VENDOR->PLANT",
+      "VENDOR->GODOWN",
+      "GODOWN->PLANT",
+      "GODOWN->VENDOR",
+    ]);
+    const routeKey = `${sourceLocation.type}->${destinationLocation.type}`;
+    if (!allowedPairs.has(routeKey)) {
+      throw new AppError(
+        `Unsupported transfer route ${routeKey}. Allowed: Vendor->Vendor, Vendor->Plant, Vendor->Godown, Godown->Plant, Godown->Vendor`,
         400,
       );
     }
@@ -194,12 +253,23 @@ export const createTransfer = async (
       });
 
       await tx.stockTransferItem.createMany({
-        data: transferItems.map((item) => ({
+        data: normalizedItems.map((item) => ({
           transferId: createdTransfer.id,
           goniTypeId: item.goniTypeId,
           bagCount: item.bagCount,
         })),
       });
+
+      if (thappiRows.length) {
+        await tx.stockTransferThappi.createMany({
+          data: thappiRows.map((t) => ({
+            transferId: createdTransfer.id,
+            thappiId: t.id,
+            weightQtl: t.weightQtl,
+            bagCount: t.bagCount,
+          })),
+        });
+      }
 
       return tx.stockTransfer.findUnique({
         where: { id: createdTransfer.id },
@@ -210,6 +280,15 @@ export const createTransfer = async (
           goniType: true,
           items: {
             include: { goniType: true },
+          },
+          thappis: {
+            include: {
+              thappi: {
+                include: {
+                  location: true,
+                },
+              },
+            },
           },
           sourceLocation: true,
           destinationLocation: true,
@@ -251,6 +330,13 @@ export const getVendorTransfers = async (
           goniType: true,
           items: {
             include: { goniType: true },
+          },
+          thappis: {
+            include: {
+              thappi: {
+                include: { location: true },
+              },
+            },
           },
           sourceLocation: true,
           destinationLocation: true,
@@ -311,6 +397,13 @@ export const getAdminTransfers = async (
           items: {
             include: { goniType: true },
           },
+          thappis: {
+            include: {
+              thappi: {
+                include: { location: true },
+              },
+            },
+          },
           sourceLocation: true,
           destinationLocation: true,
         },
@@ -346,6 +439,21 @@ export const completeTransfer = async (
 ) => {
   try {
     const { transferId } = req.params;
+    const {
+      weight,
+      unit,
+      bagCount,
+      dispatchLatitude,
+      dispatchLongitude,
+      dispatchLocationText,
+    } = req.body as {
+      weight?: number;
+      unit?: "QTL" | "MT";
+      bagCount?: number;
+      dispatchLatitude: number;
+      dispatchLongitude: number;
+      dispatchLocationText: string;
+    };
 
     const transfer = await prisma.stockTransfer.findFirst({
       where: {
@@ -354,12 +462,31 @@ export const completeTransfer = async (
       },
       include: {
         items: true,
+        thappis: {
+          select: { thappiId: true },
+        },
+        vendor: {
+          select: { name: true },
+        },
+        sourceLocation: {
+          select: { name: true },
+        },
+        destinationLocation: {
+          select: { name: true },
+        },
       },
     });
 
     if (!transfer) {
       throw new AppError("Transfer not found or already processed", 404);
     }
+
+    const dispatchWeightQtl =
+      typeof weight === "number"
+        ? toQtl(weight, unit ?? "QTL")
+        : (transfer.weight ?? 0);
+    const dispatchBagCount =
+      typeof bagCount === "number" ? bagCount : (transfer.bagCount ?? 0);
 
     // Get vendor's available stocks ordered by createdAt (FIFO)
     const availableStocks = await prisma.stock.findMany({
@@ -370,8 +497,8 @@ export const completeTransfer = async (
       orderBy: { createdAt: "asc" },
     });
 
-    let remainingWeight = transfer.weight || 0;
-    let remainingBags = transfer.bagCount || 0;
+    let remainingWeight = dispatchWeightQtl;
+    let remainingBags = dispatchBagCount;
 
     if (remainingWeight <= 0 && remainingBags <= 0) {
       throw new AppError("Transfer has no weight or bag count to process", 400);
@@ -430,10 +557,50 @@ export const completeTransfer = async (
       await tx.stockTransfer.update({
         where: { id: transferId },
         data: {
-          status: "COMPLETED",
-          completedAt: new Date(),
+          weight: dispatchWeightQtl,
+          unit: "QTL",
+          bagCount: dispatchBagCount,
+          dispatchedWeight: dispatchWeightQtl,
+          dispatchedBagCount: dispatchBagCount,
+          dispatchedAt: new Date(),
+          dispatchLatitude,
+          dispatchLongitude,
+          dispatchLocationText,
+          dispatchById: req.user?.id,
+          dispatchProofUrl: buildTransferProofUrl(transfer.transferNo, "dispatch"),
+          status: "DISPATCHED",
         },
       });
+
+      if (transfer.thappis.length) {
+        const thappiRows = await tx.thappi.findMany({
+          where: { id: { in: transfer.thappis.map((t) => t.thappiId) } },
+          select: { id: true, weightQtl: true, bagCount: true, locationId: true },
+        });
+        await tx.thappi.updateMany({
+          where: {
+            id: { in: transfer.thappis.map((t) => t.thappiId) },
+            status: "AVAILABLE",
+          },
+          data: {
+            status: "TRANSFERRED",
+          },
+        });
+        if (thappiRows.length) {
+          await tx.thappiMovement.createMany({
+            data: thappiRows.map((t) => ({
+              thappiId: t.id,
+              transferId: transfer.id,
+              movementType: "TRANSFER_OUT",
+              weightQtl: t.weightQtl,
+              bagCount: t.bagCount,
+              fromLocationId: transfer.sourceLocationId,
+              toLocationId: transfer.destinationLocationId,
+              createdById: req.user?.id,
+            })),
+          });
+        }
+      }
 
       const transferItemsForLedger =
         transfer.items.length > 0
@@ -471,7 +638,198 @@ export const completeTransfer = async (
       }
     });
 
-    successResponse(res, null, "Transfer completed successfully");
+    enqueueTransferProofGeneration({
+      transferId: transfer.id,
+      transferNo: transfer.transferNo,
+      stage: "dispatch",
+    });
+
+    const dispatchProofUrl = buildTransferProofUrl(
+      transfer.transferNo,
+      "dispatch",
+    );
+    await writeTransferProofPdf({
+      absolutePath: path.join(
+        process.cwd(),
+        dispatchProofUrl.replace(/^\/+/, "").replace(/\//g, path.sep),
+      ),
+      stage: "dispatch",
+      transferNo: transfer.transferNo,
+      vendorName: transfer.vendor?.name,
+      source: transfer.sourceLocation?.name,
+      destination: transfer.destinationLocation?.name,
+      vehicle: transfer.vehicalNumber,
+      weightQtl: dispatchWeightQtl,
+      bagCount: dispatchBagCount,
+      latitude: dispatchLatitude,
+      longitude: dispatchLongitude,
+      locationText: dispatchLocationText,
+      status: "DISPATCHED",
+    });
+
+    successResponse(res, null, "Transfer dispatched successfully");
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Receive transfer (Admin) - captures received quantity and computes shortages
+ */
+export const receiveTransfer = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { transferId } = req.params;
+    const {
+      receivedWeight,
+      receivedUnit,
+      receivedBagCount,
+      receiveLatitude,
+      receiveLongitude,
+      receiveLocationText,
+    } = req.body as {
+      receivedWeight: number;
+      receivedUnit?: "QTL" | "MT";
+      receivedBagCount: number;
+      receiveLatitude: number;
+      receiveLongitude: number;
+      receiveLocationText: string;
+    };
+
+    const transfer = await prisma.stockTransfer.findFirst({
+      where: {
+        id: transferId,
+        status: "DISPATCHED",
+      },
+      include: {
+        vendor: {
+          select: { name: true },
+        },
+        sourceLocation: {
+          select: { name: true },
+        },
+        destinationLocation: {
+          select: { name: true },
+        },
+      },
+    });
+
+    if (!transfer) {
+      throw new AppError("Transfer not found or not in dispatched state", 404);
+    }
+
+    const dispatchedWeight = transfer.dispatchedWeight ?? transfer.weight ?? 0;
+    const dispatchedBags = transfer.dispatchedBagCount ?? transfer.bagCount ?? 0;
+    const receivedWeightQtl = toQtl(receivedWeight, receivedUnit ?? "QTL");
+
+    const weightShortage = Math.max(dispatchedWeight - receivedWeightQtl, 0);
+    const bagShortage = Math.max(dispatchedBags - receivedBagCount, 0);
+    const nextStatus = weightShortage > 0 || bagShortage > 0 ? "DISCREPANCY" : "RECEIVED";
+
+    const updated = await prisma.stockTransfer.update({
+      where: { id: transferId },
+      data: {
+        receivedWeight: receivedWeightQtl,
+        receivedBagCount,
+        receivedAt: new Date(),
+        receiveLatitude,
+        receiveLongitude,
+        receiveLocationText,
+        receiveById: req.user?.id,
+        receiveProofUrl: buildTransferProofUrl(transfer.transferNo, "receive"),
+        weightShortage,
+        bagShortage,
+        status: nextStatus,
+        completedAt: new Date(),
+      },
+      include: {
+        vendor: {
+          select: { id: true, name: true, phone: true },
+        },
+        sourceLocation: true,
+        destinationLocation: true,
+        items: {
+          include: { goniType: true },
+        },
+      },
+    });
+
+    enqueueTransferProofGeneration({
+      transferId: transfer.id,
+      transferNo: transfer.transferNo,
+      stage: "receive",
+    });
+
+    const receiveProofUrl = buildTransferProofUrl(transfer.transferNo, "receive");
+    await writeTransferProofPdf({
+      absolutePath: path.join(
+        process.cwd(),
+        receiveProofUrl.replace(/^\/+/, "").replace(/\//g, path.sep),
+      ),
+      stage: "receive",
+      transferNo: transfer.transferNo,
+      vendorName: transfer.vendor?.name,
+      source: transfer.sourceLocation?.name,
+      destination: transfer.destinationLocation?.name,
+      vehicle: transfer.vehicalNumber,
+      weightQtl: receivedWeightQtl,
+      bagCount: receivedBagCount,
+      latitude: receiveLatitude,
+      longitude: receiveLongitude,
+      locationText: receiveLocationText,
+      status: nextStatus,
+    });
+
+    if (updated.destinationLocationId && receivedWeightQtl > 0) {
+      const receiveThappiCode = `${updated.transferNo}-RCV`;
+      await prisma.$transaction(async (tx) => {
+        const bagMap = new Map<string, number>();
+        const items = await tx.stockTransferItem.findMany({
+          where: { transferId: updated.id },
+          select: { goniTypeId: true, bagCount: true },
+        });
+        for (const item of items) {
+          bagMap.set(item.goniTypeId, (bagMap.get(item.goniTypeId) ?? 0) + item.bagCount);
+        }
+        const created = await tx.thappi.create({
+          data: {
+            vendorId: updated.vendorId,
+            locationId: updated.destinationLocationId,
+            code: `${receiveThappiCode}-${Date.now().toString().slice(-6)}`,
+            weightQtl: receivedWeightQtl,
+            bagCount: receivedBagCount,
+            status: "AVAILABLE",
+            isActive: true,
+          },
+        });
+        if (bagMap.size) {
+          await tx.thappiBagBreakdown.createMany({
+            data: Array.from(bagMap.entries()).map(([goniTypeId, bagCount]) => ({
+              thappiId: created.id,
+              goniTypeId,
+              bagCount,
+            })),
+          });
+        }
+        await tx.thappiMovement.create({
+          data: {
+            thappiId: created.id,
+            transferId: updated.id,
+            movementType: "TRANSFER_IN",
+            weightQtl: receivedWeightQtl,
+            bagCount: receivedBagCount,
+            fromLocationId: updated.sourceLocationId,
+            toLocationId: updated.destinationLocationId,
+            createdById: req.user?.id,
+          },
+        });
+      });
+    }
+
+    successResponse(res, updated, "Transfer received and verified");
   } catch (error) {
     next(error);
   }
@@ -548,6 +906,13 @@ export const updateTransfer = async (
         items: {
           include: { goniType: true },
         },
+        thappis: {
+          include: {
+            thappi: {
+              include: { location: true },
+            },
+          },
+        },
         sourceLocation: true,
         destinationLocation: true,
       },
@@ -568,19 +933,31 @@ export const getAdminStockSummary = async (
   next: NextFunction,
 ) => {
   try {
-    // Total completed transfers
-    const totalReceived = await prisma.stockTransfer.aggregate({
-      where: { status: "COMPLETED" },
-      _sum: {
+    const receivedLikeStatuses = ["RECEIVED", "DISCREPANCY", "COMPLETED"] as const;
+
+    // Total received transfers
+    const receivedTransfers = await prisma.stockTransfer.findMany({
+      where: { status: { in: receivedLikeStatuses as any } },
+      select: {
         weight: true,
         bagCount: true,
+        receivedWeight: true,
+        receivedBagCount: true,
       },
-      _count: true,
     });
+    const totalReceived = receivedTransfers.reduce(
+      (acc, t) => {
+        acc.weight += t.receivedWeight ?? t.weight ?? 0;
+        acc.bagCount += t.receivedBagCount ?? t.bagCount ?? 0;
+        acc.transfers += 1;
+        return acc;
+      },
+      { weight: 0, bagCount: 0, transfers: 0 },
+    );
 
     // Pending transfers
     const pendingTransfers = await prisma.stockTransfer.aggregate({
-      where: { status: "PENDING" },
+      where: { status: { in: ["PENDING", "DISPATCHED"] } },
       _sum: {
         weight: true,
         bagCount: true,
@@ -591,8 +968,10 @@ export const getAdminStockSummary = async (
     // By vendor
     const byVendor = await prisma.stockTransfer.groupBy({
       by: ["vendorId"],
-      where: { status: "COMPLETED" },
+      where: { status: { in: receivedLikeStatuses as any } },
       _sum: {
+        receivedWeight: true,
+        receivedBagCount: true,
         weight: true,
         bagCount: true,
       },
@@ -611,7 +990,7 @@ export const getAdminStockSummary = async (
     }));
 
     const completedTransfersForAnalysis = await prisma.stockTransfer.findMany({
-      where: { status: "COMPLETED" },
+      where: { status: { in: receivedLikeStatuses as any } },
       select: {
         vendorEnteredWeight: true,
         vendorEnteredUnit: true,
@@ -656,9 +1035,9 @@ export const getAdminStockSummary = async (
       res,
       {
         totalReceived: {
-          weight: totalReceived._sum.weight || 0,
-          bagCount: totalReceived._sum.bagCount || 0,
-          transfers: totalReceived._count,
+          weight: totalReceived.weight || 0,
+          bagCount: totalReceived.bagCount || 0,
+          transfers: totalReceived.transfers,
         },
         pendingTransfers: {
           weight: pendingTransfers._sum.weight || 0,
@@ -666,7 +1045,14 @@ export const getAdminStockSummary = async (
           count: pendingTransfers._count,
         },
         analysis,
-        byVendor: byVendorWithDetails,
+        byVendor: byVendorWithDetails.map((v) => ({
+          ...v,
+          _sum: {
+            ...v._sum,
+            weight: v._sum.receivedWeight ?? v._sum.weight ?? 0,
+            bagCount: v._sum.receivedBagCount ?? v._sum.bagCount ?? 0,
+          },
+        })),
       },
       "Admin stock summary fetched",
     );

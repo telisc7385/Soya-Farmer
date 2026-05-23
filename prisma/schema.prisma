@@ -78,6 +78,9 @@ enum StockStatus {
 
 enum StockTransferStatus {
   PENDING
+  DISPATCHED
+  RECEIVED
+  DISCREPANCY
   COMPLETED
   CANCELLED
 }
@@ -108,6 +111,17 @@ enum InventoryLocationType {
   VENDOR
   GODOWN
   PLANT
+}
+
+enum ThappiStatus {
+  AVAILABLE
+  TRANSFERRED
+}
+
+enum ThappiMovementType {
+  CREATE
+  TRANSFER_OUT
+  TRANSFER_IN
 }
 
 // =====================
@@ -141,6 +155,8 @@ model User {
   createdAdvances           FarmerAdvance[]     @relation("CreatedAdvances")
   createdSettlements        BillSettlement[]    @relation("CreatedSettlements")
   createdInventoryLocations InventoryLocation[] @relation("CreatedInventoryLocations")
+  thappis                   Thappi[]            @relation("VendorThappis")
+  createdThappiMovements    ThappiMovement[]    @relation("CreatedThappiMovements")
 }
 
 // =====================
@@ -418,12 +434,13 @@ model GoniType {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  createdByUser User?               @relation("UserGoniTypes", fields: [createdBy], references: [id])
-  billGonis     BillGoni[]          @relation("GoniTypeBillGonis")
-  stocks        Stock[]             @relation("StockGoniType")
-  transfers     StockTransfer[]
-  transferItems StockTransferItem[]
-  bagMoves      BagMovement[]
+  createdByUser       User?                @relation("UserGoniTypes", fields: [createdBy], references: [id])
+  billGonis           BillGoni[]           @relation("GoniTypeBillGonis")
+  stocks              Stock[]              @relation("StockGoniType")
+  transfers           StockTransfer[]
+  transferItems       StockTransferItem[]
+  bagMoves            BagMovement[]
+  thappiBagBreakdowns ThappiBagBreakdown[]
 }
 
 model QualityRate {
@@ -475,16 +492,36 @@ model StockTransfer {
   destinationLocationId String?
   vehicalNumber         String
   bagCount              Int
+  dispatchedWeight      Float?
+  dispatchedBagCount    Int?
+  dispatchedAt          DateTime?
+  dispatchLatitude      Float?
+  dispatchLongitude     Float?
+  dispatchLocationText  String?
+  dispatchById          String?
+  dispatchProofUrl      String?
+  receivedWeight        Float?
+  receivedBagCount      Int?
+  receivedAt            DateTime?
+  receiveLatitude       Float?
+  receiveLongitude      Float?
+  receiveLocationText   String?
+  receiveById           String?
+  receiveProofUrl       String?
+  weightShortage        Float?
+  bagShortage           Int?
   status                StockTransferStatus @default(PENDING)
   createdAt             DateTime            @default(now())
   completedAt           DateTime?
 
-  vendor              User                @relation("VendorTransfers", fields: [vendorId], references: [id])
-  goniType            GoniType?           @relation(fields: [goniTypeId], references: [id])
-  sourceLocation      InventoryLocation?  @relation("SourceLocationTransfers", fields: [sourceLocationId], references: [id])
-  destinationLocation InventoryLocation?  @relation("DestinationLocationTransfers", fields: [destinationLocationId], references: [id])
+  vendor              User                  @relation("VendorTransfers", fields: [vendorId], references: [id])
+  goniType            GoniType?             @relation(fields: [goniTypeId], references: [id])
+  sourceLocation      InventoryLocation?    @relation("SourceLocationTransfers", fields: [sourceLocationId], references: [id])
+  destinationLocation InventoryLocation?    @relation("DestinationLocationTransfers", fields: [destinationLocationId], references: [id])
   items               StockTransferItem[]
+  thappis             StockTransferThappi[]
   bagMoves            BagMovement[]
+  thappiMovements     ThappiMovement[]
 
   @@index([sourceLocationId])
   @@index([destinationLocationId])
@@ -538,9 +575,91 @@ model InventoryLocation {
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @updatedAt
 
-  createdBy         User?           @relation("CreatedInventoryLocations", fields: [createdById], references: [id])
-  outgoingTransfers StockTransfer[] @relation("SourceLocationTransfers")
-  incomingTransfers StockTransfer[] @relation("DestinationLocationTransfers")
+  createdBy          User?            @relation("CreatedInventoryLocations", fields: [createdById], references: [id])
+  outgoingTransfers  StockTransfer[]  @relation("SourceLocationTransfers")
+  incomingTransfers  StockTransfer[]  @relation("DestinationLocationTransfers")
+  thappis            Thappi[]
+  thappiMovementFrom ThappiMovement[] @relation("ThappiMoveFromLocation")
+  thappiMovementTo   ThappiMovement[] @relation("ThappiMoveToLocation")
 
   @@index([type, isActive])
+}
+
+model Thappi {
+  id         String       @id @default(uuid())
+  vendorId   String
+  locationId String
+  code       String       @unique
+  weightQtl  Float
+  bagCount   Int
+  moisture   Float?
+  fm         Float?
+  damage     Float?
+  imageUrl   String?
+  status     ThappiStatus @default(AVAILABLE)
+  isActive   Boolean      @default(true)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+
+  vendor        User                  @relation("VendorThappis", fields: [vendorId], references: [id])
+  location      InventoryLocation     @relation(fields: [locationId], references: [id])
+  bagBreakdown  ThappiBagBreakdown[]
+  transferLinks StockTransferThappi[]
+  movements     ThappiMovement[]
+
+  @@index([vendorId, status, isActive])
+  @@index([locationId])
+}
+
+model ThappiMovement {
+  id             String             @id @default(uuid())
+  thappiId       String
+  transferId     String?
+  movementType   ThappiMovementType
+  weightQtl      Float
+  bagCount       Int
+  fromLocationId String?
+  toLocationId   String?
+  notes          String?
+  createdById    String?
+  createdAt      DateTime           @default(now())
+
+  thappi       Thappi             @relation(fields: [thappiId], references: [id])
+  transfer     StockTransfer?     @relation(fields: [transferId], references: [id])
+  fromLocation InventoryLocation? @relation("ThappiMoveFromLocation", fields: [fromLocationId], references: [id])
+  toLocation   InventoryLocation? @relation("ThappiMoveToLocation", fields: [toLocationId], references: [id])
+  createdBy    User?              @relation("CreatedThappiMovements", fields: [createdById], references: [id])
+
+  @@index([thappiId, createdAt])
+  @@index([transferId])
+}
+
+model ThappiBagBreakdown {
+  id         String   @id @default(uuid())
+  thappiId   String
+  goniTypeId String
+  bagCount   Int
+  createdAt  DateTime @default(now())
+
+  thappi   Thappi   @relation(fields: [thappiId], references: [id])
+  goniType GoniType @relation(fields: [goniTypeId], references: [id])
+
+  @@unique([thappiId, goniTypeId])
+  @@index([thappiId])
+}
+
+model StockTransferThappi {
+  id         String   @id @default(uuid())
+  transferId String
+  thappiId   String
+  weightQtl  Float
+  bagCount   Int
+  createdAt  DateTime @default(now())
+
+  transfer StockTransfer @relation(fields: [transferId], references: [id])
+  thappi   Thappi        @relation(fields: [thappiId], references: [id])
+
+  @@unique([transferId, thappiId])
+  @@index([transferId])
+  @@index([thappiId])
 }

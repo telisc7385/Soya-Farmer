@@ -1,0 +1,1623 @@
+{
+  "info": {
+    "_postman_id": "f8d4c0c0-8e0f-4f3f-9f7d-021d8c2d6f0a",
+    "name": "Full Project APIs (Structured)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://domain.com/api"
+    },
+    {
+      "key": "vendor_token",
+      "value": ""
+    },
+    {
+      "key": "admin_token",
+      "value": ""
+    },
+    {
+      "key": "id",
+      "value": ""
+    },
+    {
+      "key": "farmerId",
+      "value": ""
+    },
+    {
+      "key": "documentId",
+      "value": ""
+    },
+    {
+      "key": "landId",
+      "value": ""
+    },
+    {
+      "key": "bankId",
+      "value": ""
+    },
+    {
+      "key": "billId",
+      "value": ""
+    },
+    {
+      "key": "deductionId",
+      "value": ""
+    },
+    {
+      "key": "deductionMasterId",
+      "value": ""
+    },
+    {
+      "key": "masterId",
+      "value": ""
+    },
+    {
+      "key": "goniTypeId",
+      "value": ""
+    },
+    {
+      "key": "vendorId",
+      "value": ""
+    },
+    {
+      "key": "qualityId",
+      "value": ""
+    },
+    {
+      "key": "transferId",
+      "value": ""
+    },
+    {
+      "key": "locationId",
+      "value": ""
+    },
+    {
+      "key": "locationIdSource",
+      "value": ""
+    },
+    {
+      "key": "locationIdDestination",
+      "value": ""
+    },
+    {
+      "key": "thappiId",
+      "value": ""
+    },
+    {
+      "key": "thappiId1",
+      "value": ""
+    },
+    {
+      "key": "thappiId2",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "Admin",
+      "item": [
+        {
+          "name": "Admin Payments - Get",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": "{{base_url}}/admin/payments"
+          }
+        },
+        {
+          "name": "Admin :BillId - By Id (Create) - Pay",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/{{billId}}/pay",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"paidDate\": \"2026-05-24\",\n  \"reference\": \"UTR123456\",\n  \"remarks\": \"Paid\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Admin :BillId - By Id (Create) - Reject",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/{{billId}}/reject",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Invalid bill\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Admin Farmers - By Id (Create) - :FarmerId/Advances",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/farmers/{{farmerId}}/advances",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 1000,\n  \"source\": \"PROFILE\",\n  \"reason\": \"OTHER\",\n  \"remarks\": \"Advance\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Admin Farmers - By Id (Get) - :FarmerId/Advances",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": "{{base_url}}/admin/farmers/{{farmerId}}/advances"
+          }
+        },
+        {
+          "name": "Admin Farmers - By Id (Get) - :FarmerId/Advance Balance",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": "{{base_url}}/admin/farmers/{{farmerId}}/advance-balance"
+          }
+        },
+        {
+          "name": "Admin Bills - By Id (Create) - :BillId/Settlements",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/bills/{{billId}}/settlements",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"amount\": 500,\n  \"paidDate\": \"2026-05-24\",\n  \"reference\": \"STL123\",\n  \"remarks\": \"Settlement\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Admin Bills - By Id (Get) - :BillId/Settlements",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": "{{base_url}}/admin/bills/{{billId}}/settlements"
+          }
+        },
+        {
+          "name": "Admin Deductions - Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/deductions",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Moisture Deduction\",\n  \"type\": \"FORMULA\",\n  \"formulaExpression\": \"moisture\",\n  \"variables\": [\n    {\n      \"code\": \"moisture\",\n      \"label\": \"Moisture\",\n      \"unitHint\": \"1\"\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Admin Deductions - By Id (Update) - :MasterId",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/deductions/{{masterId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Moisture Deduction Updated\",\n  \"type\": \"FORMULA\",\n  \"formulaExpression\": \"moisture\",\n  \"variables\": [\n    {\n      \"code\": \"moisture\",\n      \"label\": \"Moisture\",\n      \"unitHint\": \"1\"\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Admin Deductions - By Id (Patch) - :MasterId/Toggle",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/deductions/{{masterId}}/toggle",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Admin Deductions - Get",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": "{{base_url}}/admin/deductions"
+          }
+        },
+        {
+          "name": "Admin Goni Types - Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/goni-types",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Kaltani\",\n  \"weightPerBag\": 1.5,\n  \"isTracked\": true,\n  \"isActive\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Admin Goni Types - By Id (Update) - :GoniTypeId",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/goni-types/{{goniTypeId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Kaltani Updated\",\n  \"weightPerBag\": 1.5,\n  \"isTracked\": true,\n  \"isActive\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Admin Goni Types - Get",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": "{{base_url}}/admin/goni-types"
+          }
+        },
+        {
+          "name": "Admin Bags - By Id (Create) - Vendor/:VendorId/Return",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/bags/vendor/{{vendorId}}/return",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"goniTypeId\": \"{{goniTypeId}}\",\n  \"bagCount\": 10,\n  \"notes\": \"Return to vendor\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Admin Bags - By Id (Create) - Vendor/:VendorId/Opening",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/bags/vendor/{{vendorId}}/opening",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"goniTypeId\": \"{{goniTypeId}}\",\n  \"bagCount\": 20,\n  \"notes\": \"Opening to vendor\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Admin Quality Rates - Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/quality-rates",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"quality\": \"A\",\n  \"rate\": 5000,\n  \"isActive\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Admin Quality Rates - Get",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": "{{base_url}}/admin/quality-rates"
+          }
+        },
+        {
+          "name": "Admin Quality Rates - By Id (Update) - :QualityId",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/quality-rates/{{qualityId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Admin Quality Rates - By Id (Delete) - :QualityId",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/quality-rates/{{qualityId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"fill_required_fields\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Transfers - Admin List",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": "{{base_url}}/admin/transfers"
+          }
+        },
+        {
+          "name": "Admin Transfers - By Id (Update) - :TransferId/Complete",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/transfers/{{transferId}}/complete",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"weight\": 11.8,\n  \"unit\": \"QTL\",\n  \"bagCount\": 20,\n  \"dispatchLatitude\": 18.5204,\n  \"dispatchLongitude\": 73.8567,\n  \"dispatchLocationText\": \"Dispatch Yard\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Admin Transfers - By Id (Update) - :TransferId/Receive",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/transfers/{{transferId}}/receive",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"receivedWeight\": 11.6,\n  \"receivedUnit\": \"QTL\",\n  \"receivedBagCount\": 19,\n  \"receiveLatitude\": 19.9975,\n  \"receiveLongitude\": 73.7898,\n  \"receiveLocationText\": \"Destination Gate\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Admin Transfers - By Id (Update) - :TransferId/Update",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/transfers/{{transferId}}/update",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"weight\": 11.8,\n  \"unit\": \"QTL\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Stock - Admin Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": "{{base_url}}/admin/stock/summary"
+          }
+        },
+        {
+          "name": "Admin Reports - By Id (Get) - :ReportType/Export",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": "{{base_url}}/admin/reports/{{reportType}}/export"
+          }
+        },
+        {
+          "name": "Analytics - Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": "{{base_url}}/admin/analytics/dashboard"
+          }
+        },
+        {
+          "name": "Analytics - Vendor Trends",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": "{{base_url}}/admin/analytics/vendor-trends"
+          }
+        },
+        {
+          "name": "Analytics - Location Stock Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": "{{base_url}}/admin/analytics/location-stock"
+          }
+        },
+        {
+          "name": "Analytics - Location Ledger",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": "{{base_url}}/admin/analytics/location-ledger"
+          }
+        },
+        {
+          "name": "Analytics - Location Daily Balances",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": "{{base_url}}/admin/analytics/location-daily-balances"
+          }
+        },
+        {
+          "name": "Inventory Locations - Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/inventory-locations",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Murud Godown\",\n  \"code\": \"MGD\",\n  \"type\": \"GODOWN\",\n  \"isActive\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Inventory Locations - List",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": "{{base_url}}/admin/inventory-locations"
+          }
+        },
+        {
+          "name": "Admin Inventory Locations - By Id (Update) - :LocationId",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/inventory-locations/{{locationId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Murud Main Godown\",\n  \"isActive\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Admin Kyc - Get - Pending",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              }
+            ],
+            "url": "{{base_url}}/admin/kyc/pending"
+          }
+        },
+        {
+          "name": "Admin Kyc - By Id (Update) - :FarmerId/Verify",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/kyc/{{farmerId}}/verify",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"fill_required_fields\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Admin Kyc - By Id (Update) - :FarmerId/Reject",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{admin_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/admin/kyc/{{farmerId}}/reject",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Document mismatch\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "item": [
+        {
+          "name": "Auth Vendor Register - Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/auth/vendor-register",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Vendor One\",\n  \"phone\": \"{{vendor_phone}}\",\n  \"email\": \"vendor@example.com\",\n  \"password\": \"{{vendor_password}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Auth - Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/auth/login",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phone\": \"{{vendor_phone}}\",\n  \"password\": \"{{vendor_password}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Auth Vendor - By Id (Update) - :Id",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/auth/vendor/{{id}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Vendor\",\n  \"email\": \"updated.vendor@example.com\",\n  \"phone\": \"{{vendor_phone}}\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Auth Vendor - By Id (Patch) - :Id/Status",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/auth/vendor/{{id}}/status",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"isActive\": true\n}"
+            }
+          }
+        },
+        {
+          "name": "Auth Vendor - Get - List",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/auth/vendor/list"
+          }
+        },
+        {
+          "name": "Auth Vendor - By Id (Get) - :Id",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{base_url}}/auth/vendor/{{id}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bank Details",
+      "item": [
+        {
+          "name": "Bank Details Endpoint - Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/bank-details/",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bankName\": \"Axis Bank\",\n  \"ifsc\": \"UTIB0001234\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Bank Details Csv - Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/bank-details/csv",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"Use form-data with key=file\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Bank Details Endpoint - Get",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": "{{base_url}}/bank-details/"
+          }
+        },
+        {
+          "name": "Bank Details :BankId - By Id (Patch)",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/bank-details/{{bankId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bankName\": \"Axis Bank Updated\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Bank Details :BankId - By Id (Delete)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/bank-details/{{bankId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"fill_required_fields\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Billing",
+      "item": [
+        {
+          "name": "Bill Draft - Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/bill/draft",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"farmerId\": \"{{farmerId}}\",\n  \"billDate\": \"2026-05-24\",\n  \"quantity\": 100,\n  \"unit\": \"QTL\",\n  \"rate\": 5000,\n  \"vehicleNumber\": \"MH12AB1234\",\n  \"vehicleType\": \"TRUCK\",\n  \"driverName\": \"Ramesh\",\n  \"billLocation\": \"Yard A\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Bill :BillId - By Id (Create) - Deductions/Calc",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/bill/{{billId}}/deductions/calc",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"deductions\": [\n    {\n      \"masterId\": \"{{deductionMasterId}}\",\n      \"actualInputs\": {\n        \"moisture\": 12\n      },\n      \"customInputs\": {\n        \"moisture\": 13\n      }\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Bill :BillId - By Id (Create) - Goni",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/bill/{{billId}}/goni",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"gonis\": [\n    {\n      \"goniTypeId\": \"{{goniTypeId}}\",\n      \"bagCount\": 30\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Bill :BillId - By Id (Get) - Preview",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": "{{base_url}}/bill/{{billId}}/preview"
+          }
+        },
+        {
+          "name": "Bill :BillId - By Id (Create) - Confirm",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/bill/{{billId}}/confirm",
+            "body": {
+              "mode": "raw",
+              "raw": "{}"
+            }
+          }
+        },
+        {
+          "name": "Bill Endpoint - Get",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": "{{base_url}}/bill/"
+          }
+        },
+        {
+          "name": "Bill Graph - Get - Last Six Months",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": "{{base_url}}/bill/graph/last-six-months"
+          }
+        },
+        {
+          "name": "Bill :BillId - By Id (Get)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": "{{base_url}}/bill/{{billId}}"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Bill Deductions",
+      "item": [
+        {
+          "name": ":BillId Endpoint - By Id (Create)",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/{{billId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"fill_required_fields\"\n}"
+            }
+          }
+        },
+        {
+          "name": ":BillId :DeductionId - By Id (Update)",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/{{billId}}/{{deductionId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"fill_required_fields\"\n}"
+            }
+          }
+        },
+        {
+          "name": ":BillId Endpoint - By Id (Get)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": "{{base_url}}/{{billId}}"
+          }
+        },
+        {
+          "name": ":BillId :DeductionId - By Id (Delete)",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/{{billId}}/{{deductionId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"fill_required_fields\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Farmers",
+      "item": [
+        {
+          "name": "Farmer Create Farmer - Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/farmer/create-farmer",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Farmer One\",\n  \"aadhaarNo\": \"123412341234\",\n  \"phone\": \"9999999999\",\n  \"villageAdd\": \"Village A\",\n  \"taluka\": \"Taluka A\",\n  \"district\": \"District A\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Farmer List - Get",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": "{{base_url}}/farmer/list"
+          }
+        },
+        {
+          "name": "Farmer List - Get - Non Kyc",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": "{{base_url}}/farmer/list/non-kyc"
+          }
+        },
+        {
+          "name": "Farmer :FarmerId - By Id (Get)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": "{{base_url}}/farmer/{{farmerId}}"
+          }
+        },
+        {
+          "name": "Farmer Update - By Id (Update) - :FarmerId",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/farmer/update/{{farmerId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Farmer One Updated\",\n  \"phone\": \"9999999999\",\n  \"villageAdd\": \"Village B\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Farmer Documents - By Id (Create) - :FarmerId",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/farmer/documents/{{farmerId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"Use form-data in Postman for file upload endpoints\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Farmer Document - By Id (Get) - :FarmerId",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": "{{base_url}}/farmer/document/{{farmerId}}"
+          }
+        },
+        {
+          "name": "Farmer Document - By Id (Update) - :DocumentId",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/farmer/document/{{documentId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"Use form-data in Postman for file upload endpoints\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Farmer :FarmerId - By Id (Create) - Lands",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/farmer/{{farmerId}}/lands",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"landType\": \"OWN\",\n  \"area\": 2.5,\n  \"villageAdd\": \"Village A\",\n  \"taluka\": \"Taluka A\",\n  \"district\": \"District A\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Farmer :FarmerId - By Id (Get) - Lands",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": "{{base_url}}/farmer/{{farmerId}}/lands"
+          }
+        },
+        {
+          "name": "Farmer Land - By Id (Update) - :LandId",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/farmer/land/{{landId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"landType\": \"OWN\",\n  \"area\": 3,\n  \"villageAdd\": \"Village A\",\n  \"taluka\": \"Taluka A\",\n  \"district\": \"District A\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Farmer :FarmerId - By Id (Create) - Bank",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/farmer/{{farmerId}}/bank",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bankName\": \"HDFC Bank\",\n  \"accountNo\": \"123456789012\",\n  \"ifsc\": \"HDFC0001234\",\n  \"holderName\": \"Farmer One\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Farmer :FarmerId - By Id (Get) - Bank",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": "{{base_url}}/farmer/{{farmerId}}/bank"
+          }
+        },
+        {
+          "name": "Farmer :FarmerId - By Id (Update) - Bank/:BankId",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/farmer/{{farmerId}}/bank/{{bankId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"bankName\": \"SBI\",\n  \"accountNo\": \"123456789012\",\n  \"ifsc\": \"SBIN0001234\",\n  \"holderName\": \"Farmer One\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Stock (Vendor)",
+      "item": [
+        {
+          "name": "Transfers - Vendor Create Request",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/stock/transfers",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"weight\": 1.2,\n  \"unit\": \"MT\",\n  \"items\": [\n    {\n      \"goniTypeId\": \"{{goniTypeId}}\",\n      \"bagCount\": 20\n    }\n  ],\n  \"sourceLocationId\": \"{{locationIdSource}}\",\n  \"destinationLocationId\": \"{{locationIdDestination}}\",\n  \"vehicalNumber\": \"MH12AB1234\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Transfers - Vendor List",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": "{{base_url}}/stock/transfers"
+          }
+        },
+        {
+          "name": "Quality Rates - List Active",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": "{{base_url}}/stock/quality-rates"
+          }
+        },
+        {
+          "name": "Stock Endpoint - Get",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": "{{base_url}}/stock/"
+          }
+        },
+        {
+          "name": "Stock - Vendor Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": "{{base_url}}/stock/summary"
+          }
+        },
+        {
+          "name": "Bags - Vendor Summary",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": "{{base_url}}/stock/bags/summary"
+          }
+        },
+        {
+          "name": "Stock Bags - Create - Return To Farmer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/stock/bags/return-to-farmer",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"farmerId\": \"{{farmerId}}\",\n  \"goniTypeId\": \"{{goniTypeId}}\",\n  \"bagCount\": 5,\n  \"notes\": \"Return\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Stock Bags - Create - Own Add",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/stock/bags/own-add",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"goniTypeId\": \"{{goniTypeId}}\",\n  \"bagCount\": 10,\n  \"notes\": \"Opening\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Stock Bags - By Id (Get) - Return Due/:FarmerId",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": "{{base_url}}/stock/bags/return-due/{{farmerId}}"
+          }
+        },
+        {
+          "name": "Thappis - Create",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              },
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{base_url}}/stock/thappis",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"locationId\": \"{{locationIdSource}}\",\n  \"code\": \"THP-001\",\n  \"weightQtl\": 25.5,\n  \"moisture\": 8.2,\n  \"fm\": 1.1,\n  \"damage\": 0.4,\n  \"imageUrl\": \"https://example.com/thappi.jpg\",\n  \"bagBreakdown\": [\n    {\n      \"goniTypeId\": \"{{goniTypeId}}\",\n      \"bagCount\": 30\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Thappis - List",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": "{{base_url}}/stock/thappis"
+          }
+        },
+        {
+          "name": "Stock :StockId - By Id (Get)",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{vendor_token}}"
+              }
+            ],
+            "url": "{{base_url}}/stock/{{stockId}}"
+          }
+        }
+      ]
+    }
+  ]
+}

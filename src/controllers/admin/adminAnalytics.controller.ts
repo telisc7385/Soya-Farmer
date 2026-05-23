@@ -41,7 +41,7 @@ export const getAdminDashboardSummary = async (
     };
 
     const transferWhere: Prisma.StockTransferWhereInput = {
-      status: "COMPLETED",
+      status: { in: ["RECEIVED", "DISCREPANCY", "COMPLETED"] },
       ...(dateFilter && { completedAt: dateFilter }),
     };
 
@@ -74,8 +74,10 @@ export const getAdminDashboardSummary = async (
         where: transferWhere,
         select: {
           weight: true,
+          receivedWeight: true,
           unit: true,
           bagCount: true,
+          receivedBagCount: true,
         },
       }),
     ]);
@@ -86,8 +88,8 @@ export const getAdminDashboardSummary = async (
 
     const transferred = transfers.reduce(
       (acc, row) => {
-        acc.weightMt += toMt(row.weight, row.unit);
-        acc.bags += row.bagCount ?? 0;
+        acc.weightMt += toMt(row.receivedWeight ?? row.weight, row.unit);
+        acc.bags += row.receivedBagCount ?? row.bagCount ?? 0;
         return acc;
       },
       { weightMt: 0, bags: 0 },
@@ -166,6 +168,319 @@ export const getVendorTrends = async (
     });
 
     successResponse(res, data, "Vendor trends fetched");
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getLocationWiseStockSummary = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { startDate, endDate } = req.query as {
+      startDate?: string;
+      endDate?: string;
+    };
+    const dateFilter = buildDateFilter(startDate, endDate);
+
+    const transfers = await prisma.stockTransfer.findMany({
+      where: {
+        status: { in: ["DISPATCHED", "RECEIVED", "DISCREPANCY", "COMPLETED"] },
+        ...(dateFilter && { createdAt: dateFilter }),
+      },
+      select: {
+        sourceLocationId: true,
+        destinationLocationId: true,
+        weight: true,
+        bagCount: true,
+        dispatchedWeight: true,
+        dispatchedBagCount: true,
+        receivedWeight: true,
+        receivedBagCount: true,
+        sourceLocation: {
+          select: { id: true, name: true, type: true },
+        },
+        destinationLocation: {
+          select: { id: true, name: true, type: true },
+        },
+      },
+    });
+
+    type LocAgg = {
+      locationId: string;
+      locationName: string;
+      locationType: string;
+      inboundWeightQtl: number;
+      inboundBags: number;
+      outboundWeightQtl: number;
+      outboundBags: number;
+    };
+
+    const byLocation = new Map<string, LocAgg>();
+    const upsert = (
+      locationId: string,
+      locationName: string,
+      locationType: string,
+    ) => {
+      const existing = byLocation.get(locationId);
+      if (existing) return existing;
+      const created: LocAgg = {
+        locationId,
+        locationName,
+        locationType,
+        inboundWeightQtl: 0,
+        inboundBags: 0,
+        outboundWeightQtl: 0,
+        outboundBags: 0,
+      };
+      byLocation.set(locationId, created);
+      return created;
+    };
+
+    for (const transfer of transfers) {
+      const outboundWeight = transfer.dispatchedWeight ?? transfer.weight ?? 0;
+      const outboundBags = transfer.dispatchedBagCount ?? transfer.bagCount ?? 0;
+      const inboundWeight = transfer.receivedWeight ?? outboundWeight;
+      const inboundBags = transfer.receivedBagCount ?? outboundBags;
+
+      if (transfer.sourceLocationId && transfer.sourceLocation) {
+        const row = upsert(
+          transfer.sourceLocationId,
+          transfer.sourceLocation.name,
+          transfer.sourceLocation.type,
+        );
+        row.outboundWeightQtl += outboundWeight;
+        row.outboundBags += outboundBags;
+      }
+
+      if (transfer.destinationLocationId && transfer.destinationLocation) {
+        const row = upsert(
+          transfer.destinationLocationId,
+          transfer.destinationLocation.name,
+          transfer.destinationLocation.type,
+        );
+        row.inboundWeightQtl += inboundWeight;
+        row.inboundBags += inboundBags;
+      }
+    }
+
+    const locations = Array.from(byLocation.values()).map((row) => ({
+      ...row,
+      netWeightQtl: roundTo(row.inboundWeightQtl - row.outboundWeightQtl, 3),
+      netBags: row.inboundBags - row.outboundBags,
+    }));
+
+    const totals = locations.reduce(
+      (acc, row) => {
+        acc.inboundWeightQtl += row.inboundWeightQtl;
+        acc.outboundWeightQtl += row.outboundWeightQtl;
+        acc.inboundBags += row.inboundBags;
+        acc.outboundBags += row.outboundBags;
+        return acc;
+      },
+      {
+        inboundWeightQtl: 0,
+        outboundWeightQtl: 0,
+        inboundBags: 0,
+        outboundBags: 0,
+      },
+    );
+
+    successResponse(
+      res,
+      {
+        totals: {
+          ...totals,
+          netWeightQtl: roundTo(
+            totals.inboundWeightQtl - totals.outboundWeightQtl,
+            3,
+          ),
+          netBags: totals.inboundBags - totals.outboundBags,
+        },
+        locations,
+      },
+      "Location-wise stock summary fetched",
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getLocationLedger = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { startDate, endDate, locationId } = req.query as {
+      startDate?: string;
+      endDate?: string;
+      locationId?: string;
+    };
+    const dateFilter = buildDateFilter(startDate, endDate);
+
+    const transfers = await prisma.stockTransfer.findMany({
+      where: {
+        status: { in: ["DISPATCHED", "RECEIVED", "DISCREPANCY"] },
+        ...(dateFilter && { createdAt: dateFilter }),
+        ...(locationId && {
+          OR: [{ sourceLocationId: locationId }, { destinationLocationId: locationId }],
+        }),
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        transferNo: true,
+        status: true,
+        createdAt: true,
+        dispatchedAt: true,
+        receivedAt: true,
+        sourceLocationId: true,
+        destinationLocationId: true,
+        dispatchedWeight: true,
+        dispatchedBagCount: true,
+        receivedWeight: true,
+        receivedBagCount: true,
+        weightShortage: true,
+        bagShortage: true,
+        sourceLocation: { select: { id: true, name: true, type: true } },
+        destinationLocation: { select: { id: true, name: true, type: true } },
+      },
+    });
+
+    const rows = transfers.map((t) => ({
+      transferId: t.id,
+      transferNo: t.transferNo,
+      status: t.status,
+      createdAt: t.createdAt,
+      dispatchedAt: t.dispatchedAt,
+      receivedAt: t.receivedAt,
+      source: t.sourceLocation,
+      destination: t.destinationLocation,
+      dispatchedWeightQtl: roundTo(t.dispatchedWeight ?? 0, 3),
+      dispatchedBags: t.dispatchedBagCount ?? 0,
+      receivedWeightQtl: roundTo(t.receivedWeight ?? 0, 3),
+      receivedBags: t.receivedBagCount ?? 0,
+      weightShortageQtl: roundTo(t.weightShortage ?? 0, 3),
+      bagShortage: t.bagShortage ?? 0,
+    }));
+
+    successResponse(res, rows, "Location ledger fetched");
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getLocationDailyBalances = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { startDate, endDate, locationId } = req.query as {
+      startDate?: string;
+      endDate?: string;
+      locationId?: string;
+    };
+    const dateFilter = buildDateFilter(startDate, endDate);
+
+    const transfers = await prisma.stockTransfer.findMany({
+      where: {
+        status: { in: ["DISPATCHED", "RECEIVED", "DISCREPANCY"] },
+        ...(dateFilter && { createdAt: dateFilter }),
+        ...(locationId && {
+          OR: [{ sourceLocationId: locationId }, { destinationLocationId: locationId }],
+        }),
+      },
+      orderBy: { createdAt: "asc" },
+      select: {
+        createdAt: true,
+        sourceLocationId: true,
+        destinationLocationId: true,
+        dispatchedWeight: true,
+        dispatchedBagCount: true,
+        receivedWeight: true,
+        receivedBagCount: true,
+      },
+    });
+
+    type Bal = {
+      date: string;
+      locationId: string;
+      openingWeightQtl: number;
+      openingBags: number;
+      inboundWeightQtl: number;
+      inboundBags: number;
+      outboundWeightQtl: number;
+      outboundBags: number;
+      closingWeightQtl: number;
+      closingBags: number;
+    };
+
+    const balances = new Map<string, Bal>();
+    const running = new Map<string, { w: number; b: number }>();
+    const keyOf = (date: string, loc: string) => `${date}::${loc}`;
+
+    for (const t of transfers) {
+      const date = t.createdAt.toISOString().slice(0, 10);
+      const outW = t.dispatchedWeight ?? 0;
+      const outB = t.dispatchedBagCount ?? 0;
+      const inW = t.receivedWeight ?? outW;
+      const inB = t.receivedBagCount ?? outB;
+
+      if (t.sourceLocationId) {
+        const run = running.get(t.sourceLocationId) ?? { w: 0, b: 0 };
+        const k = keyOf(date, t.sourceLocationId);
+        const row = balances.get(k) ?? {
+          date,
+          locationId: t.sourceLocationId,
+          openingWeightQtl: run.w,
+          openingBags: run.b,
+          inboundWeightQtl: 0,
+          inboundBags: 0,
+          outboundWeightQtl: 0,
+          outboundBags: 0,
+          closingWeightQtl: run.w,
+          closingBags: run.b,
+        };
+        row.outboundWeightQtl += outW;
+        row.outboundBags += outB;
+        row.closingWeightQtl = row.openingWeightQtl + row.inboundWeightQtl - row.outboundWeightQtl;
+        row.closingBags = row.openingBags + row.inboundBags - row.outboundBags;
+        balances.set(k, row);
+        running.set(t.sourceLocationId, { w: row.closingWeightQtl, b: row.closingBags });
+      }
+
+      if (t.destinationLocationId) {
+        const run = running.get(t.destinationLocationId) ?? { w: 0, b: 0 };
+        const k = keyOf(date, t.destinationLocationId);
+        const row = balances.get(k) ?? {
+          date,
+          locationId: t.destinationLocationId,
+          openingWeightQtl: run.w,
+          openingBags: run.b,
+          inboundWeightQtl: 0,
+          inboundBags: 0,
+          outboundWeightQtl: 0,
+          outboundBags: 0,
+          closingWeightQtl: run.w,
+          closingBags: run.b,
+        };
+        row.inboundWeightQtl += inW;
+        row.inboundBags += inB;
+        row.closingWeightQtl = row.openingWeightQtl + row.inboundWeightQtl - row.outboundWeightQtl;
+        row.closingBags = row.openingBags + row.inboundBags - row.outboundBags;
+        balances.set(k, row);
+        running.set(t.destinationLocationId, { w: row.closingWeightQtl, b: row.closingBags });
+      }
+    }
+
+    const rows = Array.from(balances.values()).sort((a, b) =>
+      `${a.date}${a.locationId}`.localeCompare(`${b.date}${b.locationId}`),
+    );
+    successResponse(res, rows, "Location daily balances fetched");
   } catch (error) {
     next(error);
   }
