@@ -525,6 +525,7 @@ model StockTransfer {
   items               StockTransferItem[]
   thappis             StockTransferThappi[]
   bagMoves            BagMovement[]
+  thappiMovements     ThappiMovement[]
 
   @@index([sourceLocationId])
   @@index([destinationLocationId])
@@ -578,10 +579,10 @@ model InventoryLocation {
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @updatedAt
 
-  createdBy         User?           @relation("CreatedInventoryLocations", fields: [createdById], references: [id])
-  outgoingTransfers StockTransfer[] @relation("SourceLocationTransfers")
-  incomingTransfers StockTransfer[] @relation("DestinationLocationTransfers")
-  thappis           Thappi[]
+  createdBy          User?            @relation("CreatedInventoryLocations", fields: [createdById], references: [id])
+  outgoingTransfers  StockTransfer[]  @relation("SourceLocationTransfers")
+  incomingTransfers  StockTransfer[]  @relation("DestinationLocationTransfers")
+  thappis            Thappi[]
   thappiMovementFrom ThappiMovement[] @relation("ThappiMoveFromLocation")
   thappiMovementTo   ThappiMovement[] @relation("ThappiMoveToLocation")
 
@@ -615,7 +616,7 @@ model Thappi {
 }
 
 model ThappiMovement {
-  id             String            @id @default(uuid())
+  id             String             @id @default(uuid())
   thappiId       String
   transferId     String?
   movementType   ThappiMovementType
@@ -625,7 +626,7 @@ model ThappiMovement {
   toLocationId   String?
   notes          String?
   createdById    String?
-  createdAt      DateTime          @default(now())
+  createdAt      DateTime           @default(now())
 
   thappi       Thappi             @relation(fields: [thappiId], references: [id])
   transfer     StockTransfer?     @relation(fields: [transferId], references: [id])
