@@ -8,6 +8,7 @@ export const createTransferSchema = Joi.object({
   unit: Joi.string().valid("QTL", "MT").optional(),
   bagCount: Joi.number().integer().min(1).optional(),
   goniTypeId: Joi.string().uuid().optional(),
+  thappiIds: Joi.array().items(Joi.string().uuid()).min(1).optional(),
   items: Joi.array()
     .items(
       Joi.object({
@@ -23,11 +24,12 @@ export const createTransferSchema = Joi.object({
 }).custom((value, helpers) => {
   const hasItems = Array.isArray(value.items) && value.items.length > 0;
   const hasSingle = !!value.goniTypeId && typeof value.bagCount === "number";
+  const hasThappis = Array.isArray(value.thappiIds) && value.thappiIds.length > 0;
 
-  if (!hasItems && !hasSingle) {
+  if (!hasItems && !hasSingle && !hasThappis) {
     return helpers.error("any.custom", {
       message:
-        "Provide either items[] for multi-type transfer or goniTypeId + bagCount for single type",
+        "Provide thappiIds[] or items[] or goniTypeId + bagCount",
     });
   }
 

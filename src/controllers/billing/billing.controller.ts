@@ -678,11 +678,21 @@ export const confirmDraft = async (
 
       await applyAdvanceAdjustmentOnBillConfirm(tx, billId, vendorId);
 
-      const gonis = await prisma.billGoni.findMany({
-        where: { billId },
+      const trackedGonis = await tx.billGoni.findMany({
+        where: {
+          billId,
+          goniType: {
+            isTracked: true,
+            isActive: true,
+          },
+        },
+        select: {
+          goniTypeId: true,
+          bagCount: true,
+        },
       });
 
-      const totalBags = gonis.reduce((sum, g) => sum + g.bagCount, 0);
+      const totalBags = trackedGonis.reduce((sum, g) => sum + g.bagCount, 0);
       const stockWeight = roundTo(
         Math.max((bill.primaryQuantity ?? 0) - (bill.goniWeight ?? 0), 0),
         3,
@@ -702,20 +712,6 @@ export const confirmDraft = async (
       });
 
       // Explicitly record farmer -> vendor bag receipt at finalization time
-      const trackedGonis = await tx.billGoni.findMany({
-        where: {
-          billId,
-          goniType: {
-            isTracked: true,
-            isActive: true,
-          },
-        },
-        select: {
-          goniTypeId: true,
-          bagCount: true,
-        },
-      });
-
       if (trackedGonis.length) {
         await tx.bagMovement.createMany({
           data: trackedGonis.map((g) => ({

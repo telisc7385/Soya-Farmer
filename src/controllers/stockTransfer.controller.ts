@@ -1,4 +1,5 @@
 import { Request, Response, NextFunction } from "express";
+import path from "node:path";
 import prisma from "../database/prisma";
 import { successResponse, createdResponse } from "../utils/response";
 import { AppError } from "../core/appError";
@@ -12,6 +13,7 @@ import { toQtl } from "../utils/quantity";
 import {
   buildTransferProofUrl,
   enqueueTransferProofGeneration,
+  writeTransferProofPdf,
 } from "../services/transferProof.service";
 
 // =====================
@@ -34,6 +36,7 @@ export const createTransfer = async (
       unit,
       bagCount,
       goniTypeId,
+      thappiIds,
       items,
       sourceLocationId,
       destinationLocationId,
@@ -43,18 +46,52 @@ export const createTransfer = async (
       unit?: "QTL" | "MT";
       bagCount?: number;
       goniTypeId?: string;
+      thappiIds?: string[];
       items?: Array<{ goniTypeId: string; bagCount: number }>;
       sourceLocationId: string;
       destinationLocationId: string;
       vehicalNumber: string;
     };
 
-    const normalizedItems =
+    const selectedThappiIds =
+      Array.isArray(thappiIds) && thappiIds.length
+        ? Array.from(new Set(thappiIds))
+        : [];
+
+    let normalizedItems =
       Array.isArray(items) && items.length
         ? items
         : goniTypeId && typeof bagCount === "number"
           ? [{ goniTypeId, bagCount }]
           : [];
+
+    let thappiRows: Array<{
+      id: string;
+      weightQtl: number;
+      bagCount: number;
+      bagBreakdown: Array<{ goniTypeId: string; bagCount: number }>;
+    }> = [];
+
+    if (selectedThappiIds.length) {
+      const fetched = await prisma.thappi.findMany({
+        where: {
+          id: { in: selectedThappiIds },
+          vendorId,
+          isActive: true,
+          status: "AVAILABLE",
+        },
+        include: {
+          bagBreakdown: {
+            select: { goniTypeId: true, bagCount: true },
+          },
+        },
+      });
+      if (fetched.length !== selectedThappiIds.length) {
+        throw new AppError("One or more thappis are invalid or unavailable", 400);
+      }
+      thappiRows = fetched;
+      normalizedItems = fetched.flatMap((t) => t.bagBreakdown);
+    }
 
     if (!normalizedItems.length) {
       throw new AppError(
@@ -63,24 +100,23 @@ export const createTransfer = async (
       );
     }
 
-    const bagCountByType = new Map<string, number>();
+    const allBagCountByType = new Map<string, number>();
     for (const item of normalizedItems) {
-      const current = bagCountByType.get(item.goniTypeId) ?? 0;
-      bagCountByType.set(item.goniTypeId, current + item.bagCount);
+      const current = allBagCountByType.get(item.goniTypeId) ?? 0;
+      allBagCountByType.set(item.goniTypeId, current + item.bagCount);
     }
 
-    const transferItems = Array.from(bagCountByType.entries()).map(
+    const transferItems = Array.from(allBagCountByType.entries()).map(
       ([typeId, totalBags]) => ({
         goniTypeId: typeId,
         bagCount: totalBags,
       }),
     );
-    const totalBagCount = transferItems.reduce(
-      (sum, item) => sum + item.bagCount,
-      0,
-    );
-    const normalizedWeightQtl =
-      typeof weight === "number" ? toQtl(weight, unit ?? "QTL") : undefined;
+    const normalizedWeightQtl = selectedThappiIds.length
+      ? thappiRows.reduce((sum, t) => sum + t.weightQtl, 0)
+      : typeof weight === "number"
+        ? toQtl(weight, unit ?? "QTL")
+        : undefined;
 
     // Get vendor's total available stock
     const availableStock = await prisma.stock.aggregate({
@@ -108,13 +144,6 @@ export const createTransfer = async (
       );
     }
 
-    if (totalBagCount > availableBags) {
-      throw new AppError(
-        `Transfer bag count (${totalBagCount}) exceeds available stock (${availableBags})`,
-        400,
-      );
-    }
-
     // Validate goni types
     const goniTypes = await prisma.goniType.findMany({
       where: {
@@ -133,6 +162,17 @@ export const createTransfer = async (
       throw new AppError(
         `Goni type not found or inactive: ${invalidTypeIds.join(", ")}`,
         404,
+      );
+    }
+
+    const totalBagCount = transferItems.reduce((sum, item) => {
+      const currentType = goniTypeMap.get(item.goniTypeId)!;
+      return currentType.isTracked ? sum + item.bagCount : sum;
+    }, 0);
+    if (totalBagCount > availableBags) {
+      throw new AppError(
+        `Transfer tracked bag count (${totalBagCount}) exceeds available stock (${availableBags})`,
+        400,
       );
     }
 
@@ -157,11 +197,11 @@ export const createTransfer = async (
     const [sourceLocation, destinationLocation] = await Promise.all([
       prisma.inventoryLocation.findFirst({
         where: { id: sourceLocationId, isActive: true },
-        select: { id: true },
+        select: { id: true, name: true, type: true },
       }),
       prisma.inventoryLocation.findFirst({
         where: { id: destinationLocationId, isActive: true },
-        select: { id: true },
+        select: { id: true, name: true, type: true },
       }),
     ]);
 
@@ -172,6 +212,21 @@ export const createTransfer = async (
     if (sourceLocationId === destinationLocationId) {
       throw new AppError(
         "Source and destination locations must be different",
+        400,
+      );
+    }
+
+    const allowedPairs = new Set([
+      "VENDOR->VENDOR",
+      "VENDOR->PLANT",
+      "VENDOR->GODOWN",
+      "GODOWN->PLANT",
+      "GODOWN->VENDOR",
+    ]);
+    const routeKey = `${sourceLocation.type}->${destinationLocation.type}`;
+    if (!allowedPairs.has(routeKey)) {
+      throw new AppError(
+        `Unsupported transfer route ${routeKey}. Allowed: Vendor->Vendor, Vendor->Plant, Vendor->Godown, Godown->Plant, Godown->Vendor`,
         400,
       );
     }
@@ -198,12 +253,23 @@ export const createTransfer = async (
       });
 
       await tx.stockTransferItem.createMany({
-        data: transferItems.map((item) => ({
+        data: normalizedItems.map((item) => ({
           transferId: createdTransfer.id,
           goniTypeId: item.goniTypeId,
           bagCount: item.bagCount,
         })),
       });
+
+      if (thappiRows.length) {
+        await tx.stockTransferThappi.createMany({
+          data: thappiRows.map((t) => ({
+            transferId: createdTransfer.id,
+            thappiId: t.id,
+            weightQtl: t.weightQtl,
+            bagCount: t.bagCount,
+          })),
+        });
+      }
 
       return tx.stockTransfer.findUnique({
         where: { id: createdTransfer.id },
@@ -214,6 +280,15 @@ export const createTransfer = async (
           goniType: true,
           items: {
             include: { goniType: true },
+          },
+          thappis: {
+            include: {
+              thappi: {
+                include: {
+                  location: true,
+                },
+              },
+            },
           },
           sourceLocation: true,
           destinationLocation: true,
@@ -255,6 +330,13 @@ export const getVendorTransfers = async (
           goniType: true,
           items: {
             include: { goniType: true },
+          },
+          thappis: {
+            include: {
+              thappi: {
+                include: { location: true },
+              },
+            },
           },
           sourceLocation: true,
           destinationLocation: true,
@@ -315,6 +397,13 @@ export const getAdminTransfers = async (
           items: {
             include: { goniType: true },
           },
+          thappis: {
+            include: {
+              thappi: {
+                include: { location: true },
+              },
+            },
+          },
           sourceLocation: true,
           destinationLocation: true,
         },
@@ -373,6 +462,18 @@ export const completeTransfer = async (
       },
       include: {
         items: true,
+        thappis: {
+          select: { thappiId: true },
+        },
+        vendor: {
+          select: { name: true },
+        },
+        sourceLocation: {
+          select: { name: true },
+        },
+        destinationLocation: {
+          select: { name: true },
+        },
       },
     });
 
@@ -471,6 +572,18 @@ export const completeTransfer = async (
         },
       });
 
+      if (transfer.thappis.length) {
+        await tx.thappi.updateMany({
+          where: {
+            id: { in: transfer.thappis.map((t) => t.thappiId) },
+            status: "AVAILABLE",
+          },
+          data: {
+            status: "TRANSFERRED",
+          },
+        });
+      }
+
       const transferItemsForLedger =
         transfer.items.length > 0
           ? transfer.items
@@ -513,6 +626,29 @@ export const completeTransfer = async (
       stage: "dispatch",
     });
 
+    const dispatchProofUrl = buildTransferProofUrl(
+      transfer.transferNo,
+      "dispatch",
+    );
+    await writeTransferProofPdf({
+      absolutePath: path.join(
+        process.cwd(),
+        dispatchProofUrl.replace(/^\/+/, "").replace(/\//g, path.sep),
+      ),
+      stage: "dispatch",
+      transferNo: transfer.transferNo,
+      vendorName: transfer.vendor?.name,
+      source: transfer.sourceLocation?.name,
+      destination: transfer.destinationLocation?.name,
+      vehicle: transfer.vehicalNumber,
+      weightQtl: dispatchWeightQtl,
+      bagCount: dispatchBagCount,
+      latitude: dispatchLatitude,
+      longitude: dispatchLongitude,
+      locationText: dispatchLocationText,
+      status: "DISPATCHED",
+    });
+
     successResponse(res, null, "Transfer dispatched successfully");
   } catch (error) {
     next(error);
@@ -549,6 +685,17 @@ export const receiveTransfer = async (
       where: {
         id: transferId,
         status: "DISPATCHED",
+      },
+      include: {
+        vendor: {
+          select: { name: true },
+        },
+        sourceLocation: {
+          select: { name: true },
+        },
+        destinationLocation: {
+          select: { name: true },
+        },
       },
     });
 
@@ -596,6 +743,26 @@ export const receiveTransfer = async (
       transferId: transfer.id,
       transferNo: transfer.transferNo,
       stage: "receive",
+    });
+
+    const receiveProofUrl = buildTransferProofUrl(transfer.transferNo, "receive");
+    await writeTransferProofPdf({
+      absolutePath: path.join(
+        process.cwd(),
+        receiveProofUrl.replace(/^\/+/, "").replace(/\//g, path.sep),
+      ),
+      stage: "receive",
+      transferNo: transfer.transferNo,
+      vendorName: transfer.vendor?.name,
+      source: transfer.sourceLocation?.name,
+      destination: transfer.destinationLocation?.name,
+      vehicle: transfer.vehicalNumber,
+      weightQtl: receivedWeightQtl,
+      bagCount: receivedBagCount,
+      latitude: receiveLatitude,
+      longitude: receiveLongitude,
+      locationText: receiveLocationText,
+      status: nextStatus,
     });
 
     successResponse(res, updated, "Transfer received and verified");
@@ -674,6 +841,13 @@ export const updateTransfer = async (
         goniType: true,
         items: {
           include: { goniType: true },
+        },
+        thappis: {
+          include: {
+            thappi: {
+              include: { location: true },
+            },
+          },
         },
         sourceLocation: true,
         destinationLocation: true,

@@ -66,6 +66,7 @@ import { exportReportSchema } from "../validations/report.validation";
 import { exportAdminReport } from "../controllers/admin/adminReport.controller";
 import {
   getAdminDashboardSummary,
+  getLocationLedger,
   getLocationWiseStockSummary,
   getVendorTrends,
 } from "../controllers/admin/adminAnalytics.controller";
@@ -307,6 +308,14 @@ router.get(
   authorize("ADMIN"),
   validateQuery(adminAnalyticsQuerySchema),
   getLocationWiseStockSummary,
+);
+
+router.get(
+  "/analytics/location-ledger",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateQuery(adminAnalyticsQuerySchema),
+  getLocationLedger,
 );
 
 // =====================

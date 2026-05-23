@@ -307,3 +307,68 @@ export const getLocationWiseStockSummary = async (
     next(error);
   }
 };
+
+export const getLocationLedger = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { startDate, endDate, locationId } = req.query as {
+      startDate?: string;
+      endDate?: string;
+      locationId?: string;
+    };
+    const dateFilter = buildDateFilter(startDate, endDate);
+
+    const transfers = await prisma.stockTransfer.findMany({
+      where: {
+        status: { in: ["DISPATCHED", "RECEIVED", "DISCREPANCY"] },
+        ...(dateFilter && { createdAt: dateFilter }),
+        ...(locationId && {
+          OR: [{ sourceLocationId: locationId }, { destinationLocationId: locationId }],
+        }),
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        transferNo: true,
+        status: true,
+        createdAt: true,
+        dispatchedAt: true,
+        receivedAt: true,
+        sourceLocationId: true,
+        destinationLocationId: true,
+        dispatchedWeight: true,
+        dispatchedBagCount: true,
+        receivedWeight: true,
+        receivedBagCount: true,
+        weightShortage: true,
+        bagShortage: true,
+        sourceLocation: { select: { id: true, name: true, type: true } },
+        destinationLocation: { select: { id: true, name: true, type: true } },
+      },
+    });
+
+    const rows = transfers.map((t) => ({
+      transferId: t.id,
+      transferNo: t.transferNo,
+      status: t.status,
+      createdAt: t.createdAt,
+      dispatchedAt: t.dispatchedAt,
+      receivedAt: t.receivedAt,
+      source: t.sourceLocation,
+      destination: t.destinationLocation,
+      dispatchedWeightQtl: roundTo(t.dispatchedWeight ?? 0, 3),
+      dispatchedBags: t.dispatchedBagCount ?? 0,
+      receivedWeightQtl: roundTo(t.receivedWeight ?? 0, 3),
+      receivedBags: t.receivedBagCount ?? 0,
+      weightShortageQtl: roundTo(t.weightShortage ?? 0, 3),
+      bagShortage: t.bagShortage ?? 0,
+    }));
+
+    successResponse(res, rows, "Location ledger fetched");
+  } catch (error) {
+    next(error);
+  }
+};

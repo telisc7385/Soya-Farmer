@@ -1,16 +1,24 @@
 import { Router } from "express";
 import { authMiddleware } from "../middleware/auth.middleware";
 import { authorize } from "../middleware/role.middleware";
-import { validateRequest } from "../middleware/validateRequest.middleware";
+import {
+  validateQuery,
+  validateRequest,
+} from "../middleware/validateRequest.middleware";
 import * as stockController from "../controllers/stock.controller";
 import * as transferController from "../controllers/stockTransfer.controller";
 import * as bagController from "../controllers/bag.controller";
+import * as thappiController from "../controllers/thappi.controller";
 import { listActiveQualityRates } from "../controllers/qualityRate.controller";
 import {
   createTransferSchema,
   returnBagsToFarmerSchema,
   vendorAddOwnBagsSchema,
 } from "../validations/stock.validation";
+import {
+  createThappiSchema,
+  listThappiQuerySchema,
+} from "../validations/thappi.validation";
 
 const router = Router();
 
@@ -86,6 +94,22 @@ router.get(
   authMiddleware,
   authorize("VENDOR"),
   bagController.getVendorReturnDueToFarmer,
+);
+
+router.post(
+  "/thappis",
+  authMiddleware,
+  authorize("VENDOR"),
+  validateRequest(createThappiSchema),
+  thappiController.createThappi,
+);
+
+router.get(
+  "/thappis",
+  authMiddleware,
+  authorize("VENDOR"),
+  validateQuery(listThappiQuerySchema),
+  thappiController.getVendorThappis,
 );
 
 // Get stock by ID
