@@ -9,6 +9,9 @@ import * as stockController from "../controllers/stock.controller";
 import * as transferController from "../controllers/stockTransfer.controller";
 import * as bagController from "../controllers/bag.controller";
 import * as thappiController from "../controllers/thappi.controller";
+import {
+  listInventoryLocations,
+} from "../controllers/inventoryLocation.controller";
 import { listActiveQualityRates } from "../controllers/qualityRate.controller";
 import {
   createTransferSchema,
@@ -19,6 +22,7 @@ import {
   createThappiSchema,
   listThappiQuerySchema,
 } from "../validations/thappi.validation";
+import { listInventoryLocationQuerySchema } from "../validations/inventoryLocation.validation";
 
 const router = Router();
 
@@ -110,6 +114,14 @@ router.get(
   authorize("VENDOR"),
   validateQuery(listThappiQuerySchema),
   thappiController.getVendorThappis,
+);
+
+router.get(
+  "/locations",
+  authMiddleware,
+  authorize("VENDOR"),
+  validateQuery(listInventoryLocationQuerySchema),
+  listInventoryLocations,
 );
 
 // Get stock by ID

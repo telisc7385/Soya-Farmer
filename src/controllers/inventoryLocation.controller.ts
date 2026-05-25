@@ -1,3 +1,4 @@
+import { InventoryLocationType } from "@prisma/client";
 import { NextFunction, Request, Response } from "express";
 import prisma from "../database/prisma";
 import { AppError } from "../core/appError";
@@ -10,7 +11,7 @@ const locationPrefixByType: Record<string, string> = {
   PLANT: "PLT",
 };
 
-const generateLocationCode = async (type: string) => {
+const generateLocationCode = async (type: InventoryLocationType) => {
   const prefix = locationPrefixByType[type] ?? "LOC";
   const count = await prisma.inventoryLocation.count({ where: { type } });
   return `${prefix}-${String(count + 1).padStart(4, "0")}`;

@@ -105,7 +105,7 @@ router.post(
 router.post(
   "/farmers/:farmerId/advances",
   authMiddleware,
-  authorize("ADMIN"),
+  authorize("ADMIN", "VENDOR"),
   validateRequest(createAdvanceSchema),
   createFarmerAdvance,
 );
