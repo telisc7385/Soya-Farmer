@@ -35,3 +35,8 @@ export const updateVendorSchema = Joi.object({
   factoryRateDiff: Joi.number().optional(),
   masterVendor: Joi.boolean().optional(),
 }).min(1);
+
+export const adminResetPasswordSchema = Joi.object({
+  oldPassword: Joi.string().min(6).required(),
+  newPassword: Joi.string().min(6).required(),
+});

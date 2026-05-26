@@ -56,9 +56,9 @@ export const createBankDetails = async (
   next: NextFunction,
 ) => {
   try {
-    const { bankName, ifsc } = req.body;
+  const { bankName, branchName, ifsc } = req.body;
 
-    await createBankDetailsSchema.validateAsync({ bankName, ifsc });
+    await createBankDetailsSchema.validateAsync({ bankName, branchName, ifsc });
 
     const isDuplicate = await checkDuplicateIfsc(ifsc);
     if (isDuplicate) {
@@ -66,7 +66,7 @@ export const createBankDetails = async (
     }
 
     const bank = await prisma.bankDetails.create({
-      data: { bankName, ifsc },
+      data: { bankName, branchName, ifsc },
     });
     createdResponse(res, bank, "Bank details created");
   } catch (error) {
@@ -146,7 +146,7 @@ export const updateBankDetails = async (
   next: NextFunction,
 ) => {
   try {
-    const { bankName, ifsc } = req.body;
+    const { bankName, branchName, ifsc } = req.body;
     const { bankId } = req.params;
 
     const isDuplicate = await checkDuplicateIfsc(ifsc, bankId);
@@ -156,7 +156,7 @@ export const updateBankDetails = async (
 
     const bank = await prisma.bankDetails.update({
       where: { id: bankId },
-      data: { bankName, ifsc },
+      data: { bankName, branchName, ifsc },
     });
 
     if (!bank) {

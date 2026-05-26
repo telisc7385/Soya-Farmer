@@ -5,6 +5,7 @@ import { AppError } from "../core/appError";
 import { createdResponse, successResponse } from "../utils/response";
 import { NextFunction, Request, Response } from "express";
 import { BagMovementType } from "@prisma/client";
+import { AuthRequest } from "../middleware/auth.middleware";
 
 export const login = async (
   req: Request,
@@ -386,6 +387,48 @@ export const getVendorById = async (
     if (!vendor) throw new AppError("Vendor not found", 404);
 
     successResponse(res, vendor, "Vendor fetched successfully");
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const adminResetPassword = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const adminId = req.user?.id;
+    if (!adminId) throw new AppError("Unauthorized", 401);
+
+    const { oldPassword, newPassword } = req.body;
+
+    const admin = await prisma.user.findUnique({
+      where: { id: adminId },
+      select: { id: true, role: true, password: true },
+    });
+
+    if (!admin || admin.role !== "ADMIN") {
+      throw new AppError("Admin user not found", 404);
+    }
+
+    const isMatch = await bcrypt.compare(oldPassword, admin.password);
+    if (!isMatch) {
+      throw new AppError("Old password is incorrect", 400);
+    }
+
+    if (oldPassword === newPassword) {
+      throw new AppError("New password must be different from old password", 400);
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await prisma.user.update({
+      where: { id: admin.id },
+      data: { password: hashedPassword },
+    });
+
+    successResponse(res, null, "Admin password reset successfully");
   } catch (error) {
     next(error);
   }
