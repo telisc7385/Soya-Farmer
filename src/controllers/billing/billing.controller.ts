@@ -12,6 +12,10 @@ import { roundTo } from "../../utils/number";
 import { attachDeductionDetails } from "../../utils/deductionDetails";
 import { buildBillingCalculationDetails } from "../../utils/billingCalculation";
 
+const PURCHASE_LIMIT_QTL_PER_HECTARE = Number(
+  process.env.PURCHASE_LIMIT_QTL_PER_HECTARE ?? "12",
+);
+
 const evaluateRangeCondition = (
   condition: string,
   measurement?: number,
@@ -246,6 +250,48 @@ export const createDraftBill = async (
     }
 
     await checkFarmer(farmerId);
+
+    const lands = await prisma.farmerLand.findMany({
+      where: { farmerId },
+      select: { area: true },
+    });
+    const totalLandHectare = roundTo(
+      lands.reduce((sum, land) => sum + (land.area ?? 0), 0),
+      3,
+    );
+    if (totalLandHectare <= 0) {
+      throw new AppError(
+        "No valid land area found for this farmer. Please add farmer land first.",
+        400,
+      );
+    }
+
+    const usedQtyAgg = await prisma.bill.aggregate({
+      where: {
+        farmerId,
+        status: { not: "CANCELLED" },
+      },
+      _sum: { primaryQuantity: true },
+    });
+    const alreadyUsedQtl = roundTo(usedQtyAgg._sum.primaryQuantity ?? 0, 3);
+    const requestedQtl = roundTo(quantity, 3);
+    const allowedQtl = roundTo(
+      totalLandHectare * PURCHASE_LIMIT_QTL_PER_HECTARE,
+      3,
+    );
+    const afterRequestQtl = roundTo(alreadyUsedQtl + requestedQtl, 3);
+    const remainingBeforeRequestQtl = roundTo(allowedQtl - alreadyUsedQtl, 3);
+
+    if (afterRequestQtl > allowedQtl) {
+      throw new AppError(
+        `Purchase limit exceeded. Allowed: ${allowedQtl} QTL, used: ${alreadyUsedQtl} QTL, remaining: ${Math.max(
+          remainingBeforeRequestQtl,
+          0,
+        )} QTL, requested: ${requestedQtl} QTL.`,
+        400,
+      );
+    }
+
     const grossAmount = roundTo(quantity * rate);
 
     const billNo = await generateBillNo();

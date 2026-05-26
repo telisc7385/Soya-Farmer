@@ -232,6 +232,8 @@ model FarmerLand {
   id          String   @id @default(uuid())
   farmerId    String
   landType    LandType
+  landOwnerName String?
+  relationType String?
   area        Float
   documentUrl String
   villageAdd  String?

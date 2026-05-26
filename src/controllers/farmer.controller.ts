@@ -473,7 +473,8 @@ export const addFarmerLand = async (
 ) => {
   try {
     const { farmerId } = req.params;
-    const { landType, area, villageAdd, taluka, district } = req.body;
+    const { landType, area, villageAdd, taluka, district, landOwnerName, relationType } =
+      req.body;
 
     if (!req.file) {
       throw new AppError("Land document is required", 400);
@@ -494,10 +495,27 @@ export const addFarmerLand = async (
       "farmers/lands",
     );
 
+    const farmer = await prisma.farmer.findUnique({
+      where: { id: farmerId },
+      select: { name: true },
+    });
+    if (!farmer) throw new AppError("Farmer not found", 404);
+
+    const ownerNameToSave =
+      landType === "OWN" ? farmer.name : (landOwnerName as string | undefined);
+    if (!ownerNameToSave) {
+      throw new AppError("Land owner name is required for relative-owned land", 400);
+    }
+    if (landType === "BLOOD_RELATION" && !relationType) {
+      throw new AppError("Relation type is required for relative-owned land", 400);
+    }
+
     const land = await prisma.farmerLand.create({
       data: {
         farmerId,
         landType,
+        landOwnerName: ownerNameToSave,
+        relationType: landType === "OWN" ? null : relationType,
         area: Number(area),
         documentUrl,
         villageAdd,
@@ -539,7 +557,7 @@ export const updateFarmerLand = async (
 ) => {
   try {
     const { landId } = req.params;
-    const { area, villageAdd, taluka, district } = req.body;
+    const { area, villageAdd, taluka, district, landOwnerName, relationType } = req.body;
 
     const existingLand = await prisma.farmerLand.findUnique({
       where: { id: landId },
@@ -553,6 +571,8 @@ export const updateFarmerLand = async (
     if (villageAdd !== undefined) updateData.villageAdd = villageAdd;
     if (taluka !== undefined) updateData.taluka = taluka;
     if (district !== undefined) updateData.district = district;
+    if (landOwnerName !== undefined) updateData.landOwnerName = landOwnerName;
+    if (relationType !== undefined) updateData.relationType = relationType;
 
     if (req.file) {
       const { publicUrl } = await saveUploadedFile(req.file, "farmers/lands");
