@@ -1,5 +1,6 @@
 import { Router } from "express";
 import {
+  adminResetPassword,
   getVendorById,
   getVendorList,
   login,
@@ -9,6 +10,7 @@ import {
 } from "../controllers/auth.controller";
 import { validateRequest } from "../middleware/validateRequest.middleware";
 import {
+  adminResetPasswordSchema,
   registerSchema,
   loginSchema,
   updateVendorSchema,
@@ -36,5 +38,12 @@ router.patch(
 );
 router.get("/vendor/list", authMiddleware, authorize("ADMIN"), getVendorList);
 router.get("/vendor/:id", authMiddleware, authorize("ADMIN"), getVendorById);
+router.post(
+  "/admin/reset-password",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateRequest(adminResetPasswordSchema),
+  adminResetPassword,
+);
 
 export default router;

@@ -29,6 +29,7 @@ export const farmerLandSchema = Joi.object({
 
 export const farmerBankSchema = Joi.object({
   bankName: Joi.string().required(),
+  branchName: Joi.string().required(),
   accountNo: Joi.string().required(),
   ifsc: Joi.string().required(),
   holderName: Joi.string().required(),

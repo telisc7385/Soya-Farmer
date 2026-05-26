@@ -598,7 +598,7 @@ export const addFarmerBank = async (
 ) => {
   try {
     const { farmerId } = req.params;
-    const { bankName, accountNo, ifsc, holderName } = req.body;
+    const { bankName, branchName, accountNo, ifsc, holderName } = req.body;
 
     if (!req.file) {
       throw new AppError("Document image is required", 400);
@@ -631,6 +631,7 @@ export const addFarmerBank = async (
       data: {
         farmerId,
         bankName,
+        branchName,
         accountNo,
         ifsc,
         holderName,
@@ -671,7 +672,7 @@ export const updateFarmerBank = async (
 ) => {
   try {
     const { bankId, farmerId } = req.params;
-    const { bankName, accountNo, ifsc, holderName } = req.body;
+    const { bankName, branchName, accountNo, ifsc, holderName } = req.body;
     let passbookImage;
 
     // await requireKycEditable(farmerId);
@@ -685,6 +686,7 @@ export const updateFarmerBank = async (
       where: { id: bankId, farmerId },
       data: {
         bankName,
+        branchName,
         accountNo,
         ifsc,
         holderName,
@@ -735,6 +737,7 @@ export const getFarmers = async (
           select: {
             id: true,
             bankName: true,
+            branchName: true,
             accountNo: true,
             ifsc: true,
             holderName: true,
@@ -835,6 +838,7 @@ export const getNonKycFarmers = async (
           select: {
             id: true,
             bankName: true,
+            branchName: true,
             accountNo: true,
             ifsc: true,
             holderName: true,
