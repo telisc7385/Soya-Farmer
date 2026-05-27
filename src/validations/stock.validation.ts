@@ -21,26 +21,38 @@ export const createTransferSchema = Joi.object({
   sourceLocationId: Joi.string().uuid().required(),
   destinationLocationId: Joi.string().uuid().required(),
   vehicalNumber: Joi.string().max(50).required(),
-}).custom((value, helpers) => {
+})
+  .custom((value, helpers) => {
   const hasItems = Array.isArray(value.items) && value.items.length > 0;
-  const hasSingle = !!value.goniTypeId && typeof value.bagCount === "number";
+  const hasSingleGoni = !!value.goniTypeId;
+  const hasSingleBagCount = typeof value.bagCount === "number";
+  const hasSingle = hasSingleGoni && hasSingleBagCount;
   const hasThappis = Array.isArray(value.thappiIds) && value.thappiIds.length > 0;
+
+  if (hasSingleGoni !== hasSingleBagCount) {
+    return helpers.error("any.custom", {
+      customMessage: "Both goniTypeId and bagCount are required together",
+    });
+  }
 
   if (!hasItems && !hasSingle && !hasThappis) {
     return helpers.error("any.custom", {
-      message:
+      customMessage:
         "Provide thappiIds[] or items[] or goniTypeId + bagCount",
     });
   }
 
   if (value.sourceLocationId === value.destinationLocationId) {
     return helpers.error("any.custom", {
-      message: "Source and destination locations must be different",
+      customMessage: "Source and destination locations must be different",
     });
   }
 
   return value;
-}, "transfer item validation");
+}, "transfer item validation")
+  .messages({
+    "any.custom": "{{#customMessage}}",
+  });
 
 export const listTransferQuerySchema = Joi.object({
   status: Joi.string()
