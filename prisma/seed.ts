@@ -30,6 +30,18 @@ async function main() {
     console.log("Admin already exists");
   }
 
+  if (admin.purchaseLimitQtlPerHectare == null) {
+    admin = await prisma.user.update({
+      where: { id: admin.id },
+      data: { purchaseLimitQtlPerHectare: 12 },
+    });
+    console.log("Seeded purchaseLimitQtlPerHectare=12 for admin");
+  } else {
+    console.log(
+      `Skipped purchaseLimitQtlPerHectare seed. Existing value: ${admin.purchaseLimitQtlPerHectare}`,
+    );
+  }
+
   // Seed formula deduction masters (examples)
   const deductionSeeds = [
     {
