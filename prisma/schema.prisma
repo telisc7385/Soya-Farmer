@@ -128,20 +128,21 @@ enum ThappiMovementType {
 // USER (ADMIN / VENDOR)
 // =====================
 model User {
-  id              String   @id @default(uuid())
-  name            String
-  phone           String   @unique
-  email           String   @unique
-  password        String
-  role            Role
-  isActive        Boolean  @default(true)
-  vendorRate      Float    @default(0)
-  factoryRateDiff Float    @default(0)
-  masterVendor    Boolean  @default(false)
-  createdAt       DateTime @default(now())
-  villageAdd      String?
-  taluka          String?
-  district        String?
+  id                         String   @id @default(uuid())
+  name                       String
+  phone                      String   @unique
+  email                      String   @unique
+  password                   String
+  role                       Role
+  isActive                   Boolean  @default(true)
+  vendorRate                 Float    @default(0)
+  factoryRateDiff            Float    @default(0)
+  masterVendor               Boolean  @default(false)
+  createdAt                  DateTime @default(now())
+  villageAdd                 String?
+  taluka                     String?
+  district                   String?
+  purchaseLimitQtlPerHectare Float?
 
   vendorFarmers             VendorFarmer[]
   bills                     Bill[]
@@ -229,17 +230,17 @@ model FarmerDocument {
 // FARMER LAND
 // =====================
 model FarmerLand {
-  id          String   @id @default(uuid())
-  farmerId    String
-  landType    LandType
+  id            String   @id @default(uuid())
+  farmerId      String
+  landType      LandType
   landOwnerName String?
-  relationType String?
-  area        Float
-  documentUrl String
-  villageAdd  String?
-  taluka      String?
-  district    String?
-  createdAt   DateTime @default(now())
+  relationType  String?
+  area          Float
+  documentUrl   String
+  villageAdd    String?
+  taluka        String?
+  district      String?
+  createdAt     DateTime @default(now())
 
   farmer Farmer @relation(fields: [farmerId], references: [id])
 }
@@ -329,12 +330,12 @@ model FarmerBank {
 }
 
 model BankDetails {
-  id        String   @id @default(uuid())
-  bankName  String
+  id         String   @id @default(uuid())
+  bankName   String
   branchName String
-  ifsc      String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  ifsc       String   @unique
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 }
 
 // =====================

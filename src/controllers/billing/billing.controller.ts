@@ -11,10 +11,7 @@ import { applyAdvanceAdjustmentOnBillConfirm } from "../../services/paymentManag
 import { roundTo } from "../../utils/number";
 import { attachDeductionDetails } from "../../utils/deductionDetails";
 import { buildBillingCalculationDetails } from "../../utils/billingCalculation";
-
-const PURCHASE_LIMIT_QTL_PER_HECTARE = Number(
-  process.env.PURCHASE_LIMIT_QTL_PER_HECTARE ?? "12",
-);
+import { getPurchaseLimitQtlPerHectare } from "../../services/purchaseLimit.service";
 
 const evaluateRangeCondition = (
   condition: string,
@@ -275,10 +272,8 @@ export const createDraftBill = async (
     });
     const alreadyUsedQtl = roundTo(usedQtyAgg._sum.primaryQuantity ?? 0, 3);
     const requestedQtl = roundTo(quantity, 3);
-    const allowedQtl = roundTo(
-      totalLandHectare * PURCHASE_LIMIT_QTL_PER_HECTARE,
-      3,
-    );
+    const purchaseLimitPerHectare = await getPurchaseLimitQtlPerHectare();
+    const allowedQtl = roundTo(totalLandHectare * purchaseLimitPerHectare, 3);
     const afterRequestQtl = roundTo(alreadyUsedQtl + requestedQtl, 3);
     const remainingBeforeRequestQtl = roundTo(allowedQtl - alreadyUsedQtl, 3);
 

@@ -78,10 +78,15 @@ import {
   updateInventoryLocation,
 } from "../controllers/inventoryLocation.controller";
 import {
+  getPurchaseLimit,
+  updatePurchaseLimit,
+} from "../controllers/admin/purchaseLimit.controller";
+import {
   createInventoryLocationSchema,
   listInventoryLocationQuerySchema,
   updateInventoryLocationSchema,
 } from "../validations/inventoryLocation.validation";
+import { updatePurchaseLimitSchema } from "../validations/purchaseLimit.validation";
 const router = Router();
 
 router.get("/payments", authMiddleware, authorize("ADMIN"), getPayments);
@@ -377,6 +382,16 @@ router.put(
   authorize("ADMIN"),
   validateRequest(rejectKycSchema),
   rejectFarmerKyc,
+);
+
+router.get("/settings/purchase-limit", authMiddleware, authorize("ADMIN"), getPurchaseLimit);
+
+router.put(
+  "/settings/purchase-limit",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateRequest(updatePurchaseLimitSchema),
+  updatePurchaseLimit,
 );
 
 export default router;
