@@ -24,26 +24,28 @@ const parseCsvBuffer = (buffer: Buffer) => {
 
   const header = lines[0].toLowerCase().split(",").map((h) => h.trim());
   const bankNameIdx = header.indexOf("bankname");
+  const branchNameIdx = header.indexOf("branchname");
   const ifscIdx = header.indexOf("ifsc");
 
-  if (bankNameIdx === -1 || ifscIdx === -1) {
-    throw new AppError('CSV must contain "bankName" and "ifsc" columns', 400);
+  if (bankNameIdx === -1 || branchNameIdx === -1 || ifscIdx === -1) {
+    throw new AppError('CSV must contain "bankName", "branchName", and "ifsc" columns', 400);
   }
 
   const seen = new Set<string>();
-  const result: { bankName: string; ifsc: string }[] = [];
+  const result: { bankName: string; branchName: string; ifsc: string }[] = [];
 
   for (let i = 1; i < lines.length; i++) {
     const cols = lines[i].split(",").map((c) => c.trim());
     const bankName = cols[bankNameIdx];
+    const branchName = cols[branchNameIdx];
     const ifsc = cols[ifscIdx];
-    if (!bankName || !ifsc) continue;
+    if (!bankName || !branchName || !ifsc) continue;
 
     const key = ifsc.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
 
-    result.push({ bankName, ifsc });
+    result.push({ bankName, branchName, ifsc });
   }
 
   return result;
@@ -103,14 +105,15 @@ export const createBankDetailsViaCsv = async (
       existingRecords.map((r) => r.ifsc.toLowerCase()),
     );
 
-    const valid: { bankName: string; ifsc: string }[] = [];
-    const failed: { bankName: string; ifsc: string; reason: string }[] = [];
+    const valid: { bankName: string; branchName: string; ifsc: string }[] = [];
+    const failed: { bankName: string; branchName: string; ifsc: string; reason: string }[] = [];
 
     for (const row of rows) {
       const key = row.ifsc.toLowerCase();
       if (existingSet.has(key)) {
         failed.push({
           bankName: row.bankName,
+          branchName: row.branchName,
           ifsc: row.ifsc,
           reason: `IFSC "${row.ifsc}" already exists`,
         });
