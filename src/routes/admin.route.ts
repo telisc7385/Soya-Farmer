@@ -3,11 +3,13 @@ import { Router } from "express";
 import { authMiddleware } from "../middleware/auth.middleware";
 import { authorize } from "../middleware/role.middleware";
 import {
+  bulkUpdatePaymentStatus,
   createAgainstSettlement,
   createFarmerAdvance,
   getBillSettlements,
   getFarmerAdvanceBalanceController,
   getFarmerAdvances,
+  getPaymentActivities,
   getPayments,
   payFarmer,
   rejectBill,
@@ -36,6 +38,7 @@ import {
   validateQuery,
 } from "../middleware/validateRequest.middleware";
 import {
+  bulkUpdatePaymentStatusSchema,
   createAdvanceSchema,
   payFarmerSchema,
   rejectFarmerSchema,
@@ -90,6 +93,21 @@ import { updatePurchaseLimitSchema } from "../validations/purchaseLimit.validati
 const router = Router();
 
 router.get("/payments", authMiddleware, authorize("ADMIN"), getPayments);
+
+router.get(
+  "/payments/:billId/activities",
+  authMiddleware,
+  authorize("ADMIN"),
+  getPaymentActivities,
+);
+
+router.post(
+  "/payments/bulk-status-update",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateRequest(bulkUpdatePaymentStatusSchema),
+  bulkUpdatePaymentStatus,
+);
 
 router.post(
   "/:billId/pay",

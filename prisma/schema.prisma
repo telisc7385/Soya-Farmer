@@ -44,6 +44,8 @@ enum PaymentStatus {
   PENDING
   PAID
   FAILED
+  HOLD
+  PROCESSING
 }
 
 enum AdvanceSource {
@@ -153,9 +155,10 @@ model User {
   vendorBagMoves            BagMovement[]       @relation("VendorBagMovements")
   createdBagMoves           BagMovement[]       @relation("CreatedBagMovements")
   kycVerifiedFarmers        Farmer[]            @relation("KycVerifiedBy")
-  createdAdvances           FarmerAdvance[]     @relation("CreatedAdvances")
-  createdSettlements        BillSettlement[]    @relation("CreatedSettlements")
-  createdInventoryLocations InventoryLocation[] @relation("CreatedInventoryLocations")
+  createdAdvances           FarmerAdvance[]      @relation("CreatedAdvances")
+  createdSettlements        BillSettlement[]      @relation("CreatedSettlements")
+  createdInventoryLocations InventoryLocation[]  @relation("CreatedInventoryLocations")
+  createdPaymentActivities  PaymentActivity[]     @relation("CreatedPaymentActivities")
   thappis                   Thappi[]            @relation("VendorThappis")
   createdThappiMovements    ThappiMovement[]    @relation("CreatedThappiMovements")
 }
@@ -193,8 +196,9 @@ model Farmer {
   banks       FarmerBank[]
   payments    FarmerPayment[]
   advances    FarmerAdvance[]
-  settlements BillSettlement[]
-  bagMoves    BagMovement[]
+  settlements       BillSettlement[]
+  bagMoves          BagMovement[]
+  paymentActivities PaymentActivity[]
 }
 
 // =====================
@@ -277,8 +281,9 @@ model Bill {
   gonis       BillGoni[]       @relation("BillGonis")
   payment     FarmerPayment?
   advances    FarmerAdvance[]
-  settlements BillSettlement[]
-  stock       Stock?
+  settlements       BillSettlement[]
+  stock             Stock?
+  paymentActivities PaymentActivity[]
 }
 
 model BillGoni {
@@ -352,6 +357,27 @@ model FarmerPayment {
 
   bill   Bill   @relation(fields: [billId], references: [id])
   farmer Farmer @relation(fields: [farmerId], references: [id])
+}
+
+// =====================
+// PAYMENT ACTIVITY LOG
+// =====================
+model PaymentActivity {
+  id          String        @id @default(uuid())
+  billId      String
+  farmerId    String
+  oldStatus   PaymentStatus?
+  newStatus   PaymentStatus
+  remarks     String?
+  createdById String
+  createdAt   DateTime      @default(now())
+
+  bill      Bill   @relation(fields: [billId], references: [id])
+  farmer    Farmer @relation(fields: [farmerId], references: [id])
+  createdBy User   @relation("CreatedPaymentActivities", fields: [createdById], references: [id])
+
+  @@index([billId, createdAt])
+  @@index([farmerId, createdAt])
 }
 
 model FarmerAdvance {

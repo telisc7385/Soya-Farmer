@@ -269,6 +269,17 @@ export const createBillSettlement = async (params: {
       });
     }
 
+    await tx.paymentActivity.create({
+      data: {
+        billId: summaryBefore.bill.id,
+        farmerId: summaryBefore.bill.farmerId,
+        oldStatus: existing?.status ?? null,
+        newStatus: paymentStatus,
+        remarks: params.remarks ?? null,
+        createdById: params.createdById,
+      },
+    });
+
     return {
       createdSettlement,
       settledAmount,
