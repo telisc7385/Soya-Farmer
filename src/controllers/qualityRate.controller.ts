@@ -37,7 +37,7 @@ export const listAllQualityRates = async (
 ) => {
   try {
     const qualityRates = await prisma.qualityRate.findMany({
-      orderBy: { quality: "asc" },
+      orderBy: { createdAt: "asc" },
     });
 
     successResponse(res, qualityRates, "Quality rates fetched");
