@@ -256,6 +256,7 @@ export const getVendorList = async (
       prisma.user.count({ where }),
       prisma.qualityRate.findFirst({
         where: { isActive: true },
+        orderBy: { createdAt: "desc" },
         select: { quality: true, rate: true },
       }),
     ]);

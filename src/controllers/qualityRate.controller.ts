@@ -157,12 +157,11 @@ export const listActiveQualityRates = async (
       throw new AppError("No active quality rates found", 404);
     }
 
-    const baseRate = qualityRatesResponse[0].rate;
+    const latestRate = qualityRatesResponse[qualityRatesResponse.length - 1];
+    const vendorRate = latestRate.rate + (vendor.factoryRateDiff || 0);
 
     // MASTER VENDOR → all rates
     if (vendor.masterVendor) {
-      const vendorRate = baseRate + (vendor.factoryRateDiff || 0);
-
       return successResponse(
         res,
         {
@@ -174,15 +173,11 @@ export const listActiveQualityRates = async (
     }
 
     // NORMAL VENDOR → only last rate
-    const lastRate = qualityRatesResponse[qualityRatesResponse.length - 1];
-
-    const vendorRate = lastRate.rate + (vendor.factoryRateDiff || 0);
-
     return successResponse(
       res,
       {
         vendorRate,
-        qualityRates: [lastRate],
+        qualityRates: [latestRate],
       },
       "Latest quality rate fetched",
     );
