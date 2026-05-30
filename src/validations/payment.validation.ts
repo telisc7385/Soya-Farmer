@@ -33,3 +33,11 @@ export const createSettlementSchema = Joi.object({
   reference: Joi.string().allow("").optional(),
   remarks: Joi.string().allow("").optional(),
 });
+
+export const bulkUpdatePaymentStatusSchema = Joi.object({
+  billIds: Joi.array().items(Joi.string().uuid()).min(1).required(),
+  status: Joi.string()
+    .valid("PENDING", "PAID", "FAILED", "HOLD", "PROCESSING")
+    .required(),
+  remarks: Joi.string().allow("").optional(),
+});

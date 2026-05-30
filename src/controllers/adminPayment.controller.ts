@@ -223,6 +223,112 @@ export const getBillSettlements = async (
   }
 };
 
+export const bulkUpdatePaymentStatus = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { billIds, status, remarks } = req.body;
+    const actorId = req.user?.id;
+    if (!actorId) throw new AppError("Unauthorized", 401);
+
+    if (!Array.isArray(billIds) || billIds.length === 0) {
+      throw new AppError("billIds must be a non-empty array", 400);
+    }
+
+    const bills = await prisma.bill.findMany({
+      where: { id: { in: billIds } },
+      select: { id: true, farmerId: true },
+    });
+
+    const foundIds = new Set(bills.map((b) => b.id));
+    const notFound = billIds.filter((id: string) => !foundIds.has(id));
+    if (notFound.length > 0) {
+      throw new AppError(`Bills not found: ${notFound.join(", ")}`, 404);
+    }
+
+    const results = await prisma.$transaction(async (tx) => {
+      const updated: { billId: string; farmerId: string; oldStatus: string | null; newStatus: string }[] = [];
+      const skipped: { billId: string; reason: string }[] = [];
+
+      for (const bill of bills) {
+        const existingPayment = await tx.farmerPayment.findUnique({
+          where: { billId: bill.id },
+        });
+
+        if (!existingPayment) {
+          skipped.push({ billId: bill.id, reason: "No payment record exists" });
+          continue;
+        }
+
+        const oldStatus = existingPayment.status;
+
+        await tx.farmerPayment.update({
+          where: { billId: bill.id },
+          data: { status },
+        });
+
+        await tx.paymentActivity.create({
+          data: {
+            billId: bill.id,
+            farmerId: bill.farmerId,
+            oldStatus,
+            newStatus: status,
+            remarks: remarks ?? null,
+            createdById: actorId,
+          },
+        });
+
+        updated.push({
+          billId: bill.id,
+          farmerId: bill.farmerId,
+          oldStatus,
+          newStatus: status,
+        });
+      }
+
+      return { updated, skipped };
+    });
+
+    successResponse(
+      res,
+      {
+        updated: results.updated,
+        skipped: results.skipped,
+        totalUpdated: results.updated.length,
+        totalSkipped: results.skipped.length,
+      },
+      `Payment status updated to "${status}" for ${results.updated.length} bill(s)${results.skipped.length > 0 ? `, ${results.skipped.length} skipped` : ""}`,
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getPaymentActivities = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { billId } = req.params;
+    const activities = await prisma.paymentActivity.findMany({
+      where: { billId },
+      orderBy: { createdAt: "desc" },
+      include: {
+        createdBy: {
+          select: { id: true, name: true },
+        },
+      },
+    });
+
+    successResponse(res, activities, "Payment activities fetched successfully");
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const getPayments = async (
   req: Request,
   res: Response,
@@ -234,8 +340,10 @@ export const getPayments = async (
       limit = "10",
       search,
       farmerId,
-      // startDate,
-      // endDate,
+      vendorId,
+      status,
+      startDate,
+      endDate,
     } = req.query;
 
     const take = Number(limit);
@@ -243,6 +351,7 @@ export const getPayments = async (
 
     const where: any = {
       ...(farmerId && { farmerId: String(farmerId) }),
+      ...(status && { status: String(status).toUpperCase() }),
 
       ...(search && {
         farmer: {
@@ -263,12 +372,16 @@ export const getPayments = async (
         },
       }),
 
-      // ...((startDate || endDate) && {
-      //   createdAt: {
-      //     ...(startDate && { gte: new Date(String(startDate)) }),
-      //     ...(endDate && { lte: new Date(String(endDate)) }),
-      //   },
-      // }),
+      ...(vendorId && {
+        bill: { vendorId: String(vendorId) },
+      }),
+
+      ...((startDate || endDate) && {
+        paidDate: {
+          ...(startDate && { gte: new Date(String(startDate)) }),
+          ...(endDate && { lte: new Date(String(endDate)) }),
+        },
+      }),
     };
 
     const [total, payments] = await Promise.all([
@@ -277,12 +390,18 @@ export const getPayments = async (
         where,
         skip,
         take,
-        // orderBy: { createdAt: "desc" },
+        orderBy: { bill: { billDate: "desc" } },
         include: {
           farmer: {
             select: { name: true, phone: true, aadhaarNo: true },
           },
-          bill: true,
+          bill: {
+            include: {
+              vendor: {
+                select: { id: true, name: true },
+              },
+            },
+          },
         },
       }),
     ]);
@@ -296,7 +415,7 @@ export const getPayments = async (
         limit: take,
         pages: Math.ceil(total / take),
       },
-      "Completed payments retrieved successfully",
+      "Payments retrieved successfully",
     );
   } catch (error) {
     next(error);
