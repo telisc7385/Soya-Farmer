@@ -6,6 +6,7 @@ import { successResponse } from "../utils/response";
 import {
   createBillSettlement,
   createProfileAdvance,
+  getBillFinancialMap,
   getBillSettlementSummary,
   getFarmerAdvanceBalance,
 } from "../services/paymentManagement.service";
@@ -239,7 +240,7 @@ export const bulkUpdatePaymentStatus = async (
 
     const bills = await prisma.bill.findMany({
       where: { id: { in: billIds } },
-      select: { id: true, farmerId: true },
+      select: { id: true, farmerId: true, status: true },
     });
 
     const foundIds = new Set(bills.map((b) => b.id));
@@ -248,26 +249,79 @@ export const bulkUpdatePaymentStatus = async (
       throw new AppError(`Bills not found: ${notFound.join(", ")}`, 404);
     }
 
+    const billFinancialsMap = await getBillFinancialMap(bills.map((bill) => bill.id));
+
     const results = await prisma.$transaction(async (tx) => {
-      const updated: { billId: string; farmerId: string; oldStatus: string | null; newStatus: string }[] = [];
+      const updated: { billId: string; farmerId: string; oldStatus: string | null; newStatus: string; amount: number; pendingAmount: number; createdPaymentRecord: boolean }[] = [];
       const skipped: { billId: string; reason: string }[] = [];
 
       for (const bill of bills) {
+        if (bill.status === "DRAFT" || bill.status === "CANCELLED") {
+          skipped.push({
+            billId: bill.id,
+            reason: `Bill status is ${bill.status}`,
+          });
+          continue;
+        }
+
+        const financials = billFinancialsMap.get(bill.id);
+        const pendingAmount = financials?.pendingAmount ?? 0;
+        const paymentAmount =
+          status === "PAID"
+            ? (financials?.adjustedAdvanceAmount ?? 0) +
+              (financials?.settledAmount ?? 0) +
+              pendingAmount
+            : pendingAmount;
         const existingPayment = await tx.farmerPayment.findUnique({
           where: { billId: bill.id },
         });
 
-        if (!existingPayment) {
-          skipped.push({ billId: bill.id, reason: "No payment record exists" });
-          continue;
+        const oldStatus = existingPayment?.status ?? null;
+        const paidDate = status === "PAID" ? new Date() : null;
+
+        if (status === "PAID" && pendingAmount > 0) {
+          await tx.billSettlement.create({
+            data: {
+              billId: bill.id,
+              farmerId: bill.farmerId,
+              amount: pendingAmount,
+              paidDate,
+              remarks: remarks ?? "Bulk payment status update",
+              createdById: actorId,
+            },
+          });
         }
 
-        const oldStatus = existingPayment.status;
+        if (existingPayment) {
+          await tx.farmerPayment.update({
+            where: { billId: bill.id },
+            data: {
+              amount: paymentAmount,
+              status,
+              paidDate:
+                paidDate
+                  ? existingPayment.paidDate ?? paidDate
+                  : existingPayment.paidDate,
+            },
+          });
+        } else {
+          await tx.farmerPayment.create({
+            data: {
+              billId: bill.id,
+              farmerId: bill.farmerId,
+              amount: paymentAmount,
+              status,
+              paidDate,
+            },
+          });
+        }
 
-        await tx.farmerPayment.update({
-          where: { billId: bill.id },
-          data: { status },
-        });
+        if (status === "PAID") {
+          await tx.bill.update({
+            where: { id: bill.id },
+            data: { status: "COMPLETED" },
+          });
+        }
 
         await tx.paymentActivity.create({
           data: {
@@ -285,6 +339,9 @@ export const bulkUpdatePaymentStatus = async (
           farmerId: bill.farmerId,
           oldStatus,
           newStatus: status,
+          amount: paymentAmount,
+          pendingAmount,
+          createdPaymentRecord: !existingPayment,
         });
       }
 

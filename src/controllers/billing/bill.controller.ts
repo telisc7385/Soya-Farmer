@@ -8,6 +8,16 @@ import { roundTo } from "../../utils/number";
 import { AuthRequest } from "../../middleware/auth.middleware";
 import { getBillFinancialMap, getBillSettlementSummary } from "../../services/paymentManagement.service";
 
+const paymentStatusSelect = {
+  select: {
+    id: true,
+    amount: true,
+    status: true,
+    paidDate: true,
+    reference: true,
+  },
+};
+
 const withGoniAmount = (
   bill: any,
   financials?: { adjustedAdvanceAmount: number; settledAmount: number; pendingAmount: number },
@@ -24,6 +34,7 @@ const withGoniAmount = (
   const balanceAmount = roundTo(
     Number(financials?.pendingAmount ?? Math.max(totalAmount - adjustedAdvanceAmount, 0)),
   );
+  const payment = bill.payment ?? null;
 
   return {
     ...bill,
@@ -31,6 +42,8 @@ const withGoniAmount = (
     adjustedAdvanceAmount,
     settledAmount,
     balanceAmount,
+    payment,
+    paymentStatus: payment?.status ?? "PENDING",
     goniDeductionAmount: calculationDetails.goniDeductionAmount,
     calculationDetails,
     perQtlLabDeduction,
@@ -48,6 +61,8 @@ export const getBills = async (
       limit = 10,
       search,
       vendorId,
+      purchaseCenter,
+      paymentStatus,
       startDate,
       endDate,
       status,
@@ -58,6 +73,7 @@ export const getBills = async (
     const skip = (currentPage - 1) * take;
 
     const whereClause: any = {};
+    const andFilters: any[] = [];
 
     // 🔎 Search filter
     if (search && typeof search === "string") {
@@ -70,6 +86,13 @@ export const getBills = async (
     // 🏢 Vendor filter
     if (vendorId) {
       whereClause.vendorId = String(vendorId);
+    }
+
+    if (purchaseCenter && typeof purchaseCenter === "string") {
+      whereClause.billLocation = {
+        contains: purchaseCenter,
+        mode: "insensitive",
+      };
     }
 
     // 📅 Date filter
@@ -91,6 +114,32 @@ export const getBills = async (
       }
     }
 
+    if (typeof paymentStatus === "string" && paymentStatus.trim()) {
+      const paymentStatusArray = paymentStatus
+        .split(",")
+        .map((s) => s.trim().toUpperCase())
+        .filter(Boolean);
+
+      if (paymentStatusArray.length) {
+        if (paymentStatusArray.includes("PENDING")) {
+          andFilters.push({
+            OR: [
+              { payment: { is: null } },
+              { payment: { is: { status: { in: paymentStatusArray } } } },
+            ],
+          });
+        } else {
+          whereClause.payment = {
+            is: { status: { in: paymentStatusArray } },
+          };
+        }
+      }
+    }
+
+    if (andFilters.length) {
+      whereClause.AND = andFilters;
+    }
+
     // 🚀 Run queries in parallel (better performance)
     const [bills, total, averageRateResult] = await Promise.all([
       prisma.bill.findMany({
@@ -100,8 +149,9 @@ export const getBills = async (
         orderBy: { createdAt: "desc" },
         include: {
           farmer: {
-            select: { name: true, phone: true },
+            select: { id: true, name: true, phone: true },
           },
+          payment: paymentStatusSelect,
         },
       }),
       prisma.bill.count({ where: whereClause }),
@@ -165,6 +215,7 @@ export const getBillById = async (
             goniType: true,
           },
         },
+        payment: paymentStatusSelect,
       },
     });
 
