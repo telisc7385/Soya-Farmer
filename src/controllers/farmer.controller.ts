@@ -185,6 +185,8 @@ export const updateFarmer = async (
         taluka,
         gutNumber,
         ...(profileUrl && { profileUrl }),
+        kycStatus: "PENDING_VERIFICATION",
+        kycSubmittedAt: new Date(),
       },
     });
 
@@ -473,8 +475,15 @@ export const addFarmerLand = async (
 ) => {
   try {
     const { farmerId } = req.params;
-    const { landType, area, villageAdd, taluka, district, landOwnerName, relationType } =
-      req.body;
+    const {
+      landType,
+      area,
+      villageAdd,
+      taluka,
+      district,
+      landOwnerName,
+      relationType,
+    } = req.body;
 
     if (!req.file) {
       throw new AppError("Land document is required", 400);
@@ -504,10 +513,16 @@ export const addFarmerLand = async (
     const ownerNameToSave =
       landType === "OWN" ? farmer.name : (landOwnerName as string | undefined);
     if (!ownerNameToSave) {
-      throw new AppError("Land owner name is required for relative-owned land", 400);
+      throw new AppError(
+        "Land owner name is required for relative-owned land",
+        400,
+      );
     }
     if (landType === "BLOOD_RELATION" && !relationType) {
-      throw new AppError("Relation type is required for relative-owned land", 400);
+      throw new AppError(
+        "Relation type is required for relative-owned land",
+        400,
+      );
     }
 
     const land = await prisma.farmerLand.create({
@@ -557,7 +572,8 @@ export const updateFarmerLand = async (
 ) => {
   try {
     const { landId } = req.params;
-    const { area, villageAdd, taluka, district, landOwnerName, relationType } = req.body;
+    const { area, villageAdd, taluka, district, landOwnerName, relationType } =
+      req.body;
 
     const existingLand = await prisma.farmerLand.findUnique({
       where: { id: landId },
