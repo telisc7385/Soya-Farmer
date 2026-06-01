@@ -19,14 +19,34 @@ export const billReportConfig: ReportConfig<any> = {
   filenamePrefix: "bills-report",
   columns: [
     { key: "billNo", header: "Bill No", value: (r) => r.billNo },
-    { key: "billDate", header: "Bill Date", value: (r) => formatDate(r.billDate) },
-    { key: "createdAt", header: "Created At", value: (r) => formatDate(r.createdAt) },
+    {
+      key: "billDate",
+      header: "Bill Date",
+      value: (r) => formatDate(r.billDate),
+    },
+    {
+      key: "createdAt",
+      header: "Created At",
+      value: (r) => formatDate(r.createdAt),
+    },
     { key: "status", header: "Status", value: (r) => r.status },
     { key: "vendorName", header: "Vendor Name", value: (r) => r.vendor?.name },
-    { key: "vendorPhone", header: "Vendor Phone", value: (r) => r.vendor?.phone },
+    {
+      key: "vendorPhone",
+      header: "Vendor Phone",
+      value: (r) => r.vendor?.phone,
+    },
     { key: "farmerName", header: "Farmer Name", value: (r) => r.farmer?.name },
-    { key: "farmerPhone", header: "Farmer Phone", value: (r) => r.farmer?.phone },
-    { key: "primaryQuantity", header: "Quantity", value: (r) => r.primaryQuantity },
+    {
+      key: "farmerPhone",
+      header: "Farmer Phone",
+      value: (r) => r.farmer?.phone,
+    },
+    {
+      key: "primaryQuantity",
+      header: "Quantity",
+      value: (r) => r.primaryQuantity,
+    },
     { key: "primaryUnit", header: "Unit", value: (r) => r.primaryUnit },
     { key: "ratePerUnit", header: "Rate/Unit", value: (r) => r.ratePerUnit },
     { key: "grossAmount", header: "Gross Amount", value: (r) => r.grossAmount },
@@ -56,13 +76,29 @@ export const paymentReportConfig: ReportConfig<any> = {
   filenamePrefix: "payments-report",
   columns: [
     { key: "billNo", header: "Bill No", value: (r) => r.bill?.billNo },
-    { key: "billCreatedAt", header: "Bill Created At", value: (r) => formatDate(r.bill?.createdAt) },
+    {
+      key: "billCreatedAt",
+      header: "Bill Created At",
+      value: (r) => formatDate(r.bill?.createdAt),
+    },
     { key: "farmerName", header: "Farmer Name", value: (r) => r.farmer?.name },
-    { key: "farmerPhone", header: "Farmer Phone", value: (r) => r.farmer?.phone },
-    { key: "vendorName", header: "Vendor Name", value: (r) => r.bill?.vendor?.name },
+    {
+      key: "farmerPhone",
+      header: "Farmer Phone",
+      value: (r) => r.farmer?.phone,
+    },
+    {
+      key: "vendorName",
+      header: "Vendor Name",
+      value: (r) => r.bill?.vendor?.name,
+    },
     { key: "amount", header: "Amount", value: (r) => r.amount },
     { key: "status", header: "Status", value: (r) => r.status },
-    { key: "paidDate", header: "Paid Date", value: (r) => formatDate(r.paidDate) },
+    {
+      key: "paidDate",
+      header: "Paid Date",
+      value: (r) => formatDate(r.paidDate),
+    },
     { key: "reference", header: "Reference", value: (r) => r.reference },
   ],
   totalsRow: (rows) => {
@@ -79,11 +115,23 @@ export const stockTransferReportConfig: ReportConfig<any> = {
   filenamePrefix: "stock-transfers-report",
   columns: [
     { key: "transferNo", header: "Transfer No", value: (r) => r.transferNo },
-    { key: "createdAt", header: "Created At", value: (r) => formatDate(r.createdAt) },
-    { key: "completedAt", header: "Completed At", value: (r) => formatDate(r.completedAt) },
+    {
+      key: "createdAt",
+      header: "Created At",
+      value: (r) => formatDate(r.createdAt),
+    },
+    {
+      key: "completedAt",
+      header: "Completed At",
+      value: (r) => formatDate(r.completedAt),
+    },
     { key: "status", header: "Status", value: (r) => r.status },
     { key: "vendorName", header: "Vendor Name", value: (r) => r.vendor?.name },
-    { key: "vendorPhone", header: "Vendor Phone", value: (r) => r.vendor?.phone },
+    {
+      key: "vendorPhone",
+      header: "Vendor Phone",
+      value: (r) => r.vendor?.phone,
+    },
     { key: "goniType", header: "Goni Type", value: (r) => r.goniType?.name },
     { key: "weight", header: "Weight", value: (r) => r.weight },
     { key: "unit", header: "Unit", value: (r) => r.unit },
@@ -98,7 +146,11 @@ export const stockTransferReportConfig: ReportConfig<any> = {
       header: "Destination Location",
       value: (r) => r.destinationLocation?.name,
     },
-    { key: "vehicalNumber", header: "Vehicle Number", value: (r) => r.vehicalNumber },
+    {
+      key: "vehicalNumber",
+      header: "Vehicle Number",
+      value: (r) => r.vehicalNumber,
+    },
   ],
   totalsRow: (rows) => {
     if (!rows.length) return null;
@@ -116,11 +168,23 @@ export const stockReportConfig: ReportConfig<any> = {
   filenamePrefix: "stocks-report",
   columns: [
     { key: "billNo", header: "Bill No", value: (r) => r.bill?.billNo },
-    { key: "createdAt", header: "Created At", value: (r) => formatDate(r.createdAt) },
-    { key: "updatedAt", header: "Updated At", value: (r) => formatDate(r.updatedAt) },
+    {
+      key: "createdAt",
+      header: "Created At",
+      value: (r) => formatDate(r.createdAt),
+    },
+    {
+      key: "updatedAt",
+      header: "Updated At",
+      value: (r) => formatDate(r.updatedAt),
+    },
     { key: "status", header: "Status", value: (r) => r.status },
     { key: "vendorName", header: "Vendor Name", value: (r) => r.vendor?.name },
-    { key: "vendorPhone", header: "Vendor Phone", value: (r) => r.vendor?.phone },
+    {
+      key: "vendorPhone",
+      header: "Vendor Phone",
+      value: (r) => r.vendor?.phone,
+    },
     { key: "goniType", header: "Goni Type", value: (r) => r.goniType?.name },
     { key: "weight", header: "Weight", value: (r) => r.weight },
     { key: "unit", header: "Unit", value: (r) => r.unit },
@@ -147,12 +211,28 @@ export const farmerReportConfig: ReportConfig<any> = {
     { key: "villageAdd", header: "Village", value: (r) => r.villageAdd },
     { key: "taluka", header: "Taluka", value: (r) => r.taluka },
     { key: "district", header: "District", value: (r) => r.district },
-    { key: "createdAt", header: "Created At", value: (r) => formatDate(r.createdAt) },
-    { key: "totalDocuments", header: "Total Documents", value: (r) => r._count?.documents },
+    {
+      key: "createdAt",
+      header: "Created At",
+      value: (r) => formatDate(r.createdAt),
+    },
+    {
+      key: "totalDocuments",
+      header: "Total Documents",
+      value: (r) => r._count?.documents,
+    },
     { key: "totalLands", header: "Total Lands", value: (r) => r._count?.lands },
     { key: "totalBills", header: "Total Bills", value: (r) => r._count?.bills },
-    { key: "lastBillNo", header: "Last Bill No", value: (r) => r.lastBill?.billNo },
-    { key: "lastBillDate", header: "Last Bill Date", value: (r) => formatDate(r.lastBill?.billDate) },
+    {
+      key: "lastBillNo",
+      header: "Last Bill No",
+      value: (r) => r.lastBill?.billNo,
+    },
+    {
+      key: "lastBillDate",
+      header: "Last Bill Date",
+      value: (r) => formatDate(r.lastBill?.billDate),
+    },
   ],
 };
 
@@ -163,31 +243,51 @@ export const vendorReportConfig: ReportConfig<any> = {
     { key: "phone", header: "Phone", value: (r) => r.phone },
     { key: "email", header: "Email", value: (r) => r.email },
     { key: "isActive", header: "Active", value: (r) => r.isActive },
-    { key: "createdAt", header: "Created At", value: (r) => formatDate(r.createdAt) },
-    { key: "totalBills", header: "Total Bills", value: (r) => r.totalBills ?? 0 },
-    { key: "totalFarmers", header: "Total Farmers", value: (r) => r.totalFarmers ?? 0 },
-    { key: "paidAmount", header: "Paid Amount", value: (r) => r.paidAmount ?? 0 },
-    { key: "pendingAmount", header: "Pending Amount", value: (r) => r.pendingAmount ?? 0 },
-    { key: "failedAmount", header: "Failed Amount", value: (r) => r.failedAmount ?? 0 },
+    {
+      key: "createdAt",
+      header: "Created At",
+      value: (r) => formatDate(r.createdAt),
+    },
+    {
+      key: "totalBills",
+      header: "Total Bills",
+      value: (r) => r.totalBills ?? 0,
+    },
+    {
+      key: "totalFarmers",
+      header: "Total Farmers",
+      value: (r) => r.totalFarmers ?? 0,
+    },
+    {
+      key: "paidAmount",
+      header: "Paid Amount",
+      value: (r) => r.paidAmount ?? 0,
+    },
+    {
+      key: "pendingAmount",
+      header: "Pending Amount",
+      value: (r) => r.pendingAmount ?? 0,
+    },
+    {
+      key: "failedAmount",
+      header: "Failed Amount",
+      value: (r) => r.failedAmount ?? 0,
+    },
   ],
 };
 
 export const qualityRateReportConfig: ReportConfig<any> = {
   filenamePrefix: "quality-rates-report",
   columns: [
-    { key: "quality", header: "Quality", value: (r) => r.quality },
+    { key: "createdAt", header: "Created At", value: (r) => r.date },
     { key: "rate", header: "Rate", value: (r) => r.rate },
-    { key: "isActive", header: "Active", value: (r) => r.isActive },
-    { key: "createdAt", header: "Created At", value: (r) => formatDate(r.createdAt) },
-    { key: "updatedAt", header: "Updated At", value: (r) => formatDate(r.updatedAt) },
-    { key: "avgRateInRange", header: "Avg Rate In Range", value: (r) => r.avgRateInRange },
   ],
   totalsRow: (rows) => {
     if (!rows.length) return null;
     const sum = rows.reduce((acc, row) => acc + (Number(row?.rate) || 0), 0);
     const avg = rows.length ? sum / rows.length : 0;
     return {
-      quality: "AVERAGE",
+      date: "AVERAGE",
       rate: avg,
       avgRateInRange: avg,
     };

@@ -45,18 +45,59 @@ const getQualityRatesReport = async (query: any) => {
         isActive: String(query.isActive) === "true",
       }),
     },
-    orderBy: { createdAt: "desc" },
+    orderBy: { createdAt: "asc" },
   });
 
   if (rates.length === 0) return [];
 
-  const totalRate = rates.reduce((sum, r) => sum + r.rate, 0);
-  const avgRate = totalRate / rates.length;
+  const startDate = query.startDate
+    ? new Date(query.startDate)
+    : new Date(rates[0].createdAt);
+  startDate.setHours(0, 0, 0, 0);
 
-  return rates.map((r) => ({
-    ...r,
-    avgRateInRange: avgRate,
-  }));
+  const endDate = query.endDate
+    ? new Date(query.endDate)
+    : new Date(rates[rates.length - 1].createdAt);
+  endDate.setHours(23, 59, 59, 999);
+
+  // Rate before start date for carry-forward
+  const previousRate = await prisma.qualityRate.findFirst({
+    where: { createdAt: { lt: startDate } },
+    orderBy: { createdAt: "desc" },
+  });
+
+  // Map date string -> rate value
+  const rateByDate = new Map<string, number>();
+  for (const r of rates) {
+    const key = r.createdAt.toISOString().split("T")[0];
+    rateByDate.set(key, r.rate);
+  }
+
+  // Fill daily entries
+  let currentRate = previousRate?.rate ?? rates[0].rate;
+  const dailyEntries: Array<{
+    rate: number;
+    date: string;
+    createdAt: Date;
+  }> = [];
+  const cursor = new Date(startDate);
+  cursor.setHours(0, 0, 0, 0);
+
+  while (cursor <= endDate) {
+    const key = cursor.toISOString().split("T")[0];
+    if (rateByDate.has(key)) {
+      currentRate = rateByDate.get(key)!;
+    }
+    dailyEntries.push({ rate: currentRate, date: key, createdAt: new Date(cursor) });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  const totalRate = dailyEntries.reduce((sum, e) => sum + e.rate, 0);
+  const avgRate = totalRate / dailyEntries.length;
+
+  return dailyEntries
+    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
+    .map((e) => ({ ...e, avgRateInRange: avgRate }));
 };
 
 const getBillsReport = async (query: any) => {
