@@ -67,9 +67,11 @@ const getQualityRatesReport = async (query: any) => {
   });
 
   // Map date string -> rate value
+  const pad = (n: number) => String(n).padStart(2, "0");
+  const toDateKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const rateByDate = new Map<string, number>();
   for (const r of rates) {
-    const key = r.createdAt.toISOString().split("T")[0];
+    const key = toDateKey(r.createdAt);
     rateByDate.set(key, r.rate);
   }
 
@@ -84,11 +86,18 @@ const getQualityRatesReport = async (query: any) => {
   cursor.setHours(0, 0, 0, 0);
 
   while (cursor <= endDate) {
-    const key = cursor.toISOString().split("T")[0];
+    const key = toDateKey(cursor);
     if (rateByDate.has(key)) {
       currentRate = rateByDate.get(key)!;
     }
-    dailyEntries.push({ rate: currentRate, date: key, createdAt: new Date(cursor) });
+    const day = cursor.getDate();
+    const month = cursor.getMonth() + 1;
+    const year = cursor.getFullYear();
+    dailyEntries.push({
+      rate: currentRate,
+      date: `${day}/${month}/${year}`,
+      createdAt: new Date(cursor),
+    });
     cursor.setDate(cursor.getDate() + 1);
   }
 
