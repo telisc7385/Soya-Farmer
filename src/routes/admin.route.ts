@@ -143,7 +143,7 @@ router.get(
 router.get(
   "/farmers/:farmerId/advance-balance",
   authMiddleware,
-  authorize("ADMIN"),
+  authorize("ADMIN", "VENDOR"),
   getFarmerAdvanceBalanceController,
 );
 
@@ -402,7 +402,12 @@ router.put(
   rejectFarmerKyc,
 );
 
-router.get("/settings/purchase-limit", authMiddleware, authorize("ADMIN"), getPurchaseLimit);
+router.get(
+  "/settings/purchase-limit",
+  authMiddleware,
+  authorize("ADMIN"),
+  getPurchaseLimit,
+);
 
 router.put(
   "/settings/purchase-limit",
