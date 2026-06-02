@@ -6,7 +6,6 @@ export const createThappiSchema = Joi.object({
   moisture: Joi.number().min(0).max(100).optional(),
   fm: Joi.number().min(0).max(100).optional(),
   damage: Joi.number().min(0).max(100).optional(),
-  imageUrl: Joi.string().trim().max(500).optional(),
   bagBreakdown: Joi.array()
     .items(
       Joi.object({

@@ -3,6 +3,7 @@ import prisma from "../database/prisma";
 import { createdResponse, successResponse } from "../utils/response";
 import { AppError } from "../core/appError";
 import { AuthRequest } from "../middleware/auth.middleware";
+import { saveUploadedFile } from "../utils/upload";
 
 const generateThappiCode = async () => {
   const count = await prisma.thappi.count();
@@ -16,23 +17,21 @@ export const createThappi = async (
 ) => {
   try {
     const vendorId = req.user?.id as string;
-    const {
-      locationId,
-      weightQtl,
-      moisture,
-      fm,
-      damage,
-      imageUrl,
-      bagBreakdown,
-    } = req.body as {
-      locationId: string;
-      weightQtl: number;
-      moisture?: number;
-      fm?: number;
-      damage?: number;
-      imageUrl?: string;
-      bagBreakdown: Array<{ goniTypeId: string; bagCount: number }>;
-    };
+    const { locationId, weightQtl, moisture, fm, damage, bagBreakdown } =
+      req.body as {
+        locationId: string;
+        weightQtl: number;
+        moisture?: number;
+        fm?: number;
+        damage?: number;
+        bagBreakdown: Array<{ goniTypeId: string; bagCount: number }>;
+      };
+
+    let imageUrl: string | undefined;
+    if (req.file) {
+      const { publicUrl } = await saveUploadedFile(req.file, "thappis/images");
+      imageUrl = publicUrl;
+    }
 
     const location = await prisma.inventoryLocation.findFirst({
       where: { id: locationId, isActive: true },
@@ -163,7 +162,9 @@ export const updateThappiQuality = async (
       damage: number;
     };
 
-    const existing = await prisma.thappi.findUnique({ where: { id: thappiId } });
+    const existing = await prisma.thappi.findUnique({
+      where: { id: thappiId },
+    });
     if (!existing) throw new AppError("Thappi not found", 404);
 
     const updated = await prisma.thappi.update({

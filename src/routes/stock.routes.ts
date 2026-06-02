@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authMiddleware } from "../middleware/auth.middleware";
 import { authorize } from "../middleware/role.middleware";
+import upload from "../middleware/multer.middleware";
 import {
   validateQuery,
   validateRequest,
@@ -100,10 +101,31 @@ router.get(
   bagController.getVendorReturnDueToFarmer,
 );
 
+const normalizeMultipartBody = (req: any, _res: any, next: any) => {
+  if (req.body.bagBreakdown && typeof req.body.bagBreakdown === "string") {
+    try { req.body.bagBreakdown = JSON.parse(req.body.bagBreakdown); } catch {}
+  }
+  if (req.body.weightQtl && typeof req.body.weightQtl === "string") {
+    req.body.weightQtl = parseFloat(req.body.weightQtl);
+  }
+  if (req.body.moisture && typeof req.body.moisture === "string") {
+    req.body.moisture = parseFloat(req.body.moisture);
+  }
+  if (req.body.fm && typeof req.body.fm === "string") {
+    req.body.fm = parseFloat(req.body.fm);
+  }
+  if (req.body.damage && typeof req.body.damage === "string") {
+    req.body.damage = parseFloat(req.body.damage);
+  }
+  next();
+};
+
 router.post(
   "/thappis",
   authMiddleware,
   authorize("VENDOR"),
+  upload.single("image"),
+  normalizeMultipartBody,
   validateRequest(createThappiSchema),
   thappiController.createThappi,
 );
