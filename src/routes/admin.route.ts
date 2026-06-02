@@ -33,6 +33,7 @@ import {
 } from "../controllers/qualityRate.controller";
 import * as transferController from "../controllers/stockTransfer.controller";
 import * as bagController from "../controllers/bag.controller";
+import * as thappiController from "../controllers/thappi.controller";
 import {
   validateRequest,
   validateQuery,
@@ -60,6 +61,7 @@ import {
   updateTransferSchema,
 } from "../validations/stock.validation";
 import { rejectKycSchema } from "../validations/farmer.validation";
+import { updateThappiQualitySchema } from "../validations/thappi.validation";
 import {
   verifyFarmerKyc,
   rejectFarmerKyc,
@@ -294,6 +296,17 @@ router.get(
   authMiddleware,
   authorize("ADMIN"),
   transferController.getAdminStockSummary,
+);
+
+// =====================
+// THAPPI QUALITY UPDATE (LAB TESTING)
+// =====================
+router.patch(
+  "/thappis/:thappiId/quality",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateRequest(updateThappiQualitySchema),
+  thappiController.updateThappiQuality,
 );
 
 // =====================

@@ -783,7 +783,9 @@ export const receiveTransfer = async (
       status: nextStatus,
     });
 
-    if (updated.destinationLocationId && receivedWeightQtl > 0) {
+    const destLocationId = updated.destinationLocationId;
+    if (destLocationId && receivedWeightQtl > 0) {
+      const sourceLocationId = updated.sourceLocationId;
       const receiveThappiCode = `${updated.transferNo}-RCV`;
       await prisma.$transaction(async (tx) => {
         const bagMap = new Map<string, number>();
@@ -797,7 +799,7 @@ export const receiveTransfer = async (
         const created = await tx.thappi.create({
           data: {
             vendorId: updated.vendorId,
-            locationId: updated.destinationLocationId,
+            locationId: destLocationId,
             code: `${receiveThappiCode}-${Date.now().toString().slice(-6)}`,
             weightQtl: receivedWeightQtl,
             bagCount: receivedBagCount,
@@ -821,8 +823,8 @@ export const receiveTransfer = async (
             movementType: "TRANSFER_IN",
             weightQtl: receivedWeightQtl,
             bagCount: receivedBagCount,
-            fromLocationId: updated.sourceLocationId,
-            toLocationId: updated.destinationLocationId,
+            fromLocationId: sourceLocationId,
+            toLocationId: destLocationId,
             createdById: req.user?.id,
           },
         });

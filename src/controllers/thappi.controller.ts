@@ -149,3 +149,30 @@ export const getVendorThappis = async (
     next(error);
   }
 };
+
+export const updateThappiQuality = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { thappiId } = req.params;
+    const { moisture, fm, damage } = req.body as {
+      moisture: number;
+      fm: number;
+      damage: number;
+    };
+
+    const existing = await prisma.thappi.findUnique({ where: { id: thappiId } });
+    if (!existing) throw new AppError("Thappi not found", 404);
+
+    const updated = await prisma.thappi.update({
+      where: { id: thappiId },
+      data: { moisture, fm, damage },
+    });
+
+    successResponse(res, updated, "Thappi quality updated");
+  } catch (error) {
+    next(error);
+  }
+};

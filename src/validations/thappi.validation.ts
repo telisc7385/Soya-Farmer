@@ -24,3 +24,9 @@ export const listThappiQuerySchema = Joi.object({
   page: Joi.number().integer().min(1).optional(),
   limit: Joi.number().integer().min(1).max(100).optional(),
 });
+
+export const updateThappiQualitySchema = Joi.object({
+  moisture: Joi.number().min(0).max(100).required(),
+  fm: Joi.number().min(0).max(100).required(),
+  damage: Joi.number().min(0).max(100).required(),
+});
