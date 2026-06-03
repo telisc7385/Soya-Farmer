@@ -700,162 +700,204 @@ export const completeTransfer = async (
 /**
  * Receive transfer (Admin) - captures received quantity and computes shortages
  */
+const processReceiveTransfer = async ({
+  transferId,
+  body,
+  userId,
+}: {
+  transferId: string;
+  body: {
+    receivedWeight: number;
+    receivedUnit?: "QTL" | "MT";
+    receivedBagCount: number;
+    receiveLatitude: number;
+    receiveLongitude: number;
+    receiveLocationText: string;
+  };
+  userId?: string;
+}) => {
+  const {
+    receivedWeight,
+    receivedUnit,
+    receivedBagCount,
+    receiveLatitude,
+    receiveLongitude,
+    receiveLocationText,
+  } = body;
+
+  const transfer = await prisma.stockTransfer.findFirst({
+    where: {
+      id: transferId,
+      status: "DISPATCHED",
+    },
+    include: {
+      vendor: {
+        select: { name: true },
+      },
+      sourceLocation: {
+        select: { name: true },
+      },
+      destinationLocation: {
+        select: { name: true },
+      },
+    },
+  });
+
+  if (!transfer) {
+    throw new AppError("Transfer not found or not in dispatched state", 404);
+  }
+
+  const dispatchedWeight = transfer.dispatchedWeight ?? transfer.weight ?? 0;
+  const dispatchedBags = transfer.dispatchedBagCount ?? transfer.bagCount ?? 0;
+  const receivedWeightQtl = toQtl(receivedWeight, receivedUnit ?? "QTL");
+
+  const weightShortage = Math.max(dispatchedWeight - receivedWeightQtl, 0);
+  const bagShortage = Math.max(dispatchedBags - receivedBagCount, 0);
+  const nextStatus = weightShortage > 0 || bagShortage > 0 ? "DISCREPANCY" : "RECEIVED";
+
+  const updated = await prisma.stockTransfer.update({
+    where: { id: transferId },
+    data: {
+      receivedWeight: receivedWeightQtl,
+      receivedBagCount,
+      receivedAt: new Date(),
+      receiveLatitude,
+      receiveLongitude,
+      receiveLocationText,
+      receiveById: userId,
+      receiveProofUrl: buildTransferProofUrl(transfer.transferNo, "receive"),
+      weightShortage,
+      bagShortage,
+      status: nextStatus,
+      completedAt: new Date(),
+    },
+    include: {
+      vendor: {
+        select: { id: true, name: true, phone: true },
+      },
+      sourceLocation: true,
+      destinationLocation: true,
+      items: {
+        include: { goniType: true },
+      },
+    },
+  });
+
+  enqueueTransferProofGeneration({
+    transferId: transfer.id,
+    transferNo: transfer.transferNo,
+    stage: "receive",
+  });
+
+  const receiveProofUrl = buildTransferProofUrl(transfer.transferNo, "receive");
+  await writeTransferProofPdf({
+    absolutePath: path.join(
+      process.cwd(),
+      receiveProofUrl.replace(/^\/+/, "").replace(/\//g, path.sep),
+    ),
+    stage: "receive",
+    transferNo: transfer.transferNo,
+    vendorName: transfer.vendor?.name,
+    source: transfer.sourceLocation?.name,
+    destination: transfer.destinationLocation?.name,
+    vehicle: transfer.vehicalNumber,
+    weightQtl: receivedWeightQtl,
+    bagCount: receivedBagCount,
+    latitude: receiveLatitude,
+    longitude: receiveLongitude,
+    locationText: receiveLocationText,
+    status: nextStatus,
+  });
+
+  const destLocationId = updated.destinationLocationId;
+  if (destLocationId && receivedWeightQtl > 0) {
+    const sourceLocationId = updated.sourceLocationId;
+    const receiveThappiCode = `${updated.transferNo}-RCV`;
+    await prisma.$transaction(async (tx) => {
+      const bagMap = new Map<string, number>();
+      const items = await tx.stockTransferItem.findMany({
+        where: { transferId: updated.id },
+        select: { goniTypeId: true, bagCount: true },
+      });
+      for (const item of items) {
+        bagMap.set(item.goniTypeId, (bagMap.get(item.goniTypeId) ?? 0) + item.bagCount);
+      }
+      const thappiVendorId = updated.toVendorId ?? updated.vendorId;
+      const created = await tx.thappi.create({
+        data: {
+          vendorId: thappiVendorId,
+          locationId: destLocationId,
+          code: `${receiveThappiCode}-${Date.now().toString().slice(-6)}`,
+          weightQtl: receivedWeightQtl,
+          bagCount: receivedBagCount,
+          status: "AVAILABLE",
+          isActive: true,
+        },
+      });
+      if (bagMap.size) {
+        await tx.thappiBagBreakdown.createMany({
+          data: Array.from(bagMap.entries()).map(([goniTypeId, bagCount]) => ({
+            thappiId: created.id,
+            goniTypeId,
+            bagCount,
+          })),
+        });
+      }
+      await tx.thappiMovement.create({
+        data: {
+          thappiId: created.id,
+          transferId: updated.id,
+          movementType: "TRANSFER_IN",
+          weightQtl: receivedWeightQtl,
+          bagCount: receivedBagCount,
+          fromLocationId: sourceLocationId,
+          toLocationId: destLocationId,
+          createdById: userId,
+        },
+      });
+    });
+  }
+
+  return updated;
+};
+
 export const receiveTransfer = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction,
 ) => {
   try {
-    const { transferId } = req.params;
-    const {
-      receivedWeight,
-      receivedUnit,
-      receivedBagCount,
-      receiveLatitude,
-      receiveLongitude,
-      receiveLocationText,
-    } = req.body as {
-      receivedWeight: number;
-      receivedUnit?: "QTL" | "MT";
-      receivedBagCount: number;
-      receiveLatitude: number;
-      receiveLongitude: number;
-      receiveLocationText: string;
-    };
+    const updated = await processReceiveTransfer({
+      transferId: req.params.transferId,
+      body: req.body as any,
+      userId: req.user?.id,
+    });
+    successResponse(res, updated, "Transfer received and verified");
+  } catch (error) {
+    next(error);
+  }
+};
 
-    const transfer = await prisma.stockTransfer.findFirst({
-      where: {
-        id: transferId,
-        status: "DISPATCHED",
-      },
-      include: {
-        vendor: {
-          select: { name: true },
-        },
-        sourceLocation: {
-          select: { name: true },
-        },
-        destinationLocation: {
-          select: { name: true },
-        },
-      },
+export const vendorReceiveTransfer = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const transfer = await prisma.stockTransfer.findUnique({
+      where: { id: req.params.transferId },
+      select: { toVendorId: true, status: true },
     });
 
-    if (!transfer) {
-      throw new AppError("Transfer not found or not in dispatched state", 404);
-    }
+    if (!transfer) throw new AppError("Transfer not found", 404);
+    if (transfer.status !== "DISPATCHED") throw new AppError("Transfer is not in dispatched state", 400);
+    if (transfer.toVendorId !== req.user?.id) throw new AppError("This transfer is not addressed to you", 403);
 
-    const dispatchedWeight = transfer.dispatchedWeight ?? transfer.weight ?? 0;
-    const dispatchedBags = transfer.dispatchedBagCount ?? transfer.bagCount ?? 0;
-    const receivedWeightQtl = toQtl(receivedWeight, receivedUnit ?? "QTL");
-
-    const weightShortage = Math.max(dispatchedWeight - receivedWeightQtl, 0);
-    const bagShortage = Math.max(dispatchedBags - receivedBagCount, 0);
-    const nextStatus = weightShortage > 0 || bagShortage > 0 ? "DISCREPANCY" : "RECEIVED";
-
-    const updated = await prisma.stockTransfer.update({
-      where: { id: transferId },
-      data: {
-        receivedWeight: receivedWeightQtl,
-        receivedBagCount,
-        receivedAt: new Date(),
-        receiveLatitude,
-        receiveLongitude,
-        receiveLocationText,
-        receiveById: req.user?.id,
-        receiveProofUrl: buildTransferProofUrl(transfer.transferNo, "receive"),
-        weightShortage,
-        bagShortage,
-        status: nextStatus,
-        completedAt: new Date(),
-      },
-      include: {
-        vendor: {
-          select: { id: true, name: true, phone: true },
-        },
-        sourceLocation: true,
-        destinationLocation: true,
-        items: {
-          include: { goniType: true },
-        },
-      },
+    const updated = await processReceiveTransfer({
+      transferId: req.params.transferId,
+      body: req.body as any,
+      userId: req.user?.id,
     });
-
-    enqueueTransferProofGeneration({
-      transferId: transfer.id,
-      transferNo: transfer.transferNo,
-      stage: "receive",
-    });
-
-    const receiveProofUrl = buildTransferProofUrl(transfer.transferNo, "receive");
-    await writeTransferProofPdf({
-      absolutePath: path.join(
-        process.cwd(),
-        receiveProofUrl.replace(/^\/+/, "").replace(/\//g, path.sep),
-      ),
-      stage: "receive",
-      transferNo: transfer.transferNo,
-      vendorName: transfer.vendor?.name,
-      source: transfer.sourceLocation?.name,
-      destination: transfer.destinationLocation?.name,
-      vehicle: transfer.vehicalNumber,
-      weightQtl: receivedWeightQtl,
-      bagCount: receivedBagCount,
-      latitude: receiveLatitude,
-      longitude: receiveLongitude,
-      locationText: receiveLocationText,
-      status: nextStatus,
-    });
-
-    const destLocationId = updated.destinationLocationId;
-    if (destLocationId && receivedWeightQtl > 0) {
-      const sourceLocationId = updated.sourceLocationId;
-      const receiveThappiCode = `${updated.transferNo}-RCV`;
-      await prisma.$transaction(async (tx) => {
-        const bagMap = new Map<string, number>();
-        const items = await tx.stockTransferItem.findMany({
-          where: { transferId: updated.id },
-          select: { goniTypeId: true, bagCount: true },
-        });
-        for (const item of items) {
-          bagMap.set(item.goniTypeId, (bagMap.get(item.goniTypeId) ?? 0) + item.bagCount);
-        }
-        const thappiVendorId = updated.toVendorId ?? updated.vendorId;
-        const created = await tx.thappi.create({
-          data: {
-            vendorId: thappiVendorId,
-            locationId: destLocationId,
-            code: `${receiveThappiCode}-${Date.now().toString().slice(-6)}`,
-            weightQtl: receivedWeightQtl,
-            bagCount: receivedBagCount,
-            status: "AVAILABLE",
-            isActive: true,
-          },
-        });
-        if (bagMap.size) {
-          await tx.thappiBagBreakdown.createMany({
-            data: Array.from(bagMap.entries()).map(([goniTypeId, bagCount]) => ({
-              thappiId: created.id,
-              goniTypeId,
-              bagCount,
-            })),
-          });
-        }
-        await tx.thappiMovement.create({
-          data: {
-            thappiId: created.id,
-            transferId: updated.id,
-            movementType: "TRANSFER_IN",
-            weightQtl: receivedWeightQtl,
-            bagCount: receivedBagCount,
-            fromLocationId: sourceLocationId,
-            toLocationId: destLocationId,
-            createdById: req.user?.id,
-          },
-        });
-      });
-    }
-
     successResponse(res, updated, "Transfer received and verified");
   } catch (error) {
     next(error);

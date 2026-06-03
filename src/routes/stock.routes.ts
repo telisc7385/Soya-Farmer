@@ -16,6 +16,7 @@ import {
 import { listActiveQualityRates } from "../controllers/qualityRate.controller";
 import {
   createTransferSchema,
+  receiveTransferSchema,
   returnBagsToFarmerSchema,
   vendorAddOwnBagsSchema,
 } from "../validations/stock.validation";
@@ -47,6 +48,15 @@ router.get(
   authMiddleware,
   authorize("VENDOR"),
   transferController.getVendorTransfers,
+);
+
+// Vendor receives incoming transfer
+router.put(
+  "/transfers/:transferId/receive",
+  authMiddleware,
+  authorize("VENDOR"),
+  validateRequest(receiveTransferSchema),
+  transferController.vendorReceiveTransfer,
 );
 
 // Get quality-wise rates
