@@ -50,6 +50,15 @@ const getQualityRatesReport = async (query: any) => {
 
   if (rates.length === 0) return [];
 
+  let diff = 0;
+  if (query.vendorId) {
+    const vendor = await prisma.user.findUnique({
+      where: { id: String(query.vendorId) },
+      select: { factoryRateDiff: true, name: true },
+    });
+    if (vendor) diff = vendor.factoryRateDiff || 0;
+  }
+
   const startDate = query.startDate
     ? new Date(query.startDate)
     : new Date(rates[0].createdAt);
@@ -94,7 +103,7 @@ const getQualityRatesReport = async (query: any) => {
     const month = cursor.getMonth() + 1;
     const year = cursor.getFullYear();
     dailyEntries.push({
-      rate: currentRate,
+      rate: currentRate + diff,
       date: `${day}/${month}/${year}`,
       createdAt: new Date(cursor),
     });
