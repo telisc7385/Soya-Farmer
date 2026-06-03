@@ -66,3 +66,8 @@ export const saveQualityRateSchema = Joi.object({
   rate: Joi.number().positive().required(),
   isActive: Joi.boolean().optional(),
 });
+
+export const qualityRateQuerySchema = Joi.object({
+  startDate: Joi.date().optional(),
+  endDate: Joi.date().optional(),
+});

@@ -124,6 +124,89 @@ export const deleteQualityRate = async (
 };
 
 // vendor listing API
+const pad = (n: number) => String(n).padStart(2, "0");
+const toDateKey = (d: Date) =>
+  `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const formatDate = (d: Date) => {
+  const day = d.getDate();
+  const month = d.getMonth() + 1;
+  const year = d.getFullYear();
+  return `${day}/${month}/${year}`;
+};
+
+const buildDailyQualityRates = async (query: {
+  startDate?: string;
+  endDate?: string;
+}) => {
+  const createdAt = !query.startDate && !query.endDate
+    ? undefined
+    : {
+        ...(query.startDate && { gte: new Date(query.startDate) }),
+        ...(query.endDate && { lte: new Date(query.endDate) }),
+      };
+
+  const rates = await prisma.qualityRate.findMany({
+    where: {
+      isActive: true,
+      ...(createdAt && { createdAt }),
+    },
+    orderBy: { createdAt: "asc" },
+    select: { quality: true, rate: true, createdAt: true },
+  });
+
+  if (!rates.length) return [];
+
+  // Determine display range
+  const startDate = query.startDate
+    ? new Date(query.startDate)
+    : new Date(rates[0].createdAt);
+  startDate.setHours(0, 0, 0, 0);
+
+  const endDate = query.endDate
+    ? new Date(query.endDate)
+    : new Date(rates[rates.length - 1].createdAt);
+  endDate.setHours(23, 59, 59, 999);
+
+  // Carry-forward rate from before startDate
+  const previousRate = query.startDate
+    ? await prisma.qualityRate.findFirst({
+        where: { isActive: true, createdAt: { lt: startDate } },
+        orderBy: { createdAt: "desc" },
+        select: { rate: true },
+      })
+    : null;
+
+  const rateByDate = new Map<string, number>();
+  for (const r of rates) {
+    rateByDate.set(toDateKey(r.createdAt), r.rate);
+  }
+
+  let currentRate = previousRate?.rate ?? rates[0].rate;
+  const dailyEntries: Array<{
+    rate: number;
+    date: string;
+    createdAt: Date;
+  }> = [];
+  const cursor = new Date(startDate);
+  cursor.setHours(0, 0, 0, 0);
+
+  while (cursor <= endDate) {
+    const key = toDateKey(cursor);
+    if (rateByDate.has(key)) {
+      currentRate = rateByDate.get(key)!;
+    }
+    dailyEntries.push({
+      rate: currentRate,
+      date: formatDate(cursor),
+      createdAt: new Date(cursor),
+    });
+    cursor.setDate(cursor.getDate() + 1);
+  }
+
+  dailyEntries.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
+  return dailyEntries;
+};
+
 export const listActiveQualityRates = async (
   req: AuthRequest,
   res: Response,
@@ -143,43 +226,76 @@ export const listActiveQualityRates = async (
 
     if (!vendor) throw new AppError("Vendor not found", 404);
 
-    const qualityRatesResponse = await prisma.qualityRate.findMany({
-      where: { isActive: true },
-      orderBy: { createdAt: "asc" },
-      select: {
-        quality: true,
-        rate: true,
-        createdAt: true,
-      },
-    });
+    const dailyEntries = await buildDailyQualityRates(req.query as any);
 
-    if (!qualityRatesResponse.length) {
+    if (!dailyEntries.length) {
       throw new AppError("No active quality rates found", 404);
     }
 
-    const latestRate = qualityRatesResponse[qualityRatesResponse.length - 1];
-    const vendorRate = latestRate.rate + (vendor.factoryRateDiff || 0);
+    const diff = vendor.factoryRateDiff || 0;
+    const withDiff = (e: (typeof dailyEntries)[0]) => ({
+      ...e,
+      rate: e.rate + diff,
+    });
 
-    // MASTER VENDOR → all rates
+    const latestEntry = withDiff(dailyEntries[0]);
+    const vendorRate = latestEntry.rate;
+
     if (vendor.masterVendor) {
       return successResponse(
         res,
-        {
-          vendorRate,
-          qualityRates: qualityRatesResponse,
-        },
+        { vendorRate, qualityRates: dailyEntries.map(withDiff) },
         "Quality rates fetched",
       );
     }
 
-    // NORMAL VENDOR → only last rate
+    return successResponse(
+      res,
+      { vendorRate, qualityRates: [latestEntry] },
+      "Latest quality rate fetched",
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getVendorQualityRates = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { vendorId } = req.params;
+
+    const vendor = await prisma.user.findUnique({
+      where: { id: vendorId },
+      select: { factoryRateDiff: true, name: true },
+    });
+
+    if (!vendor) throw new AppError("Vendor not found", 404);
+
+    const dailyEntries = await buildDailyQualityRates(req.query as any);
+
+    if (!dailyEntries.length) {
+      throw new AppError("No quality rates found", 404);
+    }
+
+    const diff = vendor.factoryRateDiff || 0;
+    const withDiff = (e: (typeof dailyEntries)[0]) => ({
+      ...e,
+      rate: e.rate + diff,
+    });
+
     return successResponse(
       res,
       {
-        vendorRate,
-        qualityRates: [latestRate],
+        vendorId,
+        vendorName: vendor.name,
+        factoryRateDiff: diff,
+        vendorRate: withDiff(dailyEntries[0]).rate,
+        qualityRates: dailyEntries.map(withDiff),
       },
-      "Latest quality rate fetched",
+      "Vendor quality rates fetched",
     );
   } catch (error) {
     next(error);

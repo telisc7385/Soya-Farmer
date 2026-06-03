@@ -28,6 +28,7 @@ import {
 import {
   changeQualityRateStatus,
   deleteQualityRate,
+  getVendorQualityRates,
   listAllQualityRates,
   saveQualityRate,
 } from "../controllers/qualityRate.controller";
@@ -51,6 +52,7 @@ import {
   toggleDeductionMasterSchema,
   createGoniTypeSchema,
   updateGoniTypeSchema,
+  qualityRateQuerySchema,
   saveQualityRateSchema,
 } from "../validations/admin.validation";
 import {
@@ -250,6 +252,15 @@ router.delete(
   authMiddleware,
   authorize("ADMIN"),
   deleteQualityRate,
+);
+
+// Vendor quality rates (admin view with date filter)
+router.get(
+  "/vendors/:vendorId/quality-rates",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateQuery(qualityRateQuerySchema),
+  getVendorQualityRates,
 );
 
 // =====================

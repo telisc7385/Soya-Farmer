@@ -23,6 +23,7 @@ import {
   createThappiSchema,
   listThappiQuerySchema,
 } from "../validations/thappi.validation";
+import { qualityRateQuerySchema } from "../validations/admin.validation";
 import { listInventoryLocationQuerySchema } from "../validations/inventoryLocation.validation";
 
 const router = Router();
@@ -53,6 +54,7 @@ router.get(
   "/quality-rates",
   authMiddleware,
   authorize("VENDOR"),
+  validateQuery(qualityRateQuerySchema),
   listActiveQualityRates,
 );
 
