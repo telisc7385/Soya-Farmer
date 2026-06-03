@@ -154,34 +154,37 @@ const buildDailyQualityRates = async (query: {
     select: { quality: true, rate: true, createdAt: true },
   });
 
-  if (!rates.length) return [];
-
   // Determine display range
   const startDate = query.startDate
     ? new Date(query.startDate)
-    : new Date(rates[0].createdAt);
-  startDate.setHours(0, 0, 0, 0);
-
+    : rates.length
+      ? new Date(rates[0].createdAt)
+      : null;
   const endDate = query.endDate
     ? new Date(query.endDate)
-    : new Date(rates[rates.length - 1].createdAt);
+    : rates.length
+      ? new Date(rates[rates.length - 1].createdAt)
+      : null;
+
+  if (!startDate || !endDate) return [];
+  startDate.setHours(0, 0, 0, 0);
   endDate.setHours(23, 59, 59, 999);
 
   // Carry-forward rate from before startDate
-  const previousRate = query.startDate
-    ? await prisma.qualityRate.findFirst({
-        where: { isActive: true, createdAt: { lt: startDate } },
-        orderBy: { createdAt: "desc" },
-        select: { rate: true },
-      })
-    : null;
+  const previousRate = await prisma.qualityRate.findFirst({
+    where: { isActive: true, createdAt: { lt: startDate } },
+    orderBy: { createdAt: "desc" },
+    select: { rate: true },
+  });
+
+  if (!rates.length && !previousRate) return [];
 
   const rateByDate = new Map<string, number>();
   for (const r of rates) {
     rateByDate.set(toDateKey(r.createdAt), r.rate);
   }
 
-  let currentRate = previousRate?.rate ?? rates[0].rate;
+  let currentRate = previousRate?.rate ?? (rates.length ? rates[0].rate : 0);
   const dailyEntries: Array<{
     rate: number;
     date: string;

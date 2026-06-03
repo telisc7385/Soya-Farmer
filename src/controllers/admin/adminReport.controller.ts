@@ -48,8 +48,6 @@ const getQualityRatesReport = async (query: any) => {
     orderBy: { createdAt: "asc" },
   });
 
-  if (rates.length === 0) return [];
-
   let diff = 0;
   if (query.vendorId) {
     const vendor = await prisma.user.findUnique({
@@ -61,12 +59,17 @@ const getQualityRatesReport = async (query: any) => {
 
   const startDate = query.startDate
     ? new Date(query.startDate)
-    : new Date(rates[0].createdAt);
-  startDate.setHours(0, 0, 0, 0);
-
+    : rates.length
+      ? new Date(rates[0].createdAt)
+      : null;
   const endDate = query.endDate
     ? new Date(query.endDate)
-    : new Date(rates[rates.length - 1].createdAt);
+    : rates.length
+      ? new Date(rates[rates.length - 1].createdAt)
+      : null;
+
+  if (!startDate || !endDate) return [];
+  startDate.setHours(0, 0, 0, 0);
   endDate.setHours(23, 59, 59, 999);
 
   // Rate before start date for carry-forward
@@ -74,6 +77,8 @@ const getQualityRatesReport = async (query: any) => {
     where: { createdAt: { lt: startDate } },
     orderBy: { createdAt: "desc" },
   });
+
+  if (!rates.length && !previousRate) return [];
 
   // Map date string -> rate value
   const pad = (n: number) => String(n).padStart(2, "0");
@@ -85,7 +90,7 @@ const getQualityRatesReport = async (query: any) => {
   }
 
   // Fill daily entries
-  let currentRate = previousRate?.rate ?? rates[0].rate;
+  let currentRate = previousRate?.rate ?? (rates.length ? rates[0].rate : 0);
   const dailyEntries: Array<{
     rate: number;
     date: string;
