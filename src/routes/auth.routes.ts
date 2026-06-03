@@ -36,7 +36,12 @@ router.patch(
   authorize("ADMIN"),
   updateVendorStatus,
 );
-router.get("/vendor/list", authMiddleware, authorize("ADMIN"), getVendorList);
+router.get(
+  "/vendor/list",
+  authMiddleware,
+  authorize("ADMIN", "VENDOR"),
+  getVendorList,
+);
 router.get("/vendor/:id", authMiddleware, authorize("ADMIN"), getVendorById);
 router.post(
   "/admin/reset-password",
