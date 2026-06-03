@@ -152,6 +152,7 @@ model User {
   goniTypes                 GoniType[]          @relation("UserGoniTypes")
   stocks                    Stock[]             @relation("VendorStock")
   vendorTransfers           StockTransfer[]     @relation("VendorTransfers")
+  toVendorTransfers         StockTransfer[]     @relation("ToVendorTransfers")
   vendorBagMoves            BagMovement[]       @relation("VendorBagMovements")
   createdBagMoves           BagMovement[]       @relation("CreatedBagMovements")
   kycVerifiedFarmers        Farmer[]            @relation("KycVerifiedBy")
@@ -511,6 +512,7 @@ model StockTransfer {
   id                    String              @id @default(uuid())
   transferNo            String              @unique
   vendorId              String
+  toVendorId            String?
   goniTypeId            String?
   vendorEnteredWeight   Float?
   vendorEnteredUnit     QuantityUnit?
@@ -546,6 +548,7 @@ model StockTransfer {
   completedAt           DateTime?
 
   vendor              User                  @relation("VendorTransfers", fields: [vendorId], references: [id])
+  toVendor            User?                 @relation("ToVendorTransfers", fields: [toVendorId], references: [id])
   goniType            GoniType?             @relation(fields: [goniTypeId], references: [id])
   sourceLocation      InventoryLocation?    @relation("SourceLocationTransfers", fields: [sourceLocationId], references: [id])
   destinationLocation InventoryLocation?    @relation("DestinationLocationTransfers", fields: [destinationLocationId], references: [id])
@@ -556,6 +559,7 @@ model StockTransfer {
 
   @@index([sourceLocationId])
   @@index([destinationLocationId])
+  @@index([toVendorId])
 }
 
 model StockTransferItem {

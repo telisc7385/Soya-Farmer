@@ -38,6 +38,7 @@ export const createTransfer = async (
       goniTypeId,
       thappiIds,
       items,
+      toVendorId,
       sourceLocationId,
       destinationLocationId,
       vehicalNumber,
@@ -48,6 +49,7 @@ export const createTransfer = async (
       goniTypeId?: string;
       thappiIds?: string[];
       items?: Array<{ goniTypeId: string; bagCount: number }>;
+      toVendorId?: string;
       sourceLocationId: string;
       destinationLocationId: string;
       vehicalNumber: string;
@@ -209,6 +211,15 @@ export const createTransfer = async (
       throw new AppError("Invalid or inactive source/destination location", 400);
     }
 
+    if (toVendorId) {
+      const toVendor = await prisma.user.findUnique({
+        where: { id: toVendorId, role: "VENDOR", isActive: true },
+        select: { id: true },
+      });
+      if (!toVendor) throw new AppError("Destination vendor not found or inactive", 400);
+      if (toVendorId === vendorId) throw new AppError("Cannot transfer to yourself", 400);
+    }
+
     if (sourceLocationId === destinationLocationId) {
       throw new AppError(
         "Source and destination locations must be different",
@@ -238,6 +249,7 @@ export const createTransfer = async (
         data: {
           transferNo,
           vendorId,
+          ...(toVendorId && { toVendorId }),
           goniTypeId:
             transferItems.length === 1 ? transferItems[0].goniTypeId : null,
           vendorEnteredWeight: weight,
@@ -313,9 +325,15 @@ export const getVendorTransfers = async (
 ) => {
   try {
     const vendorId = req?.user?.id as string;
-    const { status, page = 1, limit = 20 } = req.query;
+    const { status, type, page = 1, limit = 20 } = req.query;
 
-    const where: any = { vendorId };
+    const vendorFilter: any[] = [{ vendorId }];
+    if (type !== "outgoing") vendorFilter.push({ toVendorId: vendorId });
+
+    const where: any =
+      type === "outgoing"
+        ? { vendorId }
+        : { OR: vendorFilter };
     if (status) where.status = status;
 
     const skip = (Number(page) - 1) * Number(limit);
@@ -340,6 +358,9 @@ export const getVendorTransfers = async (
           },
           sourceLocation: true,
           destinationLocation: true,
+          toVendor: {
+            select: { id: true, name: true, phone: true },
+          },
         },
       }),
       prisma.stockTransfer.count({ where }),
@@ -406,6 +427,9 @@ export const getAdminTransfers = async (
           },
           sourceLocation: true,
           destinationLocation: true,
+          toVendor: {
+            select: { id: true, name: true, phone: true },
+          },
         },
       }),
       prisma.stockTransfer.count({ where }),
@@ -796,9 +820,10 @@ export const receiveTransfer = async (
         for (const item of items) {
           bagMap.set(item.goniTypeId, (bagMap.get(item.goniTypeId) ?? 0) + item.bagCount);
         }
+        const thappiVendorId = updated.toVendorId ?? updated.vendorId;
         const created = await tx.thappi.create({
           data: {
-            vendorId: updated.vendorId,
+            vendorId: thappiVendorId,
             locationId: destLocationId,
             code: `${receiveThappiCode}-${Date.now().toString().slice(-6)}`,
             weightQtl: receivedWeightQtl,
