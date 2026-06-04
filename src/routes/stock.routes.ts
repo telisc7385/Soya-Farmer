@@ -1,5 +1,5 @@
-import { Router } from "express";
-import { authMiddleware } from "../middleware/auth.middleware";
+import { NextFunction, Response, Router } from "express";
+import { authMiddleware, AuthRequest } from "../middleware/auth.middleware";
 import { authorize } from "../middleware/role.middleware";
 import upload from "../middleware/multer.middleware";
 import {
@@ -10,9 +10,7 @@ import * as stockController from "../controllers/stock.controller";
 import * as transferController from "../controllers/stockTransfer.controller";
 import * as bagController from "../controllers/bag.controller";
 import * as thappiController from "../controllers/thappi.controller";
-import {
-  listInventoryLocations,
-} from "../controllers/inventoryLocation.controller";
+import { listInventoryLocations } from "../controllers/inventoryLocation.controller";
 import { listActiveQualityRates } from "../controllers/qualityRate.controller";
 import {
   createTransferSchema,
@@ -115,7 +113,9 @@ router.get(
 
 const normalizeMultipartBody = (req: any, _res: any, next: any) => {
   if (req.body.bagBreakdown && typeof req.body.bagBreakdown === "string") {
-    try { req.body.bagBreakdown = JSON.parse(req.body.bagBreakdown); } catch {}
+    try {
+      req.body.bagBreakdown = JSON.parse(req.body.bagBreakdown);
+    } catch {}
   }
   if (req.body.weightQtl && typeof req.body.weightQtl === "string") {
     req.body.weightQtl = parseFloat(req.body.weightQtl);
@@ -150,11 +150,27 @@ router.get(
   thappiController.getVendorThappis,
 );
 
+const setDefaultLocationFilters = (
+  req: AuthRequest,
+  _res: Response,
+  next: NextFunction,
+) => {
+  if (
+    req?.user &&
+    req?.user?.role === "VENDOR" &&
+    req.query.isActive === undefined
+  ) {
+    req.query.isActive = "true";
+  }
+  next();
+};
+
 router.get(
   "/locations",
   authMiddleware,
   authorize("VENDOR"),
   validateQuery(listInventoryLocationQuerySchema),
+  setDefaultLocationFilters,
   listInventoryLocations,
 );
 
