@@ -265,7 +265,7 @@ export const createTransfer = async (
       });
 
       await tx.stockTransferItem.createMany({
-        data: normalizedItems.map((item) => ({
+        data: transferItems.map((item) => ({
           transferId: createdTransfer.id,
           goniTypeId: item.goniTypeId,
           bagCount: item.bagCount,
