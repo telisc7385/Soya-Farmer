@@ -241,7 +241,8 @@ export const listActiveQualityRates = async (
       rate: e.rate + diff,
     });
 
-    const latestEntry = withDiff(dailyEntries[0]);
+    const latestDbEntry = dailyEntries[0];
+    const latestEntry = withDiff(latestDbEntry);
     const vendorRate = latestEntry.rate;
 
     if (vendor.masterVendor) {
@@ -254,7 +255,7 @@ export const listActiveQualityRates = async (
 
     return successResponse(
       res,
-      { vendorRate, qualityRates: [latestEntry] },
+      { vendorRate, qualityRates: [latestDbEntry] },
       "Latest quality rate fetched",
     );
   } catch (error) {
