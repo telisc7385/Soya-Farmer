@@ -13,81 +13,10 @@ import { attachDeductionDetails } from "../../utils/deductionDetails";
 import { buildBillingCalculationDetails } from "../../utils/billingCalculation";
 import { getPurchaseLimitQtlPerHectare } from "../../services/purchaseLimit.service";
 
-const evaluateRangeCondition = (
-  condition: string,
-  measurement?: number,
-  reference?: number,
-): boolean => {
-  if (measurement === undefined || condition.trim() === "") return false;
-  const normalized = condition.replace(/\s+/g, "");
-  if (!normalized) return false;
-
-  const resolveValue = (token: string): number | undefined => {
-    if (!token) return undefined;
-    if (token.toLowerCase() === "variablevalue") {
-      return reference;
-    }
-    const parsed = Number(token);
-    return Number.isNaN(parsed) ? undefined : parsed;
-  };
-
-  if (normalized.startsWith("<=")) {
-    const target = resolveValue(normalized.slice(2));
-    return target !== undefined && measurement <= target;
-  }
-  if (normalized.startsWith(">=")) {
-    const target = resolveValue(normalized.slice(2));
-    return target !== undefined && measurement >= target;
-  }
-  if (normalized.startsWith(">")) {
-    const target = resolveValue(normalized.slice(1));
-    return target !== undefined && measurement > target;
-  }
-  if (normalized.startsWith("<")) {
-    const target = resolveValue(normalized.slice(1));
-    return target !== undefined && measurement < target;
-  }
-  if (normalized.includes("-")) {
-    const [rawMin, rawMax] = normalized.split("-");
-    const min = resolveValue(rawMin);
-    const max = resolveValue(rawMax);
-    if (min === undefined || max === undefined) {
-      return false;
-    }
-    return measurement >= min && measurement <= max;
-  }
-  const exact = resolveValue(normalized);
-  return exact !== undefined && measurement === exact;
-};
-
-const parseUnitHint = (
-  unitHint?: string | null,
-  measurement?: number,
-  reference?: number,
-): number => {
+const parseUnitHint = (unitHint?: string | null): number => {
   if (!unitHint) return 1;
   const trimmed = unitHint.trim();
   if (!trimmed) return 1;
-
-  if (trimmed.toLowerCase().startsWith("range:")) {
-    const rangePart = trimmed.slice(6);
-    const entries = rangePart
-      .split(",")
-      .map((segment) => segment.trim())
-      .filter(Boolean);
-
-    for (const entry of entries) {
-      const [conditionRaw, factorRaw] = entry
-        .split(":")
-        .map((part) => part.trim());
-      if (!conditionRaw || !factorRaw) continue;
-      const factor = Number(factorRaw);
-      if (Number.isNaN(factor)) continue;
-      if (evaluateRangeCondition(conditionRaw, measurement, reference)) {
-        return factor;
-      }
-    }
-  }
 
   if (trimmed.includes("/")) {
     const [numRaw, denRaw] = trimmed.split("/");
@@ -99,6 +28,97 @@ const parseUnitHint = (
   }
   const parsed = Number(trimmed);
   return Number.isNaN(parsed) || parsed === 0 ? 1 : parsed;
+};
+
+const calculateDeductedInput = (
+  unitHint: string | null | undefined,
+  measurement: number,
+  reference: number,
+): number => {
+  const rawExtra = Math.max(measurement - reference, 0);
+  if (rawExtra <= 0) return 0;
+
+  const trimmed = unitHint?.trim();
+  if (!trimmed?.toLowerCase().startsWith("range:")) {
+    return roundTo(rawExtra * parseUnitHint(unitHint), 4);
+  }
+
+  const resolveValue = (token: string): number | undefined => {
+    if (!token) return undefined;
+    if (token.toLowerCase() === "variablevalue") {
+      return reference;
+    }
+    const parsed = Number(token);
+    return Number.isNaN(parsed) ? undefined : parsed;
+  };
+
+  const rangePart = trimmed.slice(6);
+  const entries = rangePart
+    .split(",")
+    .map((segment) => segment.trim())
+    .filter(Boolean);
+
+  let total = 0;
+  let previousUpper: number | undefined;
+
+  for (const entry of entries) {
+    const [conditionRaw, factorRaw] = entry
+      .split(":")
+      .map((part) => part.trim());
+    if (!conditionRaw || !factorRaw) continue;
+
+    const factor = Number(factorRaw);
+    if (Number.isNaN(factor)) continue;
+
+    const condition = conditionRaw.replace(/\s+/g, "");
+    let lower = Number.NEGATIVE_INFINITY;
+    let upper = Number.POSITIVE_INFINITY;
+
+    if (condition.startsWith("<=")) {
+      const target = resolveValue(condition.slice(2));
+      if (target === undefined) continue;
+      upper = target;
+    } else if (condition.startsWith("<")) {
+      const target = resolveValue(condition.slice(1));
+      if (target === undefined) continue;
+      upper = target;
+    } else if (condition.startsWith(">=")) {
+      const target = resolveValue(condition.slice(2));
+      if (target === undefined) continue;
+      lower = target;
+    } else if (condition.startsWith(">")) {
+      const target = resolveValue(condition.slice(1));
+      if (target === undefined) continue;
+      lower = target;
+    } else if (condition.includes("-")) {
+      const [rawMin, rawMax] = condition.split("-");
+      const min = resolveValue(rawMin);
+      const max = resolveValue(rawMax);
+      if (min === undefined || max === undefined) continue;
+      lower =
+        previousUpper !== undefined && min > previousUpper
+          ? previousUpper
+          : min;
+      upper = max;
+    } else {
+      const exact = resolveValue(condition);
+      if (exact === undefined) continue;
+      lower = previousUpper ?? exact;
+      upper = exact;
+    }
+
+    const from = Math.max(reference, lower);
+    const to = Math.min(measurement, upper);
+    if (to > from) {
+      total += (to - from) * factor;
+    }
+
+    if (Number.isFinite(upper)) {
+      previousUpper = upper;
+    }
+  }
+
+  return roundTo(total, 4);
 };
 
 const withGoniAmount = (bill: any) => {
@@ -442,18 +462,14 @@ export const calculateDeductions = async (
             throw new AppError(`Missing custom input for ${code}`, 400);
           }
 
-          const extra =
-            (customInputs[code] as number) - (actualInputs[code] as number);
-          const rawExtra = extra > 0 ? extra : 0;
           const unitHint = variableMeta.get(code)?.unitHint ?? "1";
           const measurementValue = customInputs[code];
           const referenceValue = actualInputs[code];
-          const unitFactor = parseUnitHint(
+          deductedInputs[code] = calculateDeductedInput(
             unitHint,
             measurementValue,
             referenceValue,
           );
-          deductedInputs[code] = roundTo(rawExtra * unitFactor, 4);
         }
 
         payload = {
