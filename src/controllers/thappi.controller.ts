@@ -149,6 +149,46 @@ export const getVendorThappis = async (
   }
 };
 
+export const deleteVendorThappi = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const vendorId = req.user?.id as string;
+    const { thappiId } = req.params;
+
+    const thappi = await prisma.thappi.findFirst({
+      where: { id: thappiId, vendorId, isActive: true },
+      select: { id: true, status: true },
+    });
+
+    if (!thappi) {
+      throw new AppError("Thappi not found", 404);
+    }
+
+    if (thappi.status !== "AVAILABLE") {
+      throw new AppError("Only available thappis can be deleted", 400);
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.thappiMovement.deleteMany({
+        where: { thappiId: thappi.id },
+      });
+      await tx.thappiBagBreakdown.deleteMany({
+        where: { thappiId: thappi.id },
+      });
+      await tx.thappi.delete({
+        where: { id: thappi.id },
+      });
+    });
+
+    successResponse(res, null, "Thappi deleted");
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const updateThappiQuality = async (
   req: AuthRequest,
   res: Response,

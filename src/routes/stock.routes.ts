@@ -150,6 +150,13 @@ router.get(
   thappiController.getVendorThappis,
 );
 
+router.delete(
+  "/thappis/:thappiId",
+  authMiddleware,
+  authorize("VENDOR"),
+  thappiController.deleteVendorThappi,
+);
+
 const setDefaultLocationFilters = (
   req: AuthRequest,
   _res: Response,
