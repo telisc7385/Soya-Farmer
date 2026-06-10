@@ -31,6 +31,7 @@ const parseUnitHint = (unitHint?: string | null): number => {
 };
 
 const calculateDeductedInput = (
+  code: string,
   unitHint: string | null | undefined,
   measurement: number,
   reference: number,
@@ -60,6 +61,8 @@ const calculateDeductedInput = (
 
   let total = 0;
   let previousUpper: number | undefined;
+  let highestFiniteUpper = reference;
+  let hasOpenEndedUpperRange = false;
 
   for (const entry of entries) {
     const [conditionRaw, factorRaw] = entry
@@ -86,10 +89,12 @@ const calculateDeductedInput = (
       const target = resolveValue(condition.slice(2));
       if (target === undefined) continue;
       lower = target;
+      hasOpenEndedUpperRange = true;
     } else if (condition.startsWith(">")) {
       const target = resolveValue(condition.slice(1));
       if (target === undefined) continue;
       lower = target;
+      hasOpenEndedUpperRange = true;
     } else if (condition.includes("-")) {
       const [rawMin, rawMax] = condition.split("-");
       const min = resolveValue(rawMin);
@@ -115,7 +120,15 @@ const calculateDeductedInput = (
 
     if (Number.isFinite(upper)) {
       previousUpper = upper;
+      highestFiniteUpper = Math.max(highestFiniteUpper, upper);
     }
+  }
+
+  if (!hasOpenEndedUpperRange && measurement > highestFiniteUpper) {
+    throw new AppError(
+      `${code} value is greater than configured quality range. Very low quality maal.`,
+      400,
+    );
   }
 
   return roundTo(total, 4);
@@ -466,6 +479,7 @@ export const calculateDeductions = async (
           const measurementValue = customInputs[code];
           const referenceValue = actualInputs[code];
           deductedInputs[code] = calculateDeductedInput(
+            code,
             unitHint,
             measurementValue,
             referenceValue,
