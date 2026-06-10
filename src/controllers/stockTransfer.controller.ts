@@ -241,6 +241,13 @@ export const createTransfer = async (
         400,
       );
     }
+    if (routeKey === "VENDOR->VENDOR" && !toVendorId) {
+      throw new AppError("Destination vendor is required for vendor-to-vendor transfer", 400);
+    }
+    if (routeKey !== "VENDOR->VENDOR" && toVendorId) {
+      throw new AppError("Destination vendor is allowed only for vendor-to-vendor transfer", 400);
+    }
+    const isDirectVendorTransfer = routeKey === "VENDOR->VENDOR";
 
     const transferNo = await generateTransferNo();
 
@@ -260,7 +267,13 @@ export const createTransfer = async (
           sourceLocationId,
           destinationLocationId,
           vehicalNumber,
-          status: "PENDING",
+          ...(isDirectVendorTransfer && {
+            dispatchedWeight: normalizedWeightQtl,
+            dispatchedBagCount: totalBagCount,
+            dispatchedAt: new Date(),
+            dispatchById: vendorId,
+          }),
+          status: isDirectVendorTransfer ? "DISPATCHED" : "PENDING",
         },
       });
 
@@ -281,6 +294,86 @@ export const createTransfer = async (
             bagCount: t.bagCount,
           })),
         });
+      }
+
+      if (isDirectVendorTransfer) {
+        let remainingWeight = normalizedWeightQtl ?? 0;
+        let remainingBags = totalBagCount;
+        const stocks = await tx.stock.findMany({
+          where: { vendorId, status: "AVAILABLE" },
+          orderBy: { createdAt: "asc" },
+        });
+
+        for (const stock of stocks) {
+          if (remainingWeight <= 0 && remainingBags <= 0) break;
+
+          const deductWeight = Math.min(
+            stock.weight,
+            Math.max(remainingWeight, 0),
+          );
+          const deductBags = Math.min(stock.bagCount, Math.max(remainingBags, 0));
+          const newWeight = stock.weight - deductWeight;
+          const newBags = stock.bagCount - deductBags;
+
+          await tx.stock.update({
+            where: { id: stock.id },
+            data:
+              newWeight <= 0 && newBags <= 0
+                ? { status: "TRANSFERRED", weight: 0, bagCount: 0 }
+                : { weight: newWeight, bagCount: newBags },
+          });
+
+          remainingWeight -= deductWeight;
+          remainingBags -= deductBags;
+        }
+
+        if (thappiRows.length) {
+          await tx.thappi.updateMany({
+            where: {
+              id: { in: thappiRows.map((t) => t.id) },
+              status: "AVAILABLE",
+            },
+            data: { status: "TRANSFERRED" },
+          });
+          await tx.thappiMovement.createMany({
+            data: thappiRows.map((t) => ({
+              thappiId: t.id,
+              transferId: createdTransfer.id,
+              movementType: "TRANSFER_OUT",
+              weightQtl: t.weightQtl,
+              bagCount: t.bagCount,
+              fromLocationId: sourceLocationId,
+              toLocationId: destinationLocationId,
+              createdById: vendorId,
+            })),
+          });
+        }
+
+        const trackedTypes = await tx.goniType.findMany({
+          where: {
+            id: { in: transferItems.map((item) => item.goniTypeId) },
+            isActive: true,
+            isTracked: true,
+          },
+          select: { id: true },
+        });
+        const trackedTypeIds = new Set(trackedTypes.map((type) => type.id));
+        const trackedBagMovements = transferItems
+          .filter((item) => trackedTypeIds.has(item.goniTypeId))
+          .map((item) => ({
+            vendorId,
+            goniTypeId: item.goniTypeId,
+            transferId: createdTransfer.id,
+            bagCount: item.bagCount,
+            movementType: "VENDOR_TO_ADMIN" as const,
+            createdById: vendorId,
+          }));
+
+        if (trackedBagMovements.length) {
+          await tx.bagMovement.createMany({
+            data: trackedBagMovements,
+          });
+        }
       }
 
       return tx.stockTransfer.findUnique({
@@ -855,6 +948,34 @@ const processReceiveTransfer = async ({
           createdById: userId,
         },
       });
+
+      if (updated.toVendorId && bagMap.size) {
+        const trackedTypes = await tx.goniType.findMany({
+          where: {
+            id: { in: Array.from(bagMap.keys()) },
+            isActive: true,
+            isTracked: true,
+          },
+          select: { id: true },
+        });
+        const trackedTypeIds = new Set(trackedTypes.map((type) => type.id));
+        const trackedBagMovements = Array.from(bagMap.entries())
+          .filter(([goniTypeId]) => trackedTypeIds.has(goniTypeId))
+          .map(([goniTypeId, bagCount]) => ({
+            vendorId: updated.toVendorId as string,
+            goniTypeId,
+            transferId: updated.id,
+            bagCount,
+            movementType: "ADMIN_TO_VENDOR" as const,
+            createdById: userId,
+          }));
+
+        if (trackedBagMovements.length) {
+          await tx.bagMovement.createMany({
+            data: trackedBagMovements,
+          });
+        }
+      }
     });
   }
 

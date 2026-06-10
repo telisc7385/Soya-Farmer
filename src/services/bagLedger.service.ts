@@ -132,11 +132,11 @@ export const getVendorBagLedgerSummary = async (
       },
     }),
 
-    prisma.stockTransfer.aggregate({
+    prisma.bagMovement.aggregate({
       where: {
         vendorId,
         goniTypeId: trackedId,
-        status: "COMPLETED",
+        movementType: BagMovementType.VENDOR_TO_ADMIN,
       },
       _sum: { bagCount: true },
     }),
