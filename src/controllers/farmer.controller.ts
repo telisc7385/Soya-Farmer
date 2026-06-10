@@ -255,9 +255,12 @@ export const rejectFarmerKyc = async (
       select: { id: true, kycStatus: true },
     });
     if (!farmer) throw new AppError("Farmer not found", 404);
-    if (farmer.kycStatus !== "PENDING_VERIFICATION") {
+    if (
+      farmer.kycStatus !== "PENDING_VERIFICATION" &&
+      farmer.kycStatus !== "VERIFIED"
+    ) {
       throw new AppError(
-        `KYC is ${farmer.kycStatus}. Only PENDING_VERIFICATION can be rejected.`,
+        `KYC is ${farmer.kycStatus}. Only PENDING_VERIFICATION and VERIFIED can be rejected.`,
         400,
       );
     }
