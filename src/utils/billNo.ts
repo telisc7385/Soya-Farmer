@@ -7,7 +7,7 @@ export const generateBillNo = async () => {
   const lastBill = await prisma.bill.findFirst({
     where: {
       billNo: {
-        startsWith: `BILL/${year}/${month}`,
+        startsWith: `TBSPL/BILL/${year}/${month}`,
       },
     },
     orderBy: {

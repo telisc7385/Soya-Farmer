@@ -742,14 +742,16 @@ export const confirmDraft = async (
       typeof req.body?.remark === "string" && req.body.remark.trim()
         ? req.body.remark.trim()
         : undefined;
-    let remarkUrl =
-      typeof req.body?.remarkUrl === "string" && req.body.remarkUrl.trim()
-        ? req.body.remarkUrl.trim()
-        : undefined;
+    let remarkUrl = undefined;
 
-    if (req.file) {
-      const uploaded = await saveUploadedFile(req.file, "bills/remarks");
-      remarkUrl = uploaded.publicUrl;
+    const files = req.files as Express.Multer.File[] | undefined;
+    if (files && files.length > 0) {
+      const urls = await Promise.all(
+        files.map((f) =>
+          saveUploadedFile(f, "bills/remarks").then((u) => u.publicUrl),
+        ),
+      );
+      remarkUrl = JSON.stringify(urls);
     }
 
     // Use transaction to update bill and create stock atomically

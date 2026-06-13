@@ -38,7 +38,7 @@ router.get("/:billId/preview", authMiddleware, billingFlow.previewDraft);
 router.post(
   "/:billId/confirm",
   authMiddleware,
-  upload.single("remarkFile"),
+  upload.array("remarkFile", 5),
   billingFlow.confirmDraft,
 );
 
