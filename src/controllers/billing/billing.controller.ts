@@ -12,6 +12,7 @@ import { roundTo } from "../../utils/number";
 import { attachDeductionDetails } from "../../utils/deductionDetails";
 import { buildBillingCalculationDetails } from "../../utils/billingCalculation";
 import { getPurchaseLimitQtlPerHectare } from "../../services/purchaseLimit.service";
+import { saveUploadedFile } from "../../utils/upload";
 
 const parseUnitHint = (unitHint?: string | null): number => {
   if (!unitHint) return 1;
@@ -737,6 +738,20 @@ export const confirmDraft = async (
       throw new AppError("Net payable must be positive", 400);
     }
 
+    const remark =
+      typeof req.body?.remark === "string" && req.body.remark.trim()
+        ? req.body.remark.trim()
+        : undefined;
+    let remarkUrl =
+      typeof req.body?.remarkUrl === "string" && req.body.remarkUrl.trim()
+        ? req.body.remarkUrl.trim()
+        : undefined;
+
+    if (req.file) {
+      const uploaded = await saveUploadedFile(req.file, "bills/remarks");
+      remarkUrl = uploaded.publicUrl;
+    }
+
     // Use transaction to update bill and create stock atomically
     await prisma.$transaction(async (tx) => {
       // Update bill status to PENDING
@@ -744,6 +759,8 @@ export const confirmDraft = async (
         where: { id: billId },
         data: {
           status: "PENDING",
+          remark,
+          remarkUrl,
         },
       });
 

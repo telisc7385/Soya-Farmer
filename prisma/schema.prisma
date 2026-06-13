@@ -140,6 +140,7 @@ model User {
   vendorRate                 Float    @default(0)
   factoryRateDiff            Float    @default(0)
   masterVendor               Boolean  @default(false)
+  grnNumber                  String?
   createdAt                  DateTime @default(now())
   villageAdd                 String?
   taluka                     String?
@@ -270,6 +271,8 @@ model Bill {
   vehicleType     String?
   driverName      String?
   billLocation    String?
+  remark          String?
+  remarkUrl       String?
 
   goniWeight Float @default(0)
   netPayable Float @default(0)

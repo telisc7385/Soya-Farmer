@@ -62,6 +62,7 @@ export const register = async (
       district,
       factoryRateDiff,
       masterVendor = false,
+      grnNumber,
     } = req.body;
 
     const existingUser = await prisma.user.findFirst({
@@ -87,6 +88,7 @@ export const register = async (
         role,
         factoryRateDiff,
         masterVendor,
+        grnNumber,
         ...(vendorRate !== undefined ? { vendorRate } : {}),
       },
     });
@@ -120,6 +122,7 @@ export const updateVendor = async (
       password,
       factoryRateDiff,
       masterVendor = false,
+      grnNumber,
     } = req.body;
 
     // Check if vendor exists
@@ -149,6 +152,7 @@ export const updateVendor = async (
         district,
         factoryRateDiff,
         masterVendor,
+        grnNumber,
         ...(hashedPassword !== undefined ? { password: hashedPassword } : {}),
         ...(vendorRate !== undefined ? { vendorRate } : {}),
       },
@@ -245,6 +249,7 @@ export const getVendorList = async (
           email: true,
           phone: true,
           factoryRateDiff: true,
+          grnNumber: true,
           villageAdd: true,
           taluka: true,
           district: true,
@@ -377,6 +382,7 @@ export const getVendorById = async (
         email: true,
         phone: true,
         vendorRate: true,
+        grnNumber: true,
         villageAdd: true,
         taluka: true,
         district: true,

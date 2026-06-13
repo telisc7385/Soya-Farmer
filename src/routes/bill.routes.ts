@@ -2,6 +2,7 @@ import { Router } from "express";
 import * as billController from "../controllers/billing/bill.controller";
 import * as billingFlow from "../controllers/billing/billing.controller";
 import { authMiddleware } from "../middleware/auth.middleware";
+import upload from "../middleware/multer.middleware";
 import { validateRequest } from "../middleware/validateRequest.middleware";
 import {
   applyGoniSchema,
@@ -34,7 +35,12 @@ router.post(
 
 router.get("/:billId/preview", authMiddleware, billingFlow.previewDraft);
 
-router.post("/:billId/confirm", authMiddleware, billingFlow.confirmDraft);
+router.post(
+  "/:billId/confirm",
+  authMiddleware,
+  upload.single("remarkFile"),
+  billingFlow.confirmDraft,
+);
 
 // Get bills
 router.get("/", authMiddleware, billController.getBills);

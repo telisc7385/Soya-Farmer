@@ -8,6 +8,7 @@ export const registerSchema = Joi.object({
     .required(), // only digits, 10-15 chars
   password: Joi.string().min(6).required(),
   vendorRate: Joi.number().min(0).optional(),
+  grnNumber: Joi.string().max(100).allow("", null).optional(),
   villageAdd: Joi.string().max(255).allow("", null).optional(),
   taluka: Joi.string().max(100).allow("", null).optional(),
   district: Joi.string().max(100).allow("", null).optional(),
@@ -29,6 +30,7 @@ export const updateVendorSchema = Joi.object({
     .optional(),
   password: Joi.string().min(6).optional(),
   vendorRate: Joi.number().min(0).optional(),
+  grnNumber: Joi.string().max(100).allow("", null).optional(),
   villageAdd: Joi.string().max(255).allow("", null).optional(),
   taluka: Joi.string().max(100).allow("", null).optional(),
   district: Joi.string().max(100).allow("", null).optional(),
