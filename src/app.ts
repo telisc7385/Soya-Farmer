@@ -6,6 +6,7 @@ import billingRoutes from "./routes/bill.routes";
 import adminRoutes from "./routes/admin.route";
 import bankDetailsRoutes from "./routes/bankDetails.route";
 import stockRoutes from "./routes/stock.routes";
+import disclaimerRoutes from "./routes/disclaimer.route";
 import { errorHandler } from "./core/errorHandler";
 import path from "path";
 import { routeNotFoundError } from "./core/routeNotFoundError";
@@ -31,6 +32,7 @@ app.use("/api/bill", billingRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/stock", stockRoutes);
 app.use("/api/bank-details", bankDetailsRoutes);
+app.use("/api/disclaimer", disclaimerRoutes);
 
 // error handler
 app.use(routeNotFoundError);

@@ -701,3 +701,14 @@ model StockTransferThappi {
   @@index([transferId])
   @@index([thappiId])
 }
+
+// =====================
+// APP SETTINGS (KEY-VALUE)
+// =====================
+model AppSetting {
+  id        String   @id @default(uuid())
+  key       String   @unique
+  value     String   @default("")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
