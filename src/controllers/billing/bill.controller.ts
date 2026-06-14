@@ -6,7 +6,10 @@ import { attachDeductionDetails } from "../../utils/deductionDetails";
 import { buildBillingCalculationDetails } from "../../utils/billingCalculation";
 import { roundTo } from "../../utils/number";
 import { AuthRequest } from "../../middleware/auth.middleware";
-import { getBillFinancialMap, getBillSettlementSummary } from "../../services/paymentManagement.service";
+import {
+  getBillFinancialMap,
+  getBillSettlementSummary,
+} from "../../services/paymentManagement.service";
 
 const paymentStatusSelect = {
   select: {
@@ -20,7 +23,11 @@ const paymentStatusSelect = {
 
 const withGoniAmount = (
   bill: any,
-  financials?: { adjustedAdvanceAmount: number; settledAmount: number; pendingAmount: number },
+  financials?: {
+    adjustedAdvanceAmount: number;
+    settledAmount: number;
+    pendingAmount: number;
+  },
 ) => {
   const calculationDetails = buildBillingCalculationDetails(bill);
   const perQtlLabDeduction = roundTo(
@@ -32,7 +39,10 @@ const withGoniAmount = (
   const adjustedAdvanceAmount = Number(financials?.adjustedAdvanceAmount ?? 0);
   const settledAmount = Number(financials?.settledAmount ?? 0);
   const balanceAmount = roundTo(
-    Number(financials?.pendingAmount ?? Math.max(totalAmount - adjustedAdvanceAmount, 0)),
+    Number(
+      financials?.pendingAmount ??
+        Math.max(totalAmount - adjustedAdvanceAmount, 0),
+    ),
   );
   const payment = bill.payment ?? null;
 
@@ -180,6 +190,12 @@ export const getBills = async (
         bills: formattedBills,
         total,
         averageRate,
+        totalAmount: roundTo(
+          formattedBills.reduce(
+            (sum, bill) => sum + (bill.totalAmount ?? 0),
+            0,
+          ),
+        ),
         page: currentPage,
         limit: take,
         pages: Math.ceil(total / take),
