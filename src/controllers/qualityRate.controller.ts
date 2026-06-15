@@ -179,12 +179,13 @@ const buildDailyQualityRates = async (query: {
 
   if (!rates.length && !previousRate) return [];
 
-  const rateByDate = new Map<string, number>();
-  for (const r of rates) {
-    rateByDate.set(toDateKey(r.createdAt), r.rate);
-  }
+  const latestRateBefore = (d: Date): number | undefined => {
+    for (let i = rates.length - 1; i >= 0; i--) {
+      if (rates[i].createdAt < d) return rates[i].rate;
+    }
+    return undefined;
+  };
 
-  let currentRate = previousRate?.rate ?? (rates.length ? rates[0].rate : 0);
   const dailyEntries: Array<{
     rate: number;
     date: string;
@@ -195,14 +196,28 @@ const buildDailyQualityRates = async (query: {
 
   while (cursor <= endDate) {
     const key = toDateKey(cursor);
-    if (rateByDate.has(key)) {
-      currentRate = rateByDate.get(key)!;
+    const dayRates = rates.filter((r) => toDateKey(r.createdAt) === key);
+
+    if (dayRates.length) {
+      for (const r of dayRates) {
+        dailyEntries.push({
+          rate: r.rate,
+          date: formatDate(r.createdAt),
+          createdAt: r.createdAt,
+        });
+      }
+    } else {
+      const fallbackRate =
+        previousRate?.rate ??
+        latestRateBefore(cursor) ??
+        0;
+      dailyEntries.push({
+        rate: fallbackRate,
+        date: formatDate(cursor),
+        createdAt: new Date(cursor),
+      });
     }
-    dailyEntries.push({
-      rate: currentRate,
-      date: formatDate(cursor),
-      createdAt: new Date(cursor),
-    });
+
     cursor.setDate(cursor.getDate() + 1);
   }
 
