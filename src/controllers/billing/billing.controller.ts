@@ -330,7 +330,7 @@ export const createDraftBill = async (
       );
     }
 
-    const grossAmount = roundTo(quantity * rate);
+    const grossAmount = roundTo(quantity * rate, 0);
 
     const billNo = await generateBillNo();
     const draft = await prisma.bill.create({
