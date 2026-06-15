@@ -490,10 +490,12 @@ export const getAdminTransfers = async (
   next: NextFunction,
 ) => {
   try {
-    const { status, page = 1, limit = 20 } = req.query;
+    const { status, page = 1, limit = 20, sourceLocationId, destinationLocationId } = req.query;
 
     const where: any = {};
     if (status) where.status = status;
+    if (sourceLocationId) where.sourceLocationId = String(sourceLocationId);
+    if (destinationLocationId) where.destinationLocationId = String(destinationLocationId);
 
     const skip = (Number(page) - 1) * Number(limit);
 

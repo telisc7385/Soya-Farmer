@@ -726,7 +726,7 @@ export const getFarmers = async (
   next: NextFunction,
 ) => {
   try {
-    const { page = "1", limit = "10", search, vendorId } = req.query;
+    const { page = "1", limit = "10", search, vendorId, district, taluka, villageAdd } = req.query;
     const take = Number(limit);
     const skip = (Number(page) - 1) * take;
 
@@ -738,6 +738,9 @@ export const getFarmers = async (
             some: { vendorId: String(vendorId), isActive: true },
           },
         }),
+        ...(district && { district: String(district) }),
+        ...(taluka && { taluka: String(taluka) }),
+        ...(villageAdd && { villageAdd: String(villageAdd) }),
         ...(search && {
           OR: [
             { name: { contains: String(search), mode: "insensitive" } },
@@ -799,6 +802,9 @@ export const getFarmers = async (
             some: { vendorId: String(vendorId), isActive: true },
           },
         }),
+        ...(district && { district: String(district) }),
+        ...(taluka && { taluka: String(taluka) }),
+        ...(villageAdd && { villageAdd: String(villageAdd) }),
       },
     });
 
