@@ -71,7 +71,16 @@ const calculateDeductedInput = (
       .map((part) => part.trim());
     if (!conditionRaw || !factorRaw) continue;
 
-    const factor = Number(factorRaw);
+    const factor = (() => {
+      const trimmed = factorRaw.trim();
+      if (trimmed.includes("/")) {
+        const [n, d] = trimmed.split("/");
+        const num = Number(n);
+        const den = Number(d);
+        return !Number.isNaN(num) && !Number.isNaN(den) && den !== 0 ? num / den : NaN;
+      }
+      return Number(trimmed);
+    })();
     if (Number.isNaN(factor)) continue;
 
     const condition = conditionRaw.replace(/\s+/g, "");
