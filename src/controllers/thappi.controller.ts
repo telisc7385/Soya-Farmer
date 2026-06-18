@@ -5,11 +5,6 @@ import { AppError } from "../core/appError";
 import { AuthRequest } from "../middleware/auth.middleware";
 import { saveUploadedFile } from "../utils/upload";
 
-const generateThappiCode = async () => {
-  const count = await prisma.thappi.count();
-  return `THP-${String(count + 1).padStart(6, "0")}`;
-};
-
 export const createThappi = async (
   req: AuthRequest,
   res: Response,
@@ -50,56 +45,78 @@ export const createThappi = async (
 
     const bagCount = bagBreakdown.reduce((sum, row) => sum + row.bagCount, 0);
 
-    const finalCode = await generateThappiCode();
+    let thappi;
+    let attempts = 0;
+    const MAX_ATTEMPTS = 5;
 
-    const thappi = await prisma.$transaction(async (tx) => {
-      const created = await tx.thappi.create({
-        data: {
-          vendorId,
-          locationId,
-          code: finalCode,
-          weightQtl,
-          bagCount,
-          moisture,
-          fm,
-          damage,
-          imageUrl: imageUrl?.trim(),
-          status: "AVAILABLE",
-        },
-      });
+    while (!thappi && attempts < MAX_ATTEMPTS) {
+      try {
+        thappi = await prisma.$transaction(async (tx) => {
+          const last = await tx.thappi.findFirst({
+            orderBy: { createdAt: "desc" },
+            select: { code: true },
+          });
+          const lastNum = last
+            ? parseInt(last.code.replace("THP-", ""), 10)
+            : 0;
+          const code = `THP-${String(lastNum + 1).padStart(6, "0")}`;
 
-      await tx.thappiBagBreakdown.createMany({
-        data: bagBreakdown.map((row) => ({
-          thappiId: created.id,
-          goniTypeId: row.goniTypeId,
-          bagCount: row.bagCount,
-        })),
-      });
-      await tx.thappiMovement.create({
-        data: {
-          thappiId: created.id,
-          movementType: "CREATE",
-          weightQtl: created.weightQtl,
-          bagCount: created.bagCount,
-          toLocationId: created.locationId,
-          createdById: vendorId,
-        },
-      });
+          const created = await tx.thappi.create({
+            data: {
+              vendorId,
+              locationId,
+              code,
+              weightQtl,
+              bagCount,
+              moisture,
+              fm,
+              damage,
+              imageUrl: imageUrl?.trim(),
+              status: "AVAILABLE",
+            },
+          });
 
-      return tx.thappi.findUnique({
-        where: { id: created.id },
-        include: {
-          location: true,
-          bagBreakdown: { include: { goniType: true } },
-        },
-      });
-    });
+          await tx.thappiBagBreakdown.createMany({
+            data: bagBreakdown.map((row) => ({
+              thappiId: created.id,
+              goniTypeId: row.goniTypeId,
+              bagCount: row.bagCount,
+            })),
+          });
+          await tx.thappiMovement.create({
+            data: {
+              thappiId: created.id,
+              movementType: "CREATE",
+              weightQtl: created.weightQtl,
+              bagCount: created.bagCount,
+              toLocationId: created.locationId,
+              createdById: vendorId,
+            },
+          });
+
+          return tx.thappi.findUnique({
+            where: { id: created.id },
+            include: {
+              location: true,
+              bagBreakdown: { include: { goniType: true } },
+            },
+          });
+        });
+      } catch (error: any) {
+        if (error?.code === "P2002") {
+          attempts++;
+          continue;
+        }
+        throw error;
+      }
+    }
+
+    if (!thappi) {
+      throw new AppError("Failed to generate unique Thappi code", 409);
+    }
 
     createdResponse(res, thappi, "Thappi created");
   } catch (error: any) {
-    if (error?.code === "P2002") {
-      return next(new AppError("Thappi code already exists", 409));
-    }
     next(error);
   }
 };

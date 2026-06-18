@@ -138,12 +138,15 @@ const buildDailyQualityRates = async (query: {
   startDate?: string;
   endDate?: string;
 }) => {
-  const createdAt = !query.startDate && !query.endDate
-    ? undefined
-    : {
-        ...(query.startDate && { gte: new Date(query.startDate) }),
-        ...(query.endDate && { lte: new Date(query.endDate) }),
-      };
+  const createdAt =
+    !query.startDate && !query.endDate
+      ? undefined
+      : {
+          ...(query.startDate && { gte: new Date(query.startDate) }),
+          ...(query.endDate && {
+            lte: new Date(new Date(query.endDate).setHours(23, 59, 59, 999)),
+          }),
+        };
 
   const rates = await prisma.qualityRate.findMany({
     where: {
@@ -207,10 +210,7 @@ const buildDailyQualityRates = async (query: {
         });
       }
     } else {
-      const fallbackRate =
-        previousRate?.rate ??
-        latestRateBefore(cursor) ??
-        0;
+      const fallbackRate = previousRate?.rate ?? latestRateBefore(cursor) ?? 0;
       dailyEntries.push({
         rate: fallbackRate,
         date: formatDate(cursor),
