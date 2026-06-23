@@ -5,9 +5,5 @@ node_modules
 /generated/prisma
 
 dist/
-# Ignore all files in prisma/migrations
-# prisma/migrations/*
-!prisma/migrations/
-# But keep the migration_lock.toml file
-!prisma/migrations/migration_lock.toml
+prisma/migrations
 /src/generated/prisma
