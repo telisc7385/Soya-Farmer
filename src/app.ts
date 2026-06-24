@@ -12,6 +12,7 @@ import logsRoutes from "./routes/logs.routes";
 import { errorHandler } from "./core/errorHandler";
 import path from "path";
 import { routeNotFoundError } from "./core/routeNotFoundError";
+import { logHttp } from "./utils/logger";
 
 dotenv.config();
 
@@ -35,6 +36,15 @@ app.use(
     },
   }),
 );
+
+// Request logger
+app.use((req, res, next) => {
+  const start = Date.now();
+  res.on("finish", () => {
+    logHttp(req.method, req.originalUrl, res.statusCode, Date.now() - start);
+  });
+  next();
+});
 
 // Health check
 app.get("/", (req, res) => {
