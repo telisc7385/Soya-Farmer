@@ -14,6 +14,15 @@ interface DeployStatus {
 
 let isRunning = false;
 
+// Reset stuck status from a previous crash/restart
+(() => {
+  const saved = readStatus();
+  if (saved.running || saved.status === "running") {
+    writeStatus({ running: false, lastDeployment: null, status: "idle", lastLog: null });
+    log("[Deploy] Reset stuck deployment status from previous session");
+  }
+})();
+
 function getProjectPath(): string {
   return process.env.PROJECT_PATH || process.cwd();
 }
