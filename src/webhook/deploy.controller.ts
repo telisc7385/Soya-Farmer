@@ -10,10 +10,16 @@ export async function handleDeployWebhook(
   next: NextFunction
 ): Promise<void> {
   try {
+    const rawBody = (req as any).rawBody;
+    if (!rawBody) {
+      res.status(400).json({ success: false, message: "Missing request body" });
+      return;
+    }
+
     const signature = req.headers["x-hub-signature-256"] as string | undefined;
 
     const isValid = verifyGitHubSignature(
-      JSON.stringify(req.body),
+      rawBody,
       signature,
       envConfig.githubWebhookSecret
     );

@@ -19,7 +19,12 @@ const app = express();
 app.use("/uploads", express.static(path.join(process.cwd(), "public/uploads")));
 
 // Middlewares
-app.use(express.json());
+app.use(express.json({
+  type: "*/*",
+  verify: (req, _res, buf) => {
+    (req as any).rawBody = buf.toString();
+  },
+}));
 
 // Health check
 app.get("/", (req, res) => {
