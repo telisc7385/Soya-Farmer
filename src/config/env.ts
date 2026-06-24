@@ -9,6 +9,8 @@ interface envConfigPayload {
     port: string;
 
     dbUrl: string;
+
+    githubWebhookSecret: string;
 }
 
 export const envConfig: envConfigPayload = {
@@ -17,4 +19,6 @@ export const envConfig: envConfigPayload = {
 
   port: process.env.PORT!,
   dbUrl: process.env.DATABASE_URL!,
+
+  githubWebhookSecret: process.env.GITHUB_WEBHOOK_SECRET || "",
 };
