@@ -1,9 +1,40 @@
-import { Router, Request, Response } from "express";
+import { Router, Request, Response, NextFunction } from "express";
 import { getAppLogLines, getDeployLogLines } from "../utils/logger";
 import fs from "fs";
 import path from "path";
 
 const router = Router();
+
+const LOGS_USERNAME = process.env.LOGS_USERNAME || "admin";
+const LOGS_PASSWORD = process.env.LOGS_PASSWORD || "";
+
+function basicAuth(req: Request, res: Response, next: NextFunction): void {
+  if (!LOGS_PASSWORD) {
+    res.set("WWW-Authenticate", 'Basic realm="Logs"');
+    res.status(401).send("Logs password not configured. Set LOGS_PASSWORD in .env");
+    return;
+  }
+
+  const header = req.headers.authorization;
+  if (!header || !header.startsWith("Basic ")) {
+    res.set("WWW-Authenticate", 'Basic realm="Logs"');
+    res.status(401).send("Authentication required");
+    return;
+  }
+
+  const decoded = Buffer.from(header.slice(6), "base64").toString("utf-8");
+  const [username, password] = decoded.split(":");
+
+  if (username !== LOGS_USERNAME || password !== LOGS_PASSWORD) {
+    res.set("WWW-Authenticate", 'Basic realm="Logs"');
+    res.status(401).send("Invalid credentials");
+    return;
+  }
+
+  next();
+}
+
+router.use(basicAuth);
 
 const LOG_DIR = path.resolve(process.cwd(), "logs");
 const APP_LOG = path.join(LOG_DIR, "app.log");

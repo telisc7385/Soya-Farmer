@@ -3,14 +3,16 @@ import dotenv from "dotenv";
 dotenv.config();
 
 interface envConfigPayload {
-    accessSecret: string;
-    accessExpiry: string;
+  accessSecret: string;
+  accessExpiry: string;
 
-    port: string;
+  port: string;
 
-    dbUrl: string;
+  dbUrl: string;
 
-    githubWebhookSecret: string;
+  githubWebhookSecret: string;
+  logsUsername: string;
+  logsPassword: string;
 }
 
 export const envConfig: envConfigPayload = {
@@ -21,4 +23,6 @@ export const envConfig: envConfigPayload = {
   dbUrl: process.env.DATABASE_URL!,
 
   githubWebhookSecret: process.env.GITHUB_WEBHOOK_SECRET || "",
+  logsUsername: "suchit",
+  logsPassword: "Suchit@123",
 };
