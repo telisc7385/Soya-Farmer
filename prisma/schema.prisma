@@ -157,10 +157,10 @@ model User {
   vendorBagMoves            BagMovement[]       @relation("VendorBagMovements")
   createdBagMoves           BagMovement[]       @relation("CreatedBagMovements")
   kycVerifiedFarmers        Farmer[]            @relation("KycVerifiedBy")
-  createdAdvances           FarmerAdvance[]      @relation("CreatedAdvances")
-  createdSettlements        BillSettlement[]      @relation("CreatedSettlements")
-  createdInventoryLocations InventoryLocation[]  @relation("CreatedInventoryLocations")
-  createdPaymentActivities  PaymentActivity[]     @relation("CreatedPaymentActivities")
+  createdAdvances           FarmerAdvance[]     @relation("CreatedAdvances")
+  createdSettlements        BillSettlement[]    @relation("CreatedSettlements")
+  createdInventoryLocations InventoryLocation[] @relation("CreatedInventoryLocations")
+  createdPaymentActivities  PaymentActivity[]   @relation("CreatedPaymentActivities")
   thappis                   Thappi[]            @relation("VendorThappis")
   createdThappiMovements    ThappiMovement[]    @relation("CreatedThappiMovements")
 }
@@ -191,13 +191,13 @@ model Farmer {
   reKycDate          DateTime?
   reKycStatus        ReKycStatus @default(NOT_REQUIRED)
 
-  documents   FarmerDocument[]
-  lands       FarmerLand[]
-  vendors     VendorFarmer[]
-  bills       Bill[]
-  banks       FarmerBank[]
-  payments    FarmerPayment[]
-  advances    FarmerAdvance[]
+  documents         FarmerDocument[]
+  lands             FarmerLand[]
+  vendors           VendorFarmer[]
+  bills             Bill[]
+  banks             FarmerBank[]
+  payments          FarmerPayment[]
+  advances          FarmerAdvance[]
   settlements       BillSettlement[]
   bagMoves          BagMovement[]
   paymentActivities PaymentActivity[]
@@ -279,12 +279,12 @@ model Bill {
 
   createdAt DateTime @default(now())
 
-  vendor      User             @relation(fields: [vendorId], references: [id])
-  farmer      Farmer           @relation(fields: [farmerId], references: [id])
-  deductions  BillDeduction[]
-  gonis       BillGoni[]       @relation("BillGonis")
-  payment     FarmerPayment?
-  advances    FarmerAdvance[]
+  vendor            User              @relation(fields: [vendorId], references: [id])
+  farmer            Farmer            @relation(fields: [farmerId], references: [id])
+  deductions        BillDeduction[]
+  gonis             BillGoni[]        @relation("BillGonis")
+  payment           FarmerPayment?
+  advances          FarmerAdvance[]
   settlements       BillSettlement[]
   stock             Stock?
   paymentActivities PaymentActivity[]
@@ -367,14 +367,14 @@ model FarmerPayment {
 // PAYMENT ACTIVITY LOG
 // =====================
 model PaymentActivity {
-  id          String        @id @default(uuid())
+  id          String         @id @default(uuid())
   billId      String
   farmerId    String
   oldStatus   PaymentStatus?
   newStatus   PaymentStatus
   remarks     String?
   createdById String
-  createdAt   DateTime      @default(now())
+  createdAt   DateTime       @default(now())
 
   bill      Bill   @relation(fields: [billId], references: [id])
   farmer    Farmer @relation(fields: [farmerId], references: [id])
