@@ -2,16 +2,19 @@ import { Router, Request, Response, NextFunction } from "express";
 import { getAppLogLines, getDeployLogLines } from "../utils/logger";
 import fs from "fs";
 import path from "path";
+import { envConfig } from "../config/env";
 
 const router = Router();
 
-const LOGS_USERNAME = process.env.LOGS_USERNAME || "admin";
-const LOGS_PASSWORD = process.env.LOGS_PASSWORD || "";
+const LOGS_USERNAME = envConfig.logsUsername;
+const LOGS_PASSWORD = envConfig.logsPassword;
 
 function basicAuth(req: Request, res: Response, next: NextFunction): void {
   if (!LOGS_PASSWORD) {
     res.set("WWW-Authenticate", 'Basic realm="Logs"');
-    res.status(401).send("Logs password not configured. Set LOGS_PASSWORD in .env");
+    res
+      .status(401)
+      .send("Logs password not configured. Set LOGS_PASSWORD in .env");
     return;
   }
 
@@ -140,7 +143,8 @@ router.get("/", (_req: Request, res: Response) => {
 
 router.get("/data", (req: Request, res: Response) => {
   const source = req.query.source === "deploy" ? "deploy" : "app";
-  const lines = source === "deploy" ? getDeployLogLines(200) : getAppLogLines(200);
+  const lines =
+    source === "deploy" ? getDeployLogLines(200) : getAppLogLines(200);
   res.json({ source, lines });
 });
 
