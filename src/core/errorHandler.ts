@@ -1,16 +1,16 @@
 import { Request, Response, NextFunction } from "express";
 import { AppError } from "./appError";
+import { logError } from "../utils/logger";
 
 export const errorHandler = (
   err: Error | AppError | any,
   req: Request,
   res: Response,
-  _next: NextFunction, // ✅ REQUIRED
+  _next: NextFunction,
 ) => {
   const method = req.method;
   const path = req.originalUrl;
 
-  // Short error message for logs
   const shortMessage =
     err instanceof AppError
       ? err.message
@@ -18,8 +18,7 @@ export const errorHandler = (
         ? `Prisma Error: ${err.code}`
         : err.message || "Unknown error";
 
-  // 🧾 Console log (short & dynamic)
-  console.error(`[ERROR] ${method} ${path} → ${shortMessage}`);
+  logError(`${method} ${path} → ${shortMessage}`);
 
   if (err instanceof AppError) {
     res.status(err.statusCode).json({
@@ -30,7 +29,6 @@ export const errorHandler = (
   }
 
   if (err.code === "P2025") {
-    // Prisma "Record not found" error
     res.status(404).json({
       success: false,
       message: "Record not found",
@@ -43,5 +41,4 @@ export const errorHandler = (
     message: "Internal Server Error",
     error: err.message,
   });
-  return;
 };
