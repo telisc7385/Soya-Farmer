@@ -34,8 +34,7 @@ function writeStatus(status: DeployStatus): void {
 }
 
 export function getDeployStatus(): DeployStatus {
-  const status = readStatus();
-  return { ...status, running: isRunning };
+  return readStatus();
 }
 
 export async function runDeployment(): Promise<DeployStatus> {
@@ -57,7 +56,6 @@ export async function runDeployment(): Promise<DeployStatus> {
     { label: "npm run build", cmd: "npm run build" },
     { label: "prisma generate", cmd: "npx prisma generate" },
     { label: "prisma migrate deploy", cmd: "npx prisma migrate deploy" },
-    { label: "pm2 restart", cmd: "pm2 restart soya-api" },
   ];
 
   try {
@@ -77,6 +75,9 @@ export async function runDeployment(): Promise<DeployStatus> {
     };
     writeStatus(finalStatus);
     log("[Deploy] Deployment completed successfully");
+
+    // Gracefully reload the server (fire-and-forget since it kills the current process)
+    executeCommand("pm2 reload soya-api", projectPath).catch(() => {});
     return finalStatus;
   } catch (err: any) {
     const endTime = new Date().toISOString();
