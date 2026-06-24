@@ -19,18 +19,25 @@ const app = express();
 app.use("/uploads", express.static(path.join(process.cwd(), "public/uploads")));
 
 // Middlewares
-app.use(express.json({
-  verify: (req, _res, buf) => {
-    (req as any).rawBody = buf.toString();
-  },
-}));
-app.use(express.urlencoded({ extended: true, verify: (req, _res, buf) => {
-  (req as any).rawBody = buf.toString();
-} }));
+app.use(
+  express.json({
+    verify: (req, _res, buf) => {
+      (req as any).rawBody = buf.toString();
+    },
+  }),
+);
+app.use(
+  express.urlencoded({
+    extended: true,
+    verify: (req, _res, buf) => {
+      (req as any).rawBody = buf.toString();
+    },
+  }),
+);
 
 // Health check
 app.get("/", (req, res) => {
-  res.send("API is running ✅✅");
+  res.send("API is running ✅");
 });
 
 // routes
