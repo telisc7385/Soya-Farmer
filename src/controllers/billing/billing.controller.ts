@@ -77,7 +77,9 @@ const calculateDeductedInput = (
         const [n, d] = trimmed.split("/");
         const num = Number(n);
         const den = Number(d);
-        return !Number.isNaN(num) && !Number.isNaN(den) && den !== 0 ? num / den : NaN;
+        return !Number.isNaN(num) && !Number.isNaN(den) && den !== 0
+          ? num / den
+          : NaN;
       }
       return Number(trimmed);
     })();
@@ -283,10 +285,10 @@ export const createDraftBill = async (
     let quantity = rawQuantity;
     if (unit === "KG") {
       // Convert KG to QTL for storage and calculations
-      quantity = roundTo(quantity / 100, 3);
+      quantity = roundTo(quantity / 100, 4);
     } else if (unit === "MT") {
       // Convert MT to QTL for storage and calculations
-      quantity = roundTo(quantity * 10, 3);
+      quantity = roundTo(quantity * 10, 4);
     }
 
     await checkFarmer(farmerId);

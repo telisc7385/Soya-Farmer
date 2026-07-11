@@ -726,7 +726,16 @@ export const getFarmers = async (
   next: NextFunction,
 ) => {
   try {
-    const { page = "1", limit = "10", search, vendorId, district, taluka, villageAdd } = req.query;
+    const {
+      page = "1",
+      limit = "10",
+      search,
+      adhar_no,
+      vendorId,
+      district,
+      taluka,
+      villageAdd,
+    } = req.query;
     const take = Number(limit);
     const skip = (Number(page) - 1) * take;
 
@@ -741,6 +750,7 @@ export const getFarmers = async (
         ...(district && { district: String(district) }),
         ...(taluka && { taluka: String(taluka) }),
         ...(villageAdd && { villageAdd: String(villageAdd) }),
+        ...(adhar_no && { aadhaarNo: String(adhar_no) }),
         ...(search && {
           OR: [
             { name: { contains: String(search), mode: "insensitive" } },
