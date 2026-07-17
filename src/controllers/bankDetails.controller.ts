@@ -16,19 +16,31 @@ const checkDuplicateIfsc = async (ifsc: string, excludeId?: string) => {
 
 const parseCsvBuffer = (buffer: Buffer) => {
   const raw = buffer.toString("utf-8");
-  const lines = raw.split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
+  const lines = raw
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
 
   if (lines.length < 2) {
-    throw new AppError("CSV must have a header row and at least one data row", 400);
+    throw new AppError(
+      "CSV must have a header row and at least one data row",
+      400,
+    );
   }
 
-  const header = lines[0].toLowerCase().split(",").map((h) => h.trim());
+  const header = lines[0]
+    .toLowerCase()
+    .split(",")
+    .map((h) => h.trim());
   const bankNameIdx = header.indexOf("bankname");
   const branchNameIdx = header.indexOf("branchname");
   const ifscIdx = header.indexOf("ifsc");
 
   if (bankNameIdx === -1 || branchNameIdx === -1 || ifscIdx === -1) {
-    throw new AppError('CSV must contain "bankName", "branchName", and "ifsc" columns', 400);
+    throw new AppError(
+      'CSV must contain "bankName", "branchName", and "ifsc" columns',
+      400,
+    );
   }
 
   const seen = new Set<string>();
@@ -58,14 +70,9 @@ export const createBankDetails = async (
   next: NextFunction,
 ) => {
   try {
-  const { bankName, branchName, ifsc } = req.body;
+    const { bankName, branchName, ifsc } = req.body;
 
     await createBankDetailsSchema.validateAsync({ bankName, branchName, ifsc });
-
-    const isDuplicate = await checkDuplicateIfsc(ifsc);
-    if (isDuplicate) {
-      throw new AppError(`IFSC "${ifsc}" already exists`, 409);
-    }
 
     const bank = await prisma.bankDetails.create({
       data: { bankName, branchName, ifsc },
@@ -106,7 +113,12 @@ export const createBankDetailsViaCsv = async (
     );
 
     const valid: { bankName: string; branchName: string; ifsc: string }[] = [];
-    const failed: { bankName: string; branchName: string; ifsc: string; reason: string }[] = [];
+    const failed: {
+      bankName: string;
+      branchName: string;
+      ifsc: string;
+      reason: string;
+    }[] = [];
 
     for (const row of rows) {
       const key = row.ifsc.toLowerCase();
@@ -135,7 +147,12 @@ export const createBankDetailsViaCsv = async (
 
     successResponse(
       res,
-      { created, failed, totalCreated: created.length, totalFailed: failed.length },
+      {
+        created,
+        failed,
+        totalCreated: created.length,
+        totalFailed: failed.length,
+      },
       `Bank details processed: ${created.length} created, ${failed.length} failed`,
     );
   } catch (error) {

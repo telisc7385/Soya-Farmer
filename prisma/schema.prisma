@@ -342,7 +342,7 @@ model BankDetails {
   id         String   @id @default(uuid())
   bankName   String
   branchName String
-  ifsc       String   @unique
+  ifsc       String
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 }
