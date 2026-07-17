@@ -1,14 +1,45 @@
 import Joi from "joi";
 
 export const createDraftSchema = Joi.object({
-  farmerId: Joi.string().uuid().required(),
+  billId: Joi.string().uuid().optional(),
+  farmerId: Joi.string().uuid().when("billId", {
+    is: Joi.exist(),
+    then: Joi.optional(),
+    otherwise: Joi.required(),
+  }),
   billDate: Joi.date().optional(),
-  quantity: Joi.number().positive().required(),
-  unit: Joi.string().valid("QTL", "MT", "KG").required(),
-  rate: Joi.number().positive().required(),
-  vehicleNumber: Joi.string().trim().required(),
-  vehicleType: Joi.string().trim().required(),
-  driverName: Joi.string().trim().required(),
+  quantity: Joi.number().positive().when("billId", {
+    is: Joi.exist(),
+    then: Joi.optional(),
+    otherwise: Joi.required(),
+  }),
+  unit: Joi.string()
+    .valid("QTL", "MT", "KG")
+    .when("billId", {
+      is: Joi.exist(),
+      then: Joi.optional(),
+      otherwise: Joi.required(),
+    }),
+  rate: Joi.number().positive().when("billId", {
+    is: Joi.exist(),
+    then: Joi.optional(),
+    otherwise: Joi.required(),
+  }),
+  vehicleNumber: Joi.string().trim().when("billId", {
+    is: Joi.exist(),
+    then: Joi.optional(),
+    otherwise: Joi.required(),
+  }),
+  vehicleType: Joi.string().trim().when("billId", {
+    is: Joi.exist(),
+    then: Joi.optional(),
+    otherwise: Joi.required(),
+  }),
+  driverName: Joi.string().trim().when("billId", {
+    is: Joi.exist(),
+    then: Joi.optional(),
+    otherwise: Joi.required(),
+  }),
   billLocation: Joi.string().trim().optional(),
 });
 

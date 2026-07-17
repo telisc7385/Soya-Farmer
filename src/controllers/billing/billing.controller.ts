@@ -270,7 +270,9 @@ export const createDraftBill = async (
   try {
     const vendorId = req.user?.id;
     if (!vendorId) throw new AppError("Unauthorized", 401);
+
     const {
+      billId,
       farmerId,
       billDate,
       quantity: rawQuantity,
@@ -282,12 +284,161 @@ export const createDraftBill = async (
       billLocation,
     } = req.body;
 
+    if (billId) {
+      const existingBill = await ensureDraftBill(billId, vendorId);
+
+      const updateData: Record<string, any> = {};
+
+      if (vehicleNumber !== undefined) updateData.vehicleNumber = vehicleNumber;
+      if (vehicleType !== undefined) updateData.vehicleType = vehicleType;
+      if (driverName !== undefined) updateData.driverName = driverName;
+      if (billLocation !== undefined) updateData.billLocation = billLocation;
+      if (billDate !== undefined) updateData.billDate = new Date(billDate);
+
+      const quantityChanged = rawQuantity !== undefined && unit !== undefined;
+      const rateChanged = rate !== undefined;
+
+      if (quantityChanged) {
+        let quantity = rawQuantity;
+        if (unit === "KG") {
+          quantity = roundTo(quantity / 100, 4);
+        } else if (unit === "MT") {
+          quantity = roundTo(quantity * 10, 4);
+        }
+
+        const currentFarmerId = existingBill.farmerId;
+        const lands = await prisma.farmerLand.findMany({
+          where: { farmerId: currentFarmerId },
+          select: { area: true },
+        });
+        const totalLandHectare = roundTo(
+          lands.reduce((sum, land) => sum + (land.area ?? 0), 0),
+          3,
+        );
+        if (totalLandHectare <= 0) {
+          throw new AppError(
+            "No valid land area found for this farmer. Please add farmer land first.",
+            400,
+          );
+        }
+
+        const usedQtyAgg = await prisma.bill.aggregate({
+          where: {
+            farmerId: currentFarmerId,
+            status: { not: "CANCELLED" },
+            id: { not: billId },
+          },
+          _sum: { primaryQuantity: true },
+        });
+        const alreadyUsedQtl = roundTo(
+          usedQtyAgg._sum.primaryQuantity ?? 0,
+          3,
+        );
+        const requestedQtl = roundTo(quantity, 3);
+        const purchaseLimitPerHectare =
+          await getPurchaseLimitQtlPerHectare();
+        const allowedQtl = roundTo(
+          totalLandHectare * purchaseLimitPerHectare,
+          3,
+        );
+        const afterRequestQtl = roundTo(alreadyUsedQtl + requestedQtl, 3);
+        const remainingBeforeRequestQtl = roundTo(
+          allowedQtl - alreadyUsedQtl,
+          3,
+        );
+
+        if (afterRequestQtl > allowedQtl) {
+          throw new AppError(
+            `Purchase limit exceeded. Allowed: ${allowedQtl} QTL, used: ${alreadyUsedQtl} QTL, remaining: ${Math.max(
+              remainingBeforeRequestQtl,
+              0,
+            )} QTL, requested: ${requestedQtl} QTL.`,
+            400,
+          );
+        }
+
+        updateData.primaryQuantity = quantity;
+        updateData.primaryUnit = "QTL";
+      }
+
+      if (rateChanged) {
+        updateData.ratePerUnit = rate;
+      }
+
+      if (quantityChanged || rateChanged) {
+        const qty = updateData.primaryQuantity ?? existingBill.primaryQuantity;
+        const rt = updateData.ratePerUnit ?? existingBill.ratePerUnit;
+        updateData.grossAmount = roundTo(qty * rt, 0);
+      }
+
+      if (Object.keys(updateData).length === 0) {
+        throw new AppError("No fields to update", 400);
+      }
+
+      await prisma.bill.update({
+        where: { id: billId },
+        data: updateData,
+      });
+
+      const totals = await recalcTotals(billId);
+      const hydrated = await prisma.bill.findUnique({
+        where: { id: billId },
+        include: {
+          farmer: true,
+          deductions: true,
+          gonis: {
+            include: { goniType: true },
+          },
+        },
+      });
+
+      const billWithGoni = withGoniAmount(hydrated);
+      const calculationDetails = billWithGoni.calculationDetails;
+      successResponse(
+        res,
+        {
+          bill: {
+            id: billWithGoni.id,
+            billNo: billWithGoni.billNo,
+            billDate: billWithGoni.billDate,
+            status: billWithGoni.status,
+            primaryQuantity: billWithGoni.primaryQuantity,
+            primaryUnit: billWithGoni.primaryUnit,
+            ratePerUnit: billWithGoni.ratePerUnit,
+            grossAmount: billWithGoni.grossAmount,
+            totalAmount: billWithGoni.totalAmount,
+            netPayable: billWithGoni.netPayable,
+            vehicleNumber: billWithGoni.vehicleNumber,
+            vehicleType: billWithGoni.vehicleType,
+            driverName: billWithGoni.driverName,
+            goniWeight: billWithGoni.goniWeight,
+            goniCount:
+              billWithGoni.gonis?.reduce(
+                (sum: number, g: any) => sum + g.bagCount,
+                0,
+              ) ?? 0,
+            gonis: billWithGoni.gonis,
+            goniDeductionAmount: billWithGoni.goniDeductionAmount,
+            farmer: billWithGoni.farmer,
+            goniType: billWithGoni.goniType,
+          },
+          totals: compactTotals(totals),
+          calculationDetails: compactCalculationDetails(calculationDetails),
+          deductions: calculationDetails.variableDetails,
+        },
+        "Bill draft updated successfully",
+      );
+      return;
+    }
+
+    if (!farmerId || !rawQuantity || !unit || !rate || !vehicleNumber || !vehicleType || !driverName) {
+      throw new AppError("farmerId, quantity, unit, rate, vehicleNumber, vehicleType, driverName are required for creating a new bill", 400);
+    }
+
     let quantity = rawQuantity;
     if (unit === "KG") {
-      // Convert KG to QTL for storage and calculations
       quantity = roundTo(quantity / 100, 4);
     } else if (unit === "MT") {
-      // Convert MT to QTL for storage and calculations
       quantity = roundTo(quantity * 10, 4);
     }
 
@@ -343,7 +494,6 @@ export const createDraftBill = async (
         farmerId,
         status: "DRAFT",
         primaryQuantity: quantity,
-        // Keep quantity unit normalized to QTL in persistence layer
         primaryUnit: "QTL",
         ratePerUnit: rate,
         grossAmount,
