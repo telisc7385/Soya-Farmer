@@ -14,6 +14,28 @@ import { buildBillingCalculationDetails } from "../../utils/billingCalculation";
 import { getPurchaseLimitQtlPerHectare } from "../../services/purchaseLimit.service";
 import { saveUploadedFile } from "../../utils/upload";
 
+const getSeasonWindow = () => {
+  const now = new Date();
+  const month = now.getMonth(); // 0-indexed: 0=Jan, 3=Apr
+  let startYear: number;
+  let endYear: number;
+
+  if (month >= 3) {
+    // Apr–Dec → current year's Apr 1 to next year's May 31
+    startYear = now.getFullYear();
+    endYear = now.getFullYear() + 1;
+  } else {
+    // Jan–Mar → previous year's Apr 1 to current year's May 31
+    startYear = now.getFullYear() - 1;
+    endYear = now.getFullYear();
+  }
+
+  return {
+    seasonStart: new Date(startYear, 3, 1), // April 1
+    seasonEnd: new Date(endYear, 5, 1),     // June 1 (exclusive, so May 31 included)
+  };
+};
+
 const parseUnitHint = (unitHint?: string | null): number => {
   if (!unitHint) return 1;
   const trimmed = unitHint.trim();
@@ -322,11 +344,14 @@ export const createDraftBill = async (
           );
         }
 
+        const { seasonStart, seasonEnd } = getSeasonWindow();
+
         const usedQtyAgg = await prisma.bill.aggregate({
           where: {
             farmerId: currentFarmerId,
             status: { not: "CANCELLED" },
             id: { not: billId },
+            billDate: { gte: seasonStart, lt: seasonEnd },
           },
           _sum: { primaryQuantity: true },
         });
@@ -459,10 +484,13 @@ export const createDraftBill = async (
       );
     }
 
+    const { seasonStart, seasonEnd } = getSeasonWindow();
+
     const usedQtyAgg = await prisma.bill.aggregate({
       where: {
         farmerId,
         status: { not: "CANCELLED" },
+        billDate: { gte: seasonStart, lt: seasonEnd },
       },
       _sum: { primaryQuantity: true },
     });
