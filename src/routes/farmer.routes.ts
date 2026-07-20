@@ -18,11 +18,7 @@ router.post(
 );
 
 router.get("/list", authMiddleware, farmerControllers.getFarmers);
-router.get(
-  "/list/non-kyc",
-  authMiddleware,
-  farmerControllers.getNonKycFarmers,
-);
+router.get("/list/non-kyc", authMiddleware, farmerControllers.getNonKycFarmers);
 router.get("/:farmerId", authMiddleware, farmerControllers.getFarmerById);
 
 router.put(
@@ -60,7 +56,7 @@ router.put(
 router.post(
   "/:farmerId/lands",
   authMiddleware,
-  upload.single("land"),
+  upload.array("land", 5),
   validateRequest(farmerValidation.farmerLandSchema),
   farmerControllers.addFarmerLand,
 );
@@ -73,7 +69,7 @@ router.get(
 router.put(
   "/land/:landId",
   authMiddleware,
-  upload.single("land"),
+  upload.array("land", 5),
   farmerControllers.updateFarmerLand,
 );
 

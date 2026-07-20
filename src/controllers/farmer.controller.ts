@@ -488,8 +488,9 @@ export const addFarmerLand = async (
       relationType,
     } = req.body;
 
-    if (!req.file) {
-      throw new AppError("Land document is required", 400);
+    const files = req.files as Express.Multer.File[];
+    if (!files || files.length === 0) {
+      throw new AppError("At least one land document image is required", 400);
     }
 
     // await requireKycEditable(farmerId);
@@ -502,10 +503,11 @@ export const addFarmerLand = async (
       }
     }
 
-    const { publicUrl: documentUrl } = await saveUploadedFile(
-      req.file,
-      "farmers/lands",
-    );
+    const documentUrls: string[] = [];
+    for (const file of files) {
+      const { publicUrl } = await saveUploadedFile(file, "farmers/lands");
+      documentUrls.push(publicUrl);
+    }
 
     const farmer = await prisma.farmer.findUnique({
       where: { id: farmerId },
@@ -535,7 +537,7 @@ export const addFarmerLand = async (
         landOwnerName: ownerNameToSave,
         relationType: landType === "OWN" ? null : relationType,
         area: Number(area),
-        documentUrl,
+        documentUrls,
         villageAdd,
         taluka,
         district,
@@ -593,9 +595,14 @@ export const updateFarmerLand = async (
     if (landOwnerName !== undefined) updateData.landOwnerName = landOwnerName;
     if (relationType !== undefined) updateData.relationType = relationType;
 
-    if (req.file) {
-      const { publicUrl } = await saveUploadedFile(req.file, "farmers/lands");
-      updateData.documentUrl = publicUrl;
+    const files = req.files as Express.Multer.File[];
+    if (files && files.length > 0) {
+      const documentUrls: string[] = [];
+      for (const file of files) {
+        const { publicUrl } = await saveUploadedFile(file, "farmers/lands");
+        documentUrls.push(publicUrl);
+      }
+      updateData.documentUrls = documentUrls;
     }
 
     const land = await prisma.farmerLand.update({

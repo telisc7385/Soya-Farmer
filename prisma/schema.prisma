@@ -242,7 +242,7 @@ model FarmerLand {
   landOwnerName String?
   relationType  String?
   area          Float
-  documentUrl   String
+  documentUrls  String[]
   villageAdd    String?
   taluka        String?
   district      String?
