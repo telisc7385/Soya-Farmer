@@ -6,6 +6,7 @@ import { Response, NextFunction, Request } from "express";
 import { AuthRequest } from "../middleware/auth.middleware";
 import { checkFarmer } from "../repositories/checkFarmer.repository";
 import { saveUploadedFile } from "../utils/upload";
+import { roundTo } from "../utils/number";
 
 const requireKycEditable = async (farmerId: string) => {
   const farmer = await prisma.farmer.findUnique({
@@ -746,6 +747,13 @@ export const getFarmers = async (
     const take = Number(limit);
     const skip = (Number(page) - 1) * take;
 
+    const now = new Date();
+    const currentYear = now.getFullYear();
+    const fiscalStart = now.getMonth() >= 3
+      ? new Date(currentYear, 3, 1)
+      : new Date(currentYear - 1, 3, 1);
+    const fiscalEnd = new Date(fiscalStart.getFullYear() + 1, 3, 1);
+
     const farmers = await prisma.farmer.findMany({
       where: {
         kycStatus: "VERIFIED",
@@ -783,6 +791,20 @@ export const getFarmers = async (
             passbookImage: true,
           },
         },
+        lands: {
+          select: {
+            area: true,
+          },
+        },
+        bills: {
+          where: {
+            status: { not: "CANCELLED" },
+            billDate: { gte: fiscalStart, lt: fiscalEnd },
+          },
+          select: {
+            primaryQuantity: true,
+          },
+        },
         // 👇 fetch only FIRST vendor
         vendors: {
           take: 1,
@@ -804,11 +826,19 @@ export const getFarmers = async (
       },
     });
 
-    const formattedFarmers = farmers.map(({ vendors, _count, ...farmer }) => ({
+    const formattedFarmers = farmers.map(({ vendors, _count, lands, bills, ...farmer }) => ({
       ...farmer,
       vendorName: vendors?.[0]?.vendor?.name ?? null,
       totalKycDocuments: _count.documents,
       totalLands: _count.lands,
+      totalLandArea: roundTo(
+        lands.reduce((sum, land) => sum + (land.area ?? 0), 0),
+        3,
+      ),
+      quantitySold: roundTo(
+        bills.reduce((sum, bill) => sum + (bill.primaryQuantity ?? 0), 0),
+        3,
+      ),
     }));
 
     const total = await prisma.farmer.count({
@@ -821,7 +851,6 @@ export const getFarmers = async (
         }),
         ...(district && { district: String(district) }),
         ...(taluka && { taluka: String(taluka) }),
-        ...(villageAdd && { villageAdd: String(villageAdd) }),
       },
     });
 

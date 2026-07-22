@@ -227,7 +227,11 @@ export const getBillById = async (
     const bill = await prisma.bill.findUnique({
       where: { id: req.params.billId },
       include: {
-        farmer: true,
+        farmer: {
+          include: {
+            banks: true,
+          },
+        },
         deductions: {
           include: {
             master: {
