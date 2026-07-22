@@ -74,7 +74,7 @@ export async function runDeployment(): Promise<DeployStatus> {
     { label: "npm install", cmd: "npm install" },
     { label: "prisma generate", cmd: "npx prisma generate" },
     { label: "npm run build", cmd: "npm run build" },
-    { label: "prisma db push", cmd: "npx prisma db push" },
+    { label: "prisma db push", cmd: "npx prisma migrate dev --name init" },
   ];
   const optionalCommands: { label: string; cmd: string }[] = [];
 
@@ -93,7 +93,8 @@ export async function runDeployment(): Promise<DeployStatus> {
         if (result.stdout) log(`[Deploy] ${label} stdout: ${result.stdout}`);
         if (result.stderr) log(`[Deploy] ${label} stderr: ${result.stderr}`);
       } catch (err: any) {
-        const errMsg = err?.stderr || err?.message || JSON.stringify(err) || "Unknown error";
+        const errMsg =
+          err?.stderr || err?.message || JSON.stringify(err) || "Unknown error";
         logError(`[Deploy] ${label} failed (non-blocking): ${errMsg}`);
       }
     }
