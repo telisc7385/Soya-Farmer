@@ -74,7 +74,7 @@ export async function runDeployment(): Promise<DeployStatus> {
     { label: "npm install", cmd: "npm install" },
     { label: "prisma generate", cmd: "npx prisma generate" },
     { label: "npm run build", cmd: "npm run build" },
-    { label: "prisma db push", cmd: "npx prisma migrate dev --name init" },
+    { label: "prisma db push", cmd: "npx prisma db push" },
   ];
   const optionalCommands: { label: string; cmd: string }[] = [];
 
