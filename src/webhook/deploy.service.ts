@@ -72,10 +72,10 @@ export async function runDeployment(): Promise<DeployStatus> {
   const criticalCommands = [
     { label: "git pull", cmd: "git pull origin main" },
     { label: "npm install", cmd: "npm install" },
+    { label: "prisma generate", cmd: "npx prisma generate" },
     { label: "npm run build", cmd: "npm run build" },
   ];
   const optionalCommands = [
-    { label: "prisma generate", cmd: "npx prisma generate" },
     { label: "prisma db push", cmd: "npx prisma db push" },
   ];
 
