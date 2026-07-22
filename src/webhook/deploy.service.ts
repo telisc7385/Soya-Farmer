@@ -18,7 +18,12 @@ let isRunning = false;
 (() => {
   const saved = readStatus();
   if (saved.running || saved.status === "running") {
-    writeStatus({ running: false, lastDeployment: null, status: "idle", lastLog: null });
+    writeStatus({
+      running: false,
+      lastDeployment: null,
+      status: "idle",
+      lastLog: null,
+    });
     log("[Deploy] Reset stuck deployment status from previous session");
   }
 })();
@@ -35,7 +40,12 @@ function readStatus(): DeployStatus {
   } catch {
     // fall through
   }
-  return { running: false, lastDeployment: null, status: "idle", lastLog: null };
+  return {
+    running: false,
+    lastDeployment: null,
+    status: "idle",
+    lastLog: null,
+  };
 }
 
 function writeStatus(status: DeployStatus): void {
@@ -90,7 +100,8 @@ export async function runDeployment(): Promise<DeployStatus> {
     return finalStatus;
   } catch (err: any) {
     const endTime = new Date().toISOString();
-    const errorMsg = err?.stderr || err?.message || JSON.stringify(err) || "Unknown error";
+    const errorMsg =
+      err?.stderr || err?.message || JSON.stringify(err) || "Unknown error";
     logError(`[Deploy] Deployment failed: ${errorMsg}`);
     const finalStatus: DeployStatus = {
       running: false,
