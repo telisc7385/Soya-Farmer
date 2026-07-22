@@ -48,7 +48,7 @@ app.use((req, res, next) => {
 
 // Health check
 app.get("/", (req, res) => {
-  res.send("API is running ✅✅✅");
+  res.send("API is running ✅✅");
 });
 
 // routes
