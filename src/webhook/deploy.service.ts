@@ -69,20 +69,34 @@ export async function runDeployment(): Promise<DeployStatus> {
   writeStatus(status);
 
   const projectPath = getProjectPath();
-  const commands = [
+  const criticalCommands = [
     { label: "git pull", cmd: "git pull origin main" },
     { label: "npm install", cmd: "npm install" },
     { label: "npm run build", cmd: "npm run build" },
+  ];
+  const optionalCommands = [
     { label: "prisma generate", cmd: "npx prisma generate" },
     { label: "prisma db push", cmd: "npx prisma db push" },
   ];
 
   try {
-    for (const { label, cmd } of commands) {
+    for (const { label, cmd } of criticalCommands) {
       log(`[Deploy] Running: ${label}`);
       const result = await executeCommand(cmd, projectPath);
       if (result.stdout) log(`[Deploy] ${label} stdout: ${result.stdout}`);
       if (result.stderr) log(`[Deploy] ${label} stderr: ${result.stderr}`);
+    }
+
+    for (const { label, cmd } of optionalCommands) {
+      try {
+        log(`[Deploy] Running: ${label}`);
+        const result = await executeCommand(cmd, projectPath);
+        if (result.stdout) log(`[Deploy] ${label} stdout: ${result.stdout}`);
+        if (result.stderr) log(`[Deploy] ${label} stderr: ${result.stderr}`);
+      } catch (err: any) {
+        const errMsg = err?.stderr || err?.message || JSON.stringify(err) || "Unknown error";
+        logError(`[Deploy] ${label} failed (non-blocking): ${errMsg}`);
+      }
     }
 
     const endTime = new Date().toISOString();
