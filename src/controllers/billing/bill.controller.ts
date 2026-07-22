@@ -163,6 +163,15 @@ export const getBills = async (
           farmer: {
             select: { id: true, name: true, phone: true },
           },
+          deductions: {
+            include: {
+              master: {
+                include: {
+                  variables: true,
+                },
+              },
+            },
+          },
           payment: paymentStatusSelect,
         },
       }),
