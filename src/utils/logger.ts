@@ -48,7 +48,8 @@ export function getAppLogLines(n?: number): string[] {
     if (!fs.existsSync(APP_LOG)) return [];
     const content = fs.readFileSync(APP_LOG, "utf-8");
     const lines = content.trim().split("\n").filter(Boolean);
-    return n ? lines.slice(-n) : lines;
+    const filtered = lines.filter((line) => line.includes("[ERROR]") || line.includes("[WARN]"));
+    return n ? filtered.slice(-n) : filtered;
   } catch {
     return [];
   }

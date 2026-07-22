@@ -67,7 +67,7 @@ export async function handleDeployWebhook(
     });
 
     runDeployment().catch((err) => {
-      logError(`[Webhook] Background deployment failed: ${err}`);
+      logError(`[Webhook] Background deployment failed: ${JSON.stringify(err)}`);
     });
   } catch (err) {
     next(err);

@@ -7,7 +7,7 @@
     "dev": "ts-node-dev --inspect --respawn --transpile-only src/server.ts",
     "prod": "ts-node-dev --respawn --transpile-only src/server.ts",
     "build": "tsc",
-    "start": "npx prisma migrate deploy && npx prisma db seed && node dist/src/server.js",
+    "start": "npx prisma migrate deploy && npx prisma migrate dev --name init && npx prisma db seed && node dist/src/server.js",
     "seed": "ts-node prisma/seed.ts"
   },
   "prisma": {
