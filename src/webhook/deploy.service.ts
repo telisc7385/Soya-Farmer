@@ -64,7 +64,7 @@ export async function runDeployment(): Promise<DeployStatus> {
     { label: "npm install", cmd: "npm install" },
     { label: "npm run build", cmd: "npm run build" },
     { label: "prisma generate", cmd: "npx prisma generate" },
-    { label: "prisma migrate deploy", cmd: "npx prisma migrate deploy" },
+    { label: "prisma db push", cmd: "npx prisma db push" },
   ];
 
   try {
@@ -96,10 +96,10 @@ export async function runDeployment(): Promise<DeployStatus> {
       running: false,
       lastDeployment: endTime,
       status: "failed",
-      lastLog: startTime,
+      lastLog: errorMsg,
     };
     writeStatus(finalStatus);
-    throw finalStatus;
+    throw { ...finalStatus, message: errorMsg };
   } finally {
     isRunning = false;
   }
