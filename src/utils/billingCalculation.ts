@@ -124,7 +124,7 @@ export const buildBillingCalculationDetails = (bill: any) => {
     Math.max(ratePerUnit - (ratePerUnit * totalLabDeductionPercent) / 100, 0),
     4,
   );
-  const recalculatedTotal = roundTo(rateAfterLabDeduction * netWeightForLab);
+  const recalculatedTotal = finalPayableAmount;
 
   return {
     totalQuantityReceived,
