@@ -34,7 +34,7 @@ export const generateBillNo = async (vendorId: string) => {
   }
 
   return {
-    billNo: `${prefix}/${String(globalSeq).padStart(6, "0")}`,
+    billNo: `${prefix}/${String(globalSeq).padStart(3, "0")}`,
     vendorBillSeq: vendorSeq,
   };
 };

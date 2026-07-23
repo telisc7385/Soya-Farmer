@@ -57,6 +57,8 @@ const withGoniAmount = (
     goniDeductionAmount: calculationDetails.goniDeductionAmount,
     calculationDetails,
     perQtlLabDeduction,
+    rateAfterLabDeductionRounded:
+      calculationDetails?.rateAfterLabDeductionRounded ?? 0,
   };
 };
 
