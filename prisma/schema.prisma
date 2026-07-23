@@ -257,7 +257,7 @@ model FarmerLand {
 model Bill {
   id            String   @id @default(uuid())
   billNo        String
-  vendorBillSeq Int
+  vendorBillSeq Int @default(0)
   billDate      DateTime
   vendorId      String
   farmerId      String
