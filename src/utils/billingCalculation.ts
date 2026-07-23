@@ -110,11 +110,12 @@ export const buildBillingCalculationDetails = (bill: any) => {
     ),
   );
 
-  const finalNetPayableWeight = roundTo(
-    Math.max(netWeightForLab - totalLabDeductionWeight, 0),
-    2,
+  const finalNetPayableWeightExact = Math.max(
+    netWeightForLab - totalLabDeductionWeight,
+    0,
   );
-  const amountAfterLab = roundTo(finalNetPayableWeight * ratePerUnit);
+  const finalNetPayableWeight = roundTo(finalNetPayableWeightExact, 2);
+  const amountAfterLab = roundTo(finalNetPayableWeightExact * ratePerUnit);
   const finalPayableAmount = roundTo(
     Math.max(amountAfterLab - totalFixedDeductionAmount, 0),
     0,
