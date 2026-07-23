@@ -223,11 +223,11 @@ model VendorFarmer {
 // FARMER DOCUMENTS (KYC)
 // =====================
 model FarmerDocument {
-  id        String       @id @default(uuid())
-  farmerId  String
-  type      DocumentType
-  imageUrl  String
-  createdAt DateTime     @default(now())
+  id           String       @id @default(uuid())
+  farmerId     String
+  type         DocumentType
+  documentUrls String[]
+  createdAt    DateTime     @default(now())
 
   farmer Farmer @relation(fields: [farmerId], references: [id])
 }
@@ -257,6 +257,7 @@ model FarmerLand {
 model Bill {
   id       String   @id @default(uuid())
   billNo   String
+  vendorBillSeq Int
   billDate DateTime
   vendorId String
   farmerId String

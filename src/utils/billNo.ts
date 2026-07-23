@@ -1,28 +1,40 @@
 import prisma from "../database/prisma";
 
-export const generateBillNo = async () => {
+export const generateBillNo = async (vendorId: string) => {
   const year = new Date().getFullYear();
   const month = String(new Date().getMonth() + 1).padStart(2, "0");
 
-  const lastBill = await prisma.bill.findFirst({
+  const prefix = `TBSPL/BILL/${year}/${month}`;
+
+  // Global sequence
+  const lastGlobalBill = await prisma.bill.findFirst({
     where: {
-      billNo: {
-        startsWith: `TBSPL/BILL/${year}/${month}`,
-      },
+      billNo: { startsWith: prefix },
     },
-    orderBy: {
-      createdAt: "desc",
-    },
+    orderBy: { createdAt: "desc" },
   });
 
-  let nextSeq = 1;
-
-  if (lastBill) {
-    const lastSeq = Number(lastBill.billNo.split("/").pop());
-    nextSeq = lastSeq + 1;
+  let globalSeq = 1;
+  if (lastGlobalBill) {
+    globalSeq = Number(lastGlobalBill.billNo.split("/").pop()) + 1;
   }
 
-  const seq = String(nextSeq).padStart(6, "0");
+  // Per-vendor sequence
+  const lastVendorBill = await prisma.bill.findFirst({
+    where: {
+      vendorId,
+      billNo: { startsWith: prefix },
+    },
+    orderBy: { createdAt: "desc" },
+  });
 
-  return `BILL/${year}/${month}/${seq}`;
+  let vendorSeq = 1;
+  if (lastVendorBill) {
+    vendorSeq = lastVendorBill.vendorBillSeq + 1;
+  }
+
+  return {
+    billNo: `${prefix}/${String(globalSeq).padStart(6, "0")}`,
+    vendorBillSeq: vendorSeq,
+  };
 };

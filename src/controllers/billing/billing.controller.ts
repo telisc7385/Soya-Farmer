@@ -513,10 +513,11 @@ export const createDraftBill = async (
 
     const grossAmount = roundTo(quantity * rate, 0);
 
-    const billNo = await generateBillNo();
+    const { billNo, vendorBillSeq } = await generateBillNo(vendorId);
     const draft = await prisma.bill.create({
       data: {
         billNo,
+        vendorBillSeq,
         billDate: billDate ? new Date(billDate) : new Date(),
         vendorId,
         farmerId,

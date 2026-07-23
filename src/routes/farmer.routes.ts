@@ -33,9 +33,9 @@ router.post(
   "/documents/:farmerId",
   authMiddleware,
   upload.fields([
-    { name: "AADHAAR", maxCount: 1 },
-    { name: "PAN", maxCount: 1 },
-    { name: "DRIVING_LICENSE", maxCount: 1 },
+    { name: "AADHAAR", maxCount: 2 },
+    { name: "PAN", maxCount: 2 },
+    { name: "DRIVING_LICENSE", maxCount: 2 },
   ]),
   farmerControllers.addFarmerAllDocuments,
 );
@@ -48,7 +48,7 @@ router.get(
 router.put(
   "/document/:documentId",
   authMiddleware,
-  upload.single("document"),
+  upload.array("document", 2),
   farmerControllers.updateFarmerDocument,
 );
 

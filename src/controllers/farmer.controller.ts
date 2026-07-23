@@ -354,7 +354,6 @@ export const addFarmerAllDocuments = async (
       throw new AppError("AADHAAR document is required", 400);
     }
 
-    // 🔒 Ensure all required docs are present
     for (const doc of REQUIRED_DOCS) {
       if (!files[doc] || files[doc].length === 0) {
         throw new AppError(`${doc} document is required`, 400);
@@ -363,7 +362,6 @@ export const addFarmerAllDocuments = async (
 
     await requireKycEditable(farmerId);
 
-    // If resubmitting after rejection, delete old docs first
     const existingDocs = await prisma.farmerDocument.findMany({
       where: { farmerId },
       select: { id: true },
@@ -372,36 +370,22 @@ export const addFarmerAllDocuments = async (
       await prisma.farmerDocument.deleteMany({ where: { farmerId } });
     }
 
-    const data = [];
-    for (const type of REQUIRED_DOCS) {
-      const { publicUrl } = await saveUploadedFile(
-        files[type][0],
-        "farmers/documents",
-      );
-      data.push({
-        farmerId,
-        type,
-        imageUrl: publicUrl,
-      });
-    }
+    const data: { farmerId: string; type: (typeof REQUIRED_DOCS[number] | typeof OPTIONAL_DOCS[number]); documentUrls: string[] }[] = [];
 
-    for (const type of OPTIONAL_DOCS) {
+    const allDocTypes = [...REQUIRED_DOCS, ...OPTIONAL_DOCS];
+    for (const type of allDocTypes) {
       if (!files[type] || files[type].length === 0) continue;
 
-      const { publicUrl } = await saveUploadedFile(
-        files[type][0],
-        "farmers/documents",
-      );
-      data.push({
-        farmerId,
-        type,
-        imageUrl: publicUrl,
-      });
+      const urls: string[] = [];
+      for (const file of files[type]) {
+        const { publicUrl } = await saveUploadedFile(file, "farmers/documents");
+        urls.push(publicUrl);
+      }
+      data.push({ farmerId, type, documentUrls: urls });
     }
 
     await prisma.farmerDocument.createMany({ data });
 
-    // Set KYC to pending verification
     await prisma.farmer.update({
       where: { id: farmerId },
       data: {
@@ -443,9 +427,10 @@ export const updateFarmerDocument = async (
 ) => {
   try {
     const { documentId } = req.params;
+    const files = req.files as Express.Multer.File[];
 
-    if (!req.file) {
-      throw new AppError("Document file is required", 400);
+    if (!files || files.length === 0) {
+      throw new AppError("At least one document file is required", 400);
     }
 
     const existing = await prisma.farmerDocument.findUnique({
@@ -455,14 +440,15 @@ export const updateFarmerDocument = async (
     if (!existing) throw new AppError("Document not found", 404);
     await requireKycEditable(existing.farmerId);
 
-    const { publicUrl: imageUrl } = await saveUploadedFile(
-      req.file,
-      "farmers/documents",
-    );
+    const documentUrls: string[] = [];
+    for (const file of files) {
+      const { publicUrl } = await saveUploadedFile(file, "farmers/documents");
+      documentUrls.push(publicUrl);
+    }
 
     const doc = await prisma.farmerDocument.update({
       where: { id: documentId },
-      data: { imageUrl },
+      data: { documentUrls },
     });
 
     successResponse(res, doc, "Document updated successfully");
