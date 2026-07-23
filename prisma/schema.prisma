@@ -255,12 +255,12 @@ model FarmerLand {
 // BILL (MAIN)
 // =====================
 model Bill {
-  id       String   @id @default(uuid())
-  billNo   String
+  id            String   @id @default(uuid())
+  billNo        String
   vendorBillSeq Int
-  billDate DateTime
-  vendorId String
-  farmerId String
+  billDate      DateTime
+  vendorId      String
+  farmerId      String
 
   totalAmount     Float
   status          BillStatus    @default(PENDING)
