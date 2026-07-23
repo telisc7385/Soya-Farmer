@@ -32,7 +32,7 @@ const getSeasonWindow = () => {
 
   return {
     seasonStart: new Date(startYear, 3, 1), // April 1
-    seasonEnd: new Date(endYear, 5, 1),     // June 1 (exclusive, so May 31 included)
+    seasonEnd: new Date(endYear, 5, 1), // June 1 (exclusive, so May 31 included)
   };
 };
 
@@ -355,13 +355,9 @@ export const createDraftBill = async (
           },
           _sum: { primaryQuantity: true },
         });
-        const alreadyUsedQtl = roundTo(
-          usedQtyAgg._sum.primaryQuantity ?? 0,
-          3,
-        );
+        const alreadyUsedQtl = roundTo(usedQtyAgg._sum.primaryQuantity ?? 0, 3);
         const requestedQtl = roundTo(quantity, 3);
-        const purchaseLimitPerHectare =
-          await getPurchaseLimitQtlPerHectare();
+        const purchaseLimitPerHectare = await getPurchaseLimitQtlPerHectare();
         const allowedQtl = roundTo(
           totalLandHectare * purchaseLimitPerHectare,
           3,
@@ -456,8 +452,19 @@ export const createDraftBill = async (
       return;
     }
 
-    if (!farmerId || !rawQuantity || !unit || !rate || !vehicleNumber || !vehicleType || !driverName) {
-      throw new AppError("farmerId, quantity, unit, rate, vehicleNumber, vehicleType, driverName are required for creating a new bill", 400);
+    if (
+      !farmerId ||
+      !rawQuantity ||
+      !unit ||
+      !rate ||
+      !vehicleNumber ||
+      !vehicleType ||
+      !driverName
+    ) {
+      throw new AppError(
+        "farmerId, quantity, unit, rate, vehicleNumber, vehicleType, driverName are required for creating a new bill",
+        400,
+      );
     }
 
     let quantity = rawQuantity;
@@ -882,7 +889,11 @@ export const previewDraft = async (
     const response = await prisma.bill.findUnique({
       where: { id: billId },
       include: {
-        farmer: true,
+        farmer: {
+          include: {
+            banks: true,
+          },
+        },
         deductions: {
           include: {
             master: {
