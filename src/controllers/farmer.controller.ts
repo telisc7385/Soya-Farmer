@@ -14,9 +14,9 @@ const requireKycEditable = async (farmerId: string) => {
     select: { id: true, kycStatus: true },
   });
   if (!farmer) throw new AppError("Farmer not found", 404);
-  if (farmer.kycStatus !== "NOT_SUBMITTED" && farmer.kycStatus !== "REJECTED") {
+  if (farmer.kycStatus !== "NOT_SUBMITTED" && farmer.kycStatus !== "REJECTED" && farmer.kycStatus !== "PENDING_VERIFICATION") {
     throw new AppError(
-      `KYC is ${farmer.kycStatus}. Editing only allowed when status is NOT_SUBMITTED or REJECTED.`,
+      `KYC is ${farmer.kycStatus}. Editing only allowed when status is NOT_SUBMITTED, REJECTED, or PENDING_VERIFICATION.`,
       400,
     );
   }

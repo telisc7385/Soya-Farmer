@@ -142,9 +142,9 @@ const buildDailyQualityRates = async (query: {
     !query.startDate && !query.endDate
       ? undefined
       : {
-          ...(query.startDate && { gte: new Date(query.startDate) }),
+          ...(query.startDate && { gte: new Date(query.startDate + "T00:00:00") }),
           ...(query.endDate && {
-            lte: new Date(new Date(query.endDate).setHours(23, 59, 59, 999)),
+            lte: new Date(query.endDate + "T23:59:59.999"),
           }),
         };
 
@@ -159,12 +159,12 @@ const buildDailyQualityRates = async (query: {
 
   // Determine display range
   const startDate = query.startDate
-    ? new Date(query.startDate)
+    ? new Date(query.startDate + "T00:00:00")
     : rates.length
       ? new Date(rates[0].createdAt)
       : null;
   const endDate = query.endDate
-    ? new Date(query.endDate)
+    ? new Date(query.endDate + "T23:59:59.999")
     : rates.length
       ? new Date(rates[rates.length - 1].createdAt)
       : null;

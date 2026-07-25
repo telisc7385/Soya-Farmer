@@ -435,8 +435,8 @@ export const getPayments = async (
 
       ...((startDate || endDate) && {
         paidDate: {
-          ...(startDate && { gte: new Date(String(startDate)) }),
-          ...(endDate && { lte: new Date(String(endDate)) }),
+          ...(startDate && { gte: new Date(String(startDate) + "T00:00:00") }),
+          ...(endDate && { lte: new Date(String(endDate) + "T23:59:59.999") }),
         },
       }),
     };

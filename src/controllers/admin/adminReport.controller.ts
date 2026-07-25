@@ -30,8 +30,14 @@ const ensureAllowedStatus = (
 const buildDateFilter = (startDate?: string, endDate?: string) => {
   if (!startDate && !endDate) return undefined;
   const filter: { gte?: Date; lte?: Date } = {};
-  if (startDate) filter.gte = new Date(startDate);
-  if (endDate) filter.lte = new Date(endDate);
+  if (startDate) {
+    const d = new Date(startDate + "T00:00:00");
+    filter.gte = d;
+  }
+  if (endDate) {
+    const d = new Date(endDate + "T23:59:59.999");
+    filter.lte = d;
+  }
   return filter;
 };
 
@@ -58,12 +64,12 @@ const getQualityRatesReport = async (query: any) => {
   }
 
   const startDate = query.startDate
-    ? new Date(query.startDate)
+    ? new Date(query.startDate + "T00:00:00")
     : rates.length
       ? new Date(rates[0].createdAt)
       : null;
   const endDate = query.endDate
-    ? new Date(query.endDate)
+    ? new Date(query.endDate + "T23:59:59.999")
     : rates.length
       ? new Date(rates[rates.length - 1].createdAt)
       : null;

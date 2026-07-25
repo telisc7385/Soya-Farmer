@@ -7,8 +7,14 @@ import { roundTo } from "../../utils/number";
 const buildDateFilter = (startDate?: string, endDate?: string) => {
   if (!startDate && !endDate) return undefined;
   const filter: { gte?: Date; lte?: Date } = {};
-  if (startDate) filter.gte = new Date(startDate);
-  if (endDate) filter.lte = new Date(endDate);
+  if (startDate) {
+    const d = new Date(startDate + "T00:00:00");
+    filter.gte = d;
+  }
+  if (endDate) {
+    const d = new Date(endDate + "T23:59:59.999");
+    filter.lte = d;
+  }
   return filter;
 };
 

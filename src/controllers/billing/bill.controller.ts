@@ -109,11 +109,11 @@ export const getBills = async (
 
     // 📅 Date filter
     if (startDate && endDate) {
-      const end = new Date(endDate as string);
-      end.setDate(end.getDate() + 1);
+      const start = new Date(startDate + "T00:00:00");
+      const end = new Date(endDate + "T23:59:59.999");
       whereClause.createdAt = {
-        gte: new Date(startDate as string),
-        lt: end,
+        gte: start,
+        lte: end,
       };
     }
 
