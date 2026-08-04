@@ -153,6 +153,7 @@ const getBillsReport = async (query: any) => {
       gonis: {
         include: { goniType: true },
       },
+      deductions: true,
       payment: true,
     },
   });
@@ -163,6 +164,13 @@ const getBillsReport = async (query: any) => {
     goniType: {
       name: bill.gonis.map((row) => row.goniType.name).join(", "),
     },
+    totalDeductionAmount: bill.deductions.reduce(
+      (sum, d) => sum + (d.value || 0),
+      0,
+    ),
+    deductionDetails: bill.deductions
+      .map((d) => `${d.label}: ${d.value}`)
+      .join(", "),
   }));
 };
 

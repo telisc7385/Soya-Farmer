@@ -55,6 +55,16 @@ export const billReportConfig: ReportConfig<any> = {
     { key: "goniType", header: "Goni Type", value: (r) => r.goniType?.name },
     { key: "bagCount", header: "Bag Count", value: (r) => r.bagCount },
     { key: "goniWeight", header: "Goni Weight", value: (r) => r.goniWeight },
+    {
+      key: "totalDeductionAmount",
+      header: "Total Deduction",
+      value: (r) => r.totalDeductionAmount,
+    },
+    {
+      key: "deductionDetails",
+      header: "Deduction Details",
+      value: (r) => r.deductionDetails,
+    },
   ],
   totalsRow: (rows) => {
     if (!rows.length) return null;
@@ -68,6 +78,7 @@ export const billReportConfig: ReportConfig<any> = {
       netPayable: sum("netPayable"),
       bagCount: sum("bagCount"),
       goniWeight: sum("goniWeight"),
+      totalDeductionAmount: sum("totalDeductionAmount"),
     };
   },
 };

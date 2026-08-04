@@ -479,14 +479,6 @@ export const addFarmerLand = async (
     }
 
     // await requireKycEditable(farmerId);
-    if (landType === "OWN") {
-      const existingOwnedLand = await prisma.farmerLand.findFirst({
-        where: { farmerId, landType: "OWN" },
-      });
-      if (existingOwnedLand) {
-        throw new AppError("Farmer already has an owned land", 400);
-      }
-    }
 
     const documentUrls: string[] = [];
     for (const file of files) {
