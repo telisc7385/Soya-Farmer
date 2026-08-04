@@ -12,7 +12,6 @@ export const createFarmerSchema = Joi.object({
   email: Joi.string().email().optional(),
 
   villageAdd: Joi.string().optional(),
-  gutNumber: Joi.string().optional(),
   taluka: Joi.string().optional(),
   district: Joi.string().optional(),
 });
@@ -21,6 +20,7 @@ export const farmerLandSchema = Joi.object({
   landType: Joi.string().valid("OWN", "BLOOD_RELATION").required(),
   landOwnerName: Joi.string().trim().min(2).max(120).optional(),
   relationType: Joi.string().trim().min(2).max(120).optional(),
+  gutNumber: Joi.string(),
   area: Joi.number().positive().required(),
   villageAdd: Joi.string().optional(),
   taluka: Joi.string().optional(),

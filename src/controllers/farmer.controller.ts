@@ -36,7 +36,6 @@ export const createFarmer = async (
       panNo,
       email,
       villageAdd,
-      gutNumber,
       taluka,
       district,
     } = req.body;
@@ -84,7 +83,6 @@ export const createFarmer = async (
           panNo,
           email,
           villageAdd,
-          gutNumber,
           taluka,
           district,
           kycStatus: "NOT_SUBMITTED",
@@ -165,7 +163,7 @@ export const updateFarmer = async (
 ) => {
   try {
     const { farmerId } = req.params;
-    const { name, phone, villageAdd, district, taluka, gutNumber } =
+    const { name, phone, villageAdd, district, taluka } =
       req.body || {};
     let profileUrl: string | undefined;
 
@@ -184,7 +182,6 @@ export const updateFarmer = async (
         villageAdd,
         district,
         taluka,
-        gutNumber,
         ...(profileUrl && { profileUrl }),
         kycStatus: "PENDING_VERIFICATION",
         kycSubmittedAt: new Date(),
@@ -473,6 +470,7 @@ export const addFarmerLand = async (
       district,
       landOwnerName,
       relationType,
+      gutNumber,
     } = req.body;
 
     const files = req.files as Express.Multer.File[];
@@ -523,6 +521,7 @@ export const addFarmerLand = async (
         landType,
         landOwnerName: ownerNameToSave,
         relationType: landType === "OWN" ? null : relationType,
+        gutNumber: gutNumber ?? null,
         area: Number(area),
         documentUrls,
         villageAdd,
@@ -564,7 +563,7 @@ export const updateFarmerLand = async (
 ) => {
   try {
     const { landId } = req.params;
-    const { area, villageAdd, taluka, district, landOwnerName, relationType } =
+    const { area, villageAdd, taluka, district, landOwnerName, relationType, gutNumber } =
       req.body;
 
     const existingLand = await prisma.farmerLand.findUnique({
@@ -581,6 +580,7 @@ export const updateFarmerLand = async (
     if (district !== undefined) updateData.district = district;
     if (landOwnerName !== undefined) updateData.landOwnerName = landOwnerName;
     if (relationType !== undefined) updateData.relationType = relationType;
+    if (gutNumber !== undefined) updateData.gutNumber = gutNumber;
 
     const files = req.files as Express.Multer.File[];
     if (files && files.length > 0) {
