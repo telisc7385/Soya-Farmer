@@ -45,6 +45,11 @@ const withGoniAmount = (
     ),
   );
   const payment = bill.payment ?? null;
+  const gonis = bill.gonis ?? [];
+  const bagCount = gonis.reduce(
+    (sum: number, row: any) => sum + (row.bagCount ?? 0),
+    0,
+  );
 
   return {
     ...bill,
@@ -59,6 +64,13 @@ const withGoniAmount = (
     perQtlLabDeduction,
     rateAfterLabDeductionRounded:
       calculationDetails?.rateAfterLabDeductionRounded ?? 0,
+    bagCount,
+    bagTypes: gonis.map((row: any) => ({
+      goniTypeId: row.goniTypeId,
+      goniTypeName: row.goniType?.name ?? "",
+      bagCount: row.bagCount,
+      weight: row.weight,
+    })),
   };
 };
 
@@ -164,6 +176,22 @@ export const getBills = async (
         include: {
           farmer: {
             select: { id: true, name: true, phone: true },
+          },
+          vendor: {
+            select: {
+              id: true,
+              name: true,
+              phone: true,
+              grnNumber: true,
+              villageAdd: true,
+            },
+          },
+          gonis: {
+            include: {
+              goniType: {
+                select: { id: true, name: true, weightPerBag: true },
+              },
+            },
           },
           deductions: {
             include: {
