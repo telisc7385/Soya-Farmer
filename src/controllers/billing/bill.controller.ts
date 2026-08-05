@@ -225,18 +225,88 @@ export const getBills = async (
       .map(attachDeductionDetails)
       .map((bill) => withGoniAmount(bill, billFinancialsMap.get(bill.id)));
 
+    // 📊 Average deduction per label across matched bills
+    const deductionByLabel = new Map<string, { sum: number; count: number }>();
+    for (const bill of bills) {
+      for (const deduction of bill.deductions) {
+        const current = deductionByLabel.get(deduction.label) ?? {
+          sum: 0,
+          count: 0,
+        };
+        current.sum += Number(deduction.value ?? 0);
+        current.count += 1;
+        deductionByLabel.set(deduction.label, current);
+      }
+    }
+    const averageDeductions = Array.from(deductionByLabel.entries()).map(
+      ([label, { sum, count }]) => ({
+        label,
+        count,
+        average: roundTo(sum / count),
+      }),
+    );
+
+    // 📊 Summary totals for analysis
+    const summary = formattedBills.reduce(
+      (acc, bill) => {
+        const details = bill.calculationDetails ?? {};
+        return {
+          totalBills: acc.totalBills + 1,
+          totalBags: acc.totalBags + (bill.bagCount ?? 0),
+          totalBagWeight: acc.totalBagWeight + (bill.goniWeight ?? 0),
+          totalGrossWeight: acc.totalGrossWeight + (bill.primaryQuantity ?? 0),
+          totalLabWeight: acc.totalLabWeight + (details.netWeightForLab ?? 0),
+          totalLabDeductionWeight:
+            acc.totalLabDeductionWeight +
+            (details.totalLabDeductionWeight ?? 0),
+          totalNetWeight:
+            acc.totalNetWeight + (details.finalNetPayableWeight ?? 0),
+          totalGrossAmount:
+            acc.totalGrossAmount + (bill.grossAmount ?? 0),
+          totalLabDeductionAmount:
+            acc.totalLabDeductionAmount +
+            (details.totalLabDeductionAmount ?? 0),
+          totalFixedDeductionAmount:
+            acc.totalFixedDeductionAmount +
+            (details.totalFixedDeductionAmount ?? 0),
+          totalDeductionAmount:
+            acc.totalDeductionAmount +
+            (details.totalLabDeductionAmount ?? 0) +
+            (details.totalFixedDeductionAmount ?? 0),
+          totalNetPayable: acc.totalNetPayable + (bill.netPayable ?? 0),
+          totalAmount: acc.totalAmount + (bill.totalAmount ?? 0),
+        };
+      },
+      {
+        totalBills: 0,
+        totalBags: 0,
+        totalBagWeight: 0,
+        totalGrossWeight: 0,
+        totalLabWeight: 0,
+        totalLabDeductionWeight: 0,
+        totalNetWeight: 0,
+        totalGrossAmount: 0,
+        totalLabDeductionAmount: 0,
+        totalFixedDeductionAmount: 0,
+        totalDeductionAmount: 0,
+        totalNetPayable: 0,
+        totalAmount: 0,
+      },
+    );
+
+    for (const key of Object.keys(summary)) {
+      if (key === "totalBills") continue;
+      (summary as any)[key] = roundTo((summary as any)[key]);
+    }
+
     successResponse(
       res,
       {
         bills: formattedBills,
         total,
         averageRate,
-        totalAmount: roundTo(
-          formattedBills.reduce(
-            (sum, bill) => sum + (bill.totalAmount ?? 0),
-            0,
-          ),
-        ),
+        averageDeductions,
+        summary,
         page: currentPage,
         limit: take,
         pages: Math.ceil(total / take),
