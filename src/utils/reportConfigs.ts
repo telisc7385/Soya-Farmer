@@ -54,11 +54,36 @@ export const billReportConfig: ReportConfig<any> = {
     { key: "netPayable", header: "Net Payable", value: (r) => r.netPayable },
     { key: "goniType", header: "Goni Type", value: (r) => r.goniType?.name },
     { key: "bagCount", header: "Bag Count", value: (r) => r.bagCount },
-    { key: "goniWeight", header: "Goni Weight", value: (r) => r.goniWeight },
+    { key: "goniWeight", header: "Bag Weight", value: (r) => r.goniWeight },
+    {
+      key: "labWeight",
+      header: "Net Weight For Lab",
+      value: (r) => r.labWeight,
+    },
+    {
+      key: "labDeductionWeight",
+      header: "Lab Deduction Weight",
+      value: (r) => r.labDeductionWeight,
+    },
+    {
+      key: "netWeight",
+      header: "Final Net Weight",
+      value: (r) => r.netWeight,
+    },
     {
       key: "totalDeductionAmount",
       header: "Total Deduction",
       value: (r) => r.totalDeductionAmount,
+    },
+    {
+      key: "labDeductionAmount",
+      header: "Lab Deduction Amount",
+      value: (r) => r.labDeductionAmount,
+    },
+    {
+      key: "fixedDeductionAmount",
+      header: "Fixed Deduction Amount",
+      value: (r) => r.fixedDeductionAmount,
     },
     {
       key: "deductionDetails",
@@ -78,7 +103,12 @@ export const billReportConfig: ReportConfig<any> = {
       netPayable: sum("netPayable"),
       bagCount: sum("bagCount"),
       goniWeight: sum("goniWeight"),
+      labWeight: sum("labWeight"),
+      labDeductionWeight: sum("labDeductionWeight"),
+      netWeight: sum("netWeight"),
       totalDeductionAmount: sum("totalDeductionAmount"),
+      labDeductionAmount: sum("labDeductionAmount"),
+      fixedDeductionAmount: sum("fixedDeductionAmount"),
     };
   },
 };

@@ -346,6 +346,7 @@ export const getBillById = async (
             goniType: true,
           },
         },
+        advances: true,
         payment: paymentStatusSelect,
       },
     });

@@ -3,6 +3,7 @@ import { reportConfigs, ReportKey } from "../../utils/reportConfigs";
 import { AppError } from "../../core/appError";
 import prisma from "../../database/prisma";
 import { buildCsvFilename, toCsv } from "../../utils/csv";
+import { buildBillingCalculationDetails } from "../../utils/billingCalculation";
 
 const parseStatusFilter = (status?: string) => {
   if (!status) return [];
@@ -158,20 +159,28 @@ const getBillsReport = async (query: any) => {
     },
   });
 
-  return bills.map((bill) => ({
-    ...bill,
-    bagCount: bill.gonis.reduce((sum, row) => sum + row.bagCount, 0),
-    goniType: {
-      name: bill.gonis.map((row) => row.goniType.name).join(", "),
-    },
-    totalDeductionAmount: bill.deductions.reduce(
-      (sum, d) => sum + (d.value || 0),
-      0,
-    ),
-    deductionDetails: bill.deductions
-      .map((d) => `${d.label}: ${d.value}`)
-      .join(", "),
-  }));
+  return bills.map((bill) => {
+    const calculationDetails = buildBillingCalculationDetails(bill);
+    return {
+      ...bill,
+      bagCount: bill.gonis.reduce((sum, row) => sum + row.bagCount, 0),
+      goniType: {
+        name: bill.gonis.map((row) => row.goniType.name).join(", "),
+      },
+      totalDeductionAmount: bill.deductions.reduce(
+        (sum, d) => sum + (d.value || 0),
+        0,
+      ),
+      deductionDetails: bill.deductions
+        .map((d) => `${d.label}: ${d.value}`)
+        .join(", "),
+      labWeight: calculationDetails.netWeightForLab,
+      labDeductionWeight: calculationDetails.totalLabDeductionWeight,
+      netWeight: calculationDetails.finalNetPayableWeight,
+      labDeductionAmount: calculationDetails.totalLabDeductionAmount,
+      fixedDeductionAmount: calculationDetails.totalFixedDeductionAmount,
+    };
+  });
 };
 
 const getPaymentsReport = async (query: any) => {
