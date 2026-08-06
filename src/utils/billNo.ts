@@ -7,7 +7,9 @@ export const generateBillNo = async (vendorId: string) => {
 
   // Financial year: Apr–Mar. Apr–Dec → current year, Jan–Mar → previous year
   const fyYear = now.getMonth() + 1 >= 4 ? calendarYear : calendarYear - 1;
-  const prefix = `TBSPL/BILL/${fyYear}-${fyYear + 1}/${month}`;
+  const fyShortStart = String(fyYear).slice(-2);
+  const fyShortEnd = String(fyYear + 1).slice(-2);
+  const prefix = `TBSPL/${fyShortStart}-${fyShortEnd}/${month}`;
 
   // Global sequence
   const lastGlobalBill = await prisma.bill.findFirst({
