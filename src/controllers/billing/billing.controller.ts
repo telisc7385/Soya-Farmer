@@ -805,8 +805,13 @@ export const applyGoniDeduction = async (
     await ensureDraftBill(billId, vendorId);
 
     const { gonis } = req.body;
+    const activeGonis = gonis.filter(
+      (g: { bagCount: number }) => g.bagCount > 0,
+    );
     const requestedTypeIds: string[] = Array.from(
-      new Set(gonis.map((g: { goniTypeId: string }) => g.goniTypeId)),
+      new Set(
+        activeGonis.map((g: { goniTypeId: string }) => g.goniTypeId),
+      ),
     );
     const goniTypes = await prisma.goniType.findMany({
       where: { id: { in: requestedTypeIds }, isActive: true },
@@ -823,7 +828,7 @@ export const applyGoniDeduction = async (
     }
 
     const bagCountByType = new Map<string, number>();
-    for (const g of gonis) {
+    for (const g of activeGonis) {
       const current = bagCountByType.get(g.goniTypeId) ?? 0;
       bagCountByType.set(g.goniTypeId, current + g.bagCount);
     }
