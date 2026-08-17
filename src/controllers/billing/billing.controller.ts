@@ -693,6 +693,7 @@ export const calculateDeductions = async (
         const totalPercent = formulaEngine.evaluate(
           master.formulaExpression || "",
           deductedInputs,
+          4,
         );
         const safeTotalPercent = Math.max(0, totalPercent);
         const baseWeightForLab = roundTo(
