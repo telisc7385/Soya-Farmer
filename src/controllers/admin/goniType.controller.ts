@@ -12,7 +12,7 @@ export const createGoniType = async (
   try {
     if (!req.user) throw new AppError("Unauthorized", 401);
     const userId = req.user.id;
-    const { name, weightPerBag, isTracked = false } = req.body;
+    const { name, weightPerBag, isTracked = false, isLoose = false } = req.body;
 
     const goniType = await prisma.$transaction(async (tx) => {
       if (isTracked) {
@@ -25,8 +25,9 @@ export const createGoniType = async (
       return tx.goniType.create({
         data: {
           name,
-          weightPerBag,
+          weightPerBag: isLoose ? 0 : weightPerBag,
           isTracked,
+          isLoose,
           createdBy: userId,
         },
       });
@@ -45,7 +46,7 @@ export const updateGoniType = async (
 ) => {
   try {
     const { goniTypeId } = req.params;
-    const { name, weightPerBag, isActive, isTracked } = req.body;
+    const { name, weightPerBag, isActive, isTracked, isLoose } = req.body;
 
     const updated = await prisma.$transaction(async (tx) => {
       if (isTracked === true) {
@@ -59,9 +60,10 @@ export const updateGoniType = async (
         where: { id: goniTypeId },
         data: {
           name,
-          weightPerBag,
+          weightPerBag: isLoose ? 0 : weightPerBag,
           isActive,
           ...(typeof isTracked === "boolean" ? { isTracked } : {}),
+          ...(typeof isLoose === "boolean" ? { isLoose } : {}),
         },
       });
     });

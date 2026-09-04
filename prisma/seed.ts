@@ -88,8 +88,9 @@ async function main() {
 
   // Seed one production-grade goni type
   const goniTypes = [
-    { name: "PP Bag", weightPerBag: 0.01, isTracked: false },
-    { name: "Kaltani Katta", weightPerBag: 0.05, isTracked: true },
+    { name: "PP Bag", weightPerBag: 0.01, isTracked: false, isLoose: false },
+    { name: "Kaltani Katta", weightPerBag: 0.05, isTracked: true, isLoose: false },
+    { name: "Loose", weightPerBag: 0, isTracked: false, isLoose: true },
   ];
 
   for (const goni of goniTypes) {
@@ -103,6 +104,7 @@ async function main() {
           name: goni.name,
           weightPerBag: goni.weightPerBag,
           isTracked: goni.isTracked,
+          isLoose: goni.isLoose,
           createdBy: admin.id,
         },
       });

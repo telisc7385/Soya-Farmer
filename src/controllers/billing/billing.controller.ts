@@ -830,6 +830,7 @@ export const applyGoniDeduction = async (
 
     const bagCountByType = new Map<string, number>();
     for (const g of activeGonis) {
+      if (goniTypeMap.get(g.goniTypeId)?.isLoose) continue;
       const current = bagCountByType.get(g.goniTypeId) ?? 0;
       bagCountByType.set(g.goniTypeId, current + g.bagCount);
     }
@@ -981,6 +982,7 @@ export const confirmDraft = async (
           goniType: {
             isTracked: true,
             isActive: true,
+            isLoose: false,
           },
         },
         select: {
