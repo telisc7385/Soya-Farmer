@@ -15,6 +15,7 @@ const router = Router();
 router.post(
   "/draft",
   authMiddleware,
+  upload.single("weightSlipImage"),
   validateRequest(createDraftSchema),
   billingFlow.createDraftBill,
 );

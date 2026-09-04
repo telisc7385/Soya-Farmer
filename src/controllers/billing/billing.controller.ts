@@ -316,6 +316,13 @@ export const createDraftBill = async (
       if (driverName !== undefined) updateData.driverName = driverName;
       if (billLocation !== undefined) updateData.billLocation = billLocation;
       if (billDate !== undefined) updateData.billDate = new Date(billDate);
+      if (req.file) {
+        const { publicUrl } = await saveUploadedFile(
+          req.file,
+          "bills/weight-slips",
+        );
+        updateData.weightSlipImage = publicUrl;
+      }
 
       const quantityChanged = rawQuantity !== undefined && unit !== undefined;
       const rateChanged = rate !== undefined;
@@ -432,6 +439,7 @@ export const createDraftBill = async (
             vehicleNumber: billWithGoni.vehicleNumber,
             vehicleType: billWithGoni.vehicleType,
             driverName: billWithGoni.driverName,
+            weightSlipImage: billWithGoni.weightSlipImage,
             goniWeight: billWithGoni.goniWeight,
             goniCount:
               billWithGoni.gonis?.reduce(
@@ -520,6 +528,15 @@ export const createDraftBill = async (
 
     const grossAmount = roundTo(quantity * rate, 0);
 
+    let weightSlipImage: string | undefined;
+    if (req.file) {
+      const { publicUrl } = await saveUploadedFile(
+        req.file,
+        "bills/weight-slips",
+      );
+      weightSlipImage = publicUrl;
+    }
+
     const { billNo, vendorBillSeq } = await generateBillNo(vendorId);
     const draft = await prisma.bill.create({
       data: {
@@ -539,6 +556,7 @@ export const createDraftBill = async (
         billLocation,
         totalAmount: grossAmount,
         netPayable: grossAmount,
+        weightSlipImage,
       },
     });
     const totals = await recalcTotals(draft.id);
@@ -572,6 +590,7 @@ export const createDraftBill = async (
           vehicleNumber: billWithGoni.vehicleNumber,
           vehicleType: billWithGoni.vehicleType,
           driverName: billWithGoni.driverName,
+          weightSlipImage: billWithGoni.weightSlipImage,
           goniWeight: billWithGoni.goniWeight,
           goniCount:
             billWithGoni.gonis?.reduce(

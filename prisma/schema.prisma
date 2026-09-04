@@ -274,6 +274,7 @@ model Bill {
   billLocation    String?
   remark          String?
   remarkUrl       String?
+  weightSlipImage String?
 
   goniWeight Float @default(0)
   netPayable Float @default(0)
