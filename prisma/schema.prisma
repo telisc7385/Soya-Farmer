@@ -327,14 +327,15 @@ model BillDeduction {
 // FARMER BANK DETAILS
 // =====================
 model FarmerBank {
-  id            String @id @default(uuid())
+  id            String   @id @default(uuid())
   farmerId      String
   bankName      String
   branchName    String
   accountNo     String
   ifsc          String
   holderName    String
-  passbookImage String @default("")
+  passbookImage String   @default("")
+  documentUrls  String[] @default([])
 
   farmer Farmer @relation(fields: [farmerId], references: [id])
 }
@@ -701,6 +702,16 @@ model StockTransferThappi {
   @@unique([transferId, thappiId])
   @@index([transferId])
   @@index([thappiId])
+}
+
+model CustomVillage {
+  id        String   @id @default(uuid())
+  name      String
+  talukaCode String // matches the official JSON villages map key (e.g. "4201")
+  addedBy   String // vendor user id
+  createdAt DateTime @default(now())
+
+  @@index([talukaCode])
 }
 
 // =====================

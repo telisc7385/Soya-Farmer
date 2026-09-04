@@ -615,16 +615,21 @@ export const addFarmerBank = async (
     const { farmerId } = req.params;
     const { bankName, branchName, accountNo, ifsc, holderName } = req.body;
 
-    if (!req.file) {
-      throw new AppError("Document image is required", 400);
+    const files = req.files as Express.Multer.File[];
+    if (!files || files.length === 0) {
+      throw new AppError("At least one bank document image is required", 400);
     }
 
     // await requireKycEditable(farmerId);
 
-    const { publicUrl: passbookImage } = await saveUploadedFile(
-      req.file,
-      "farmers/bank",
+    const documentUrls: string[] = [];
+    await Promise.all(
+      files.map(async (file) => {
+        const { publicUrl } = await saveUploadedFile(file, "farmers/bank");
+        documentUrls.push(publicUrl);
+      }),
     );
+    const passbookImage = documentUrls[0] ?? "";
 
     const existingBank = await prisma.farmerBank.findFirst({
       where: { farmerId, accountNo },
@@ -651,6 +656,7 @@ export const addFarmerBank = async (
         ifsc,
         holderName,
         passbookImage,
+        documentUrls,
       },
     });
 
@@ -688,25 +694,32 @@ export const updateFarmerBank = async (
   try {
     const { bankId, farmerId } = req.params;
     const { bankName, branchName, accountNo, ifsc, holderName } = req.body;
-    let passbookImage;
 
     // await requireKycEditable(farmerId);
 
-    if (req.file) {
-      const { publicUrl } = await saveUploadedFile(req.file, "farmers/bank");
-      passbookImage = publicUrl;
+    const updateData: any = {};
+    if (bankName !== undefined) updateData.bankName = bankName;
+    if (branchName !== undefined) updateData.branchName = branchName;
+    if (accountNo !== undefined) updateData.accountNo = accountNo;
+    if (ifsc !== undefined) updateData.ifsc = ifsc;
+    if (holderName !== undefined) updateData.holderName = holderName;
+
+    const files = req.files as Express.Multer.File[];
+    if (files && files.length > 0) {
+      const documentUrls: string[] = [];
+      await Promise.all(
+        files.map(async (file) => {
+          const { publicUrl } = await saveUploadedFile(file, "farmers/bank");
+          documentUrls.push(publicUrl);
+        }),
+      );
+      updateData.documentUrls = documentUrls;
+      updateData.passbookImage = documentUrls[0] ?? "";
     }
 
     const bank = await prisma.farmerBank.update({
       where: { id: bankId, farmerId },
-      data: {
-        bankName,
-        branchName,
-        accountNo,
-        ifsc,
-        holderName,
-        ...(passbookImage && { passbookImage }),
-      },
+      data: updateData,
     });
 
     successResponse(res, bank, "Bank details updated");

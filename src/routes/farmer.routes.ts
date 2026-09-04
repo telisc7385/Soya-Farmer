@@ -76,7 +76,7 @@ router.put(
 router.post(
   "/:farmerId/bank",
   authMiddleware,
-  upload.single("document"),
+  upload.array("document", 5),
   validateRequest(farmerValidation.farmerBankSchema),
   farmerControllers.addFarmerBank,
 );
@@ -85,7 +85,7 @@ router.get("/:farmerId/bank", authMiddleware, farmerControllers.getFarmerBanks);
 router.put(
   "/:farmerId/bank/:bankId",
   authMiddleware,
-  upload.single("document"),
+  upload.array("document", 5),
   validateRequest(farmerValidation.farmerBankSchema),
   farmerControllers.updateFarmerBank,
 );
