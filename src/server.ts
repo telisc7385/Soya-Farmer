@@ -16,6 +16,7 @@ process.on("unhandledRejection", (reason) => {
 });
 
 const server = createServer(app);
+server.timeout = 120_000;
 
 server.listen(PORT, () => {
   console.log(`🚀 Server running at http://localhost:${PORT}`);

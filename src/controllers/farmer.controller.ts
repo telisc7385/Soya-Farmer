@@ -370,16 +370,26 @@ export const addFarmerAllDocuments = async (
     const data: { farmerId: string; type: (typeof REQUIRED_DOCS[number] | typeof OPTIONAL_DOCS[number]); documentUrls: string[] }[] = [];
 
     const allDocTypes = [...REQUIRED_DOCS, ...OPTIONAL_DOCS];
+    const entries: { type: typeof REQUIRED_DOCS[number] | typeof OPTIONAL_DOCS[number]; files: Express.Multer.File[] }[] = [];
     for (const type of allDocTypes) {
-      if (!files[type] || files[type].length === 0) continue;
-
-      const urls: string[] = [];
-      for (const file of files[type]) {
-        const { publicUrl } = await saveUploadedFile(file, "farmers/documents");
-        urls.push(publicUrl);
+      if (files[type] && files[type].length > 0) {
+        entries.push({ type, files: files[type] });
       }
-      data.push({ farmerId, type, documentUrls: urls });
     }
+
+    const results = await Promise.all(
+      entries.map(async ({ type, files: docFiles }) => {
+        const urls = await Promise.all(
+          docFiles.map(async (file) => {
+            const { publicUrl } = await saveUploadedFile(file, "farmers/documents");
+            return publicUrl;
+          }),
+        );
+        return { farmerId, type, documentUrls: urls };
+      }),
+    );
+
+    data.push(...results);
 
     await prisma.farmerDocument.createMany({ data });
 

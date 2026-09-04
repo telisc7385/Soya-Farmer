@@ -7,5 +7,5 @@ export interface JwtPayload {
 }
 
 export function generateAccessToken(payload: JwtPayload): string {
-  return jwt.sign(payload, envConfig.accessSecret, { expiresIn: "7d" });
+  return jwt.sign(payload, envConfig.accessSecret);
 }

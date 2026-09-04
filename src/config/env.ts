@@ -17,7 +17,7 @@ interface envConfigPayload {
 
 export const envConfig: envConfigPayload = {
   accessSecret: process.env.JWT_ACCESS_SECRET!,
-  accessExpiry: "7d",
+  accessExpiry: "never",
 
   port: process.env.PORT!,
   dbUrl: process.env.DATABASE_URL!,
