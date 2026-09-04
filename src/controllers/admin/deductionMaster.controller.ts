@@ -212,3 +212,121 @@ export const listDeductionMasters = async (
     next(error);
   }
 };
+
+export const assignVendorDeductions = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { vendorId } = req.params;
+    const { masterIds } = req.body;
+
+    if (!Array.isArray(masterIds)) {
+      throw new AppError("masterIds must be an array", 400);
+    }
+
+    const vendor = await prisma.user.findUnique({
+      where: { id: vendorId },
+      select: { id: true, role: true },
+    });
+    if (!vendor) throw new AppError("Vendor not found", 404);
+    if (vendor.role !== "VENDOR") {
+      throw new AppError("User is not a vendor", 400);
+    }
+
+    const uniqueIds = Array.from(new Set(masterIds));
+
+    if (uniqueIds.length > 0) {
+      const count = await prisma.deductionMaster.count({
+        where: { id: { in: uniqueIds } },
+      });
+      if (count !== uniqueIds.length) {
+        throw new AppError("One or more deduction masters not found", 404);
+      }
+    }
+
+    await prisma.$transaction([
+      prisma.deductionAssignment.deleteMany({ where: { vendorId } }),
+      prisma.deductionAssignment.createMany({
+        data: uniqueIds.map((masterId) => ({ vendorId, masterId })),
+        skipDuplicates: true,
+      }),
+    ]);
+
+    successResponse(
+      res,
+      { vendorId, masterIds: uniqueIds },
+      "Vendor deduction assignments updated",
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+const getAssignedDeductionMasters = async (vendorId: string) => {
+  const masters = await prisma.deductionMaster.findMany({
+    where: {
+      isActive: true,
+      assignments: { some: { vendorId } },
+    },
+    orderBy: { createdAt: "desc" },
+    include: {
+      variables: true,
+    },
+  });
+
+  return masters.map((master) => {
+    let divisor = 1;
+    const match = master.formulaExpression?.match(/\/\s*(\d+)/);
+    if (match) {
+      divisor = Number(match[1]);
+    }
+    return {
+      ...master,
+      percentRatio: `1/${divisor}`,
+    };
+  });
+};
+
+export const getVendorDeductions = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const vendorId = req.user?.id;
+    if (!vendorId) throw new AppError("Unauthorized", 401);
+
+    const updatedMasters = await getAssignedDeductionMasters(vendorId);
+
+    successResponse(res, updatedMasters, "Vendor deduction masters fetched");
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const getAdminVendorDeductions = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { vendorId } = req.params;
+
+    const vendor = await prisma.user.findUnique({
+      where: { id: vendorId },
+      select: { id: true, role: true },
+    });
+    if (!vendor) throw new AppError("Vendor not found", 404);
+    if (vendor.role !== "VENDOR") {
+      throw new AppError("User is not a vendor", 400);
+    }
+
+    const updatedMasters = await getAssignedDeductionMasters(vendorId);
+
+    successResponse(res, updatedMasters, "Vendor deduction masters fetched");
+  } catch (error) {
+    next(error);
+  }
+};

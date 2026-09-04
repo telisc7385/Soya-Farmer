@@ -9,6 +9,7 @@ import stockRoutes from "./routes/stock.routes";
 import disclaimerRoutes from "./routes/disclaimer.route";
 import webhookRoutes from "./webhook/deploy.routes";
 import logsRoutes from "./routes/logs.routes";
+import vendorRoutes from "./routes/vendor.route";
 import locationRoutes from "./routes/location.route";
 import { errorHandler } from "./core/errorHandler";
 import path from "path";
@@ -62,6 +63,7 @@ app.use("/api/bank-details", bankDetailsRoutes);
 app.use("/api/disclaimer", disclaimerRoutes);
 app.use("/api/webhook", webhookRoutes);
 app.use("/api/logs", logsRoutes);
+app.use("/api/vendor", vendorRoutes);
 app.use("/api/locations", locationRoutes);
 
 // error handler

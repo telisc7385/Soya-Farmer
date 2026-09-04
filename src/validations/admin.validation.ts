@@ -48,6 +48,10 @@ export const toggleDeductionMasterSchema = Joi.object({
   isActive: Joi.boolean().required(),
 });
 
+export const assignVendorDeductionsSchema = Joi.object({
+  masterIds: Joi.array().items(Joi.string().uuid()).required(),
+});
+
 export const createGoniTypeSchema = Joi.object({
   name: Joi.string().trim().required(),
   weightPerBag: Joi.number().min(0).optional().when("isLoose", {

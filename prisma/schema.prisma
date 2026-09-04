@@ -163,6 +163,7 @@ model User {
   createdPaymentActivities  PaymentActivity[]   @relation("CreatedPaymentActivities")
   thappis                   Thappi[]            @relation("VendorThappis")
   createdThappiMovements    ThappiMovement[]    @relation("CreatedThappiMovements")
+  deductionAssignments      DeductionAssignment[] @relation("VendorDeductionAssignments")
 }
 
 // =====================
@@ -444,6 +445,21 @@ model DeductionMaster {
   createdByUser  User                @relation("UserDeductionMasters", fields: [createdBy], references: [id])
   variables      DeductionVariable[]
   billDeductions BillDeduction[]
+  assignments    DeductionAssignment[]
+}
+
+model DeductionAssignment {
+  id        String   @id @default(uuid())
+  vendorId  String
+  masterId  String
+  createdAt DateTime @default(now())
+
+  vendor User            @relation("VendorDeductionAssignments", fields: [vendorId], references: [id])
+  master DeductionMaster @relation(fields: [masterId], references: [id])
+
+  @@unique([vendorId, masterId])
+  @@index([vendorId])
+  @@index([masterId])
 }
 
 model DeductionVariable {

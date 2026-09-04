@@ -15,7 +15,9 @@ import {
   rejectBill,
 } from "../controllers/adminPayment.controller";
 import {
+  assignVendorDeductions,
   createDeductionMaster,
+  getAdminVendorDeductions,
   listDeductionMasters,
   toggleDeductionMaster,
   updateDeductionMaster,
@@ -54,6 +56,7 @@ import {
   updateGoniTypeSchema,
   qualityRateQuerySchema,
   saveQualityRateSchema,
+  assignVendorDeductionsSchema,
 } from "../validations/admin.validation";
 import {
   adminReturnBagsToVendorSchema,
@@ -190,6 +193,21 @@ router.patch(
 );
 
 router.get("/deductions", authMiddleware, listDeductionMasters);
+
+router.put(
+  "/vendors/:vendorId/deductions",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateRequest(assignVendorDeductionsSchema),
+  assignVendorDeductions,
+);
+
+router.get(
+  "/vendors/:vendorId/deductions",
+  authMiddleware,
+  authorize("ADMIN"),
+  getAdminVendorDeductions,
+);
 
 router.post(
   "/goni-types",

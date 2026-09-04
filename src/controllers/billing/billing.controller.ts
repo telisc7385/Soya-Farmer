@@ -633,6 +633,7 @@ export const calculateDeductions = async (
       where: {
         id: { in: masterIds },
         isActive: true,
+        assignments: { some: { vendorId } },
       },
       include: {
         variables: { orderBy: { createdAt: "asc" } },
