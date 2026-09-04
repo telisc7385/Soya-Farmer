@@ -294,18 +294,18 @@ model Bill {
 }
 
 model BillGoni {
-  id         String @id @default(uuid())
-  billId     String
-  goniTypeId String
-  bagCount   Int
-  weight     Float
+  id            String @id @default(uuid())
+  billId        String
+  goniTypeId    String
+  bagCount      Int // effective physical bags = unitCount x bagMultiplier
+  bagMultiplier Int    @default(1) // 1 = single, 2 = double, 3 = triple katta
+  weight        Float
 
   bill     Bill     @relation("BillGonis", fields: [billId], references: [id])
   goniType GoniType @relation("GoniTypeBillGonis", fields: [goniTypeId], references: [id])
 
   createdAt DateTime @default(now())
 
-  @@unique([billId, goniTypeId])
   @@index([billId])
   @@index([goniTypeId])
 }

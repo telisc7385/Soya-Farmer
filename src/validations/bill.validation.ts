@@ -66,6 +66,7 @@ export const applyGoniSchema = Joi.object({
       Joi.object({
         goniTypeId: Joi.string().uuid().required(),
         bagCount: Joi.number().integer().min(0).required(),
+        bagMultiplier: Joi.number().integer().min(1).max(3).optional(),
       }),
     )
     .min(0)

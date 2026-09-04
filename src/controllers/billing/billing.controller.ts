@@ -848,26 +848,57 @@ export const applyGoniDeduction = async (
       );
     }
 
-    const bagCountByType = new Map<string, number>();
+    // Group by (goniTypeId, bagMultiplier) so a bill can mix single/double/triple
+    // katta of the same tracked type as separate rows.
+    const groupsByKey = new Map<
+      string,
+      { goniTypeId: string; unitCount: number; multiplier: number }
+    >();
     for (const g of activeGonis) {
-      if (goniTypeMap.get(g.goniTypeId)?.isLoose) continue;
-      const current = bagCountByType.get(g.goniTypeId) ?? 0;
-      bagCountByType.set(g.goniTypeId, current + g.bagCount);
+      const goniType = goniTypeMap.get(g.goniTypeId);
+      if (!goniType || goniType.isLoose) continue;
+
+      const multiplier = Math.min(
+        3,
+        Math.max(1, Math.trunc(Number(g.bagMultiplier ?? 1) || 1)),
+      );
+      if (multiplier > 1 && !goniType.isTracked) {
+        throw new AppError(
+          `bagMultiplier (double/triple katta) is allowed only for the tracked Kaltani Katta type`,
+          400,
+        );
+      }
+
+      const key = `${g.goniTypeId}:${multiplier}`;
+      const existing = groupsByKey.get(key);
+      groupsByKey.set(key, {
+        goniTypeId: g.goniTypeId,
+        unitCount: (existing?.unitCount ?? 0) + g.bagCount,
+        multiplier,
+      });
     }
 
     let totalWeightKg = 0;
-    const records = [];
+    const records: Array<{
+      billId: string;
+      goniTypeId: string;
+      bagCount: number;
+      bagMultiplier: number;
+      weight: number;
+    }> = [];
 
-    for (const [goniTypeId, bagCount] of bagCountByType.entries()) {
-      const goniType = goniTypeMap.get(goniTypeId)!;
-      const weightKg = bagCount * goniType.weightPerBag;
+    for (const group of groupsByKey.values()) {
+      const goniType = goniTypeMap.get(group.goniTypeId)!;
+      const effectiveBags = group.unitCount * group.multiplier;
+      const weightKg = effectiveBags * goniType.weightPerBag;
 
       totalWeightKg += weightKg;
 
       records.push({
         billId,
-        goniTypeId,
-        bagCount,
+        goniTypeId: group.goniTypeId,
+        bagCount: effectiveBags,
+        bagMultiplier: group.multiplier,
         weight: weightKg / 100, // convert to QTL
       });
     }

@@ -69,6 +69,8 @@ const withGoniAmount = (
       goniTypeId: row.goniTypeId,
       goniTypeName: row.goniType?.name ?? "",
       bagCount: row.bagCount,
+      bagMultiplier: row.bagMultiplier ?? 1,
+      bagUnitCount: Math.round((row.bagCount ?? 0) / (row.bagMultiplier ?? 1)),
       weight: row.weight,
     })),
   };
