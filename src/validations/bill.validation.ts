@@ -35,11 +35,7 @@ export const createDraftSchema = Joi.object({
     then: Joi.optional(),
     otherwise: Joi.required(),
   }),
-  driverName: Joi.string().trim().when("billId", {
-    is: Joi.exist(),
-    then: Joi.optional(),
-    otherwise: Joi.required(),
-  }).optional(),
+  driverName: Joi.string().trim().allow("").optional(),
   billLocation: Joi.string().trim().optional(),
 });
 
