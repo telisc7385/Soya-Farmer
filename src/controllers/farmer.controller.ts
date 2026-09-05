@@ -744,9 +744,23 @@ export const getFarmers = async (
       district,
       taluka,
       villageAdd,
+      startDate,
+      endDate,
     } = req.query;
     const take = Number(limit);
     const skip = (Number(page) - 1) * take;
+
+    const start = startDate
+      ? new Date(String(startDate) + "T00:00:00")
+      : null;
+    const end = endDate ? new Date(String(endDate) + "T23:59:59.999") : null;
+    const createdAt =
+      start || end
+        ? {
+            ...(start && !Number.isNaN(start.getTime()) && { gte: start }),
+            ...(end && !Number.isNaN(end.getTime()) && { lte: end }),
+          }
+        : undefined;
 
     const now = new Date();
     const currentYear = now.getFullYear();
@@ -758,6 +772,7 @@ export const getFarmers = async (
     const farmers = await prisma.farmer.findMany({
       where: {
         kycStatus: "VERIFIED",
+        ...(createdAt && { createdAt }),
         ...(vendorId && {
           vendors: {
             some: { vendorId: String(vendorId), isActive: true },
@@ -845,6 +860,7 @@ export const getFarmers = async (
     const total = await prisma.farmer.count({
       where: {
         kycStatus: "VERIFIED",
+        ...(createdAt && { createdAt }),
         ...(vendorId && {
           vendors: {
             some: { vendorId: String(vendorId), isActive: true },

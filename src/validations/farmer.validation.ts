@@ -1,5 +1,18 @@
 import Joi from "joi";
 
+export const farmerListQuerySchema = Joi.object({
+  page: Joi.alternatives().try(Joi.number().min(1), Joi.string().pattern(/^\d+$/)).optional(),
+  limit: Joi.alternatives().try(Joi.number().min(1), Joi.string().pattern(/^\d+$/)).optional(),
+  search: Joi.string().allow("").optional(),
+  adhar_no: Joi.string().allow("").optional(),
+  vendorId: Joi.string().allow("").optional(),
+  district: Joi.string().allow("").optional(),
+  taluka: Joi.string().allow("").optional(),
+  villageAdd: Joi.string().allow("").optional(),
+  startDate: Joi.date().iso().allow("").optional(),
+  endDate: Joi.date().iso().allow("").optional(),
+}).unknown(true);
+
 export const createFarmerSchema = Joi.object({
   name: Joi.string().min(2).required(),
   phone: Joi.string()

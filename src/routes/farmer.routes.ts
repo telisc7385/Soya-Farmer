@@ -1,7 +1,7 @@
 // src/routes/farmer.routes.ts
 import { Router } from "express";
 import * as farmerControllers from "../controllers/farmer.controller";
-import { validateRequest } from "../middleware/validateRequest.middleware";
+import { validateRequest, validateQuery } from "../middleware/validateRequest.middleware";
 import { authMiddleware } from "../middleware/auth.middleware";
 import * as farmerValidation from "../validations/farmer.validation";
 import upload from "../middleware/multer.middleware";
@@ -17,7 +17,12 @@ router.post(
   farmerControllers.createFarmer,
 );
 
-router.get("/list", authMiddleware, farmerControllers.getFarmers);
+router.get(
+  "/list",
+  authMiddleware,
+  validateQuery(farmerValidation.farmerListQuerySchema),
+  farmerControllers.getFarmers,
+);
 router.get("/list/non-kyc", authMiddleware, farmerControllers.getNonKycFarmers);
 router.get("/:farmerId", authMiddleware, farmerControllers.getFarmerById);
 
