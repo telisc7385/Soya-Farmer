@@ -52,14 +52,16 @@ export const createThappi = async (
     while (!thappi && attempts < MAX_ATTEMPTS) {
       try {
         thappi = await prisma.$transaction(async (tx) => {
-          const last = await tx.thappi.findFirst({
-            orderBy: { createdAt: "desc" },
+          const existing = await tx.thappi.findMany({
+            where: { code: { startsWith: "THP-" } },
             select: { code: true },
           });
-          const lastNum = last
-            ? parseInt(last.code.replace("THP-", ""), 10)
-            : 0;
-          const code = `THP-${String(lastNum + 1).padStart(6, "0")}`;
+          let maxNum = 0;
+          for (const row of existing) {
+            const num = Number(row.code.replace("THP-", ""));
+            if (Number.isFinite(num) && num > maxNum) maxNum = num;
+          }
+          const code = `THP-${String(maxNum + 1).padStart(6, "0")}`;
 
           const created = await tx.thappi.create({
             data: {

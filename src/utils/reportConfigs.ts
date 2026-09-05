@@ -8,7 +8,8 @@ export type ReportKey =
   | "farmers"
   | "vendors"
   | "quality-rates"
-  | "purchase-limits";
+  | "purchase-limits"
+  | "bag-inventory";
 
 type ReportConfig<T> = {
   filenamePrefix: string;
@@ -711,6 +712,77 @@ export const purchaseLimitReportConfig: ReportConfig<any> = {
   },
 };
 
+export const bagInventoryReportConfig: ReportConfig<any> = {
+  filenamePrefix: "bag-inventory-report",
+  columns: [
+    {
+      key: "vendorName",
+      header: "Vendor Name",
+      value: (r) => r.vendorName,
+    },
+    {
+      key: "vendorPhone",
+      header: "Vendor Phone",
+      value: (r) => r.vendorPhone,
+    },
+    {
+      key: "goniTypeName",
+      header: "Goni Type",
+      value: (r) => r.goniTypeName,
+    },
+    {
+      key: "receivedFromFarmers",
+      header: "Received From Farmers",
+      value: (r) => r.receivedFromFarmers,
+    },
+    {
+      key: "receivedFromAdmin",
+      header: "Received From Admin",
+      value: (r) => r.receivedFromAdmin,
+    },
+    {
+      key: "openingAddedByAdmin",
+      header: "Opening Added By Admin",
+      value: (r) => r.openingAddedByAdmin,
+    },
+    {
+      key: "vendorSelfAdded",
+      header: "Vendor Self Added",
+      value: (r) => r.vendorSelfAdded,
+    },
+    {
+      key: "returnedToFarmers",
+      header: "Returned To Farmers",
+      value: (r) => r.returnedToFarmers,
+    },
+    {
+      key: "sentToAdmin",
+      header: "Sent To Admin",
+      value: (r) => r.sentToAdmin,
+    },
+    {
+      key: "currentWithVendor",
+      header: "Current With Vendor",
+      value: (r) => r.currentWithVendor,
+    },
+  ],
+  totalsRow: (rows) => {
+    if (!rows.length) return null;
+    const sum = (key: string) =>
+      rows.reduce((acc, row) => acc + (Number(row?.[key]) || 0), 0);
+    return {
+      vendorName: "TOTAL",
+      receivedFromFarmers: sum("receivedFromFarmers"),
+      receivedFromAdmin: sum("receivedFromAdmin"),
+      openingAddedByAdmin: sum("openingAddedByAdmin"),
+      vendorSelfAdded: sum("vendorSelfAdded"),
+      returnedToFarmers: sum("returnedToFarmers"),
+      sentToAdmin: sum("sentToAdmin"),
+      currentWithVendor: sum("currentWithVendor"),
+    };
+  },
+};
+
 export const reportConfigs: Record<ReportKey, ReportConfig<any> | DynamicReportConfig<any>> = {
   bills: billReportConfig,
   payments: paymentReportConfig,
@@ -720,4 +792,5 @@ export const reportConfigs: Record<ReportKey, ReportConfig<any> | DynamicReportC
   vendors: vendorReportConfig,
   "quality-rates": qualityRateReportConfig,
   "purchase-limits": purchaseLimitReportConfig,
+  "bag-inventory": bagInventoryReportConfig,
 };

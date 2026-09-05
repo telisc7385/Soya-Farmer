@@ -1,5 +1,5 @@
 import { Request, Response, NextFunction } from "express";
-import { Prisma } from "@prisma/client";
+import { Prisma, BagMovementType } from "@prisma/client";
 import { reportConfigs, ReportKey } from "../../utils/reportConfigs";
 import { AppError } from "../../core/appError";
 import prisma from "../../database/prisma";
@@ -412,6 +412,106 @@ const getPurchaseLimitsReport = async () => {
   }));
 };
 
+const getBagInventoryReport = async (query: any) => {
+  const createdAt = buildDateFilter(query.startDate, query.endDate);
+
+  const [vendors, trackedTypes] = await Promise.all([
+    prisma.user.findMany({
+      where: { role: "VENDOR" },
+      select: { id: true, name: true, phone: true },
+      orderBy: { name: "asc" },
+    }),
+    prisma.goniType.findMany({
+      where: { isTracked: true },
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
+  ]);
+
+  if (vendors.length === 0 || trackedTypes.length === 0) return [];
+
+  const movements = await prisma.bagMovement.groupBy({
+    by: ["vendorId", "goniTypeId", "movementType"],
+    where: {
+      ...(createdAt && { createdAt }),
+      goniTypeId: { in: trackedTypes.map((t) => t.id) },
+    },
+    _sum: { bagCount: true },
+  });
+
+  const cell = (
+    vendorId: string,
+    goniTypeId: string,
+    movementType: BagMovementType,
+  ) =>
+    movements.find(
+      (m) =>
+        m.vendorId === vendorId &&
+        m.goniTypeId === goniTypeId &&
+        m.movementType === movementType,
+    )?._sum.bagCount ?? 0;
+
+  const rows = [];
+  for (const vendor of vendors) {
+    for (const type of trackedTypes) {
+      const receivedFromFarmers = cell(
+        vendor.id,
+        type.id,
+        BagMovementType.FARMER_TO_VENDOR,
+      );
+      const receivedFromAdmin = cell(
+        vendor.id,
+        type.id,
+        BagMovementType.ADMIN_TO_VENDOR,
+      );
+      const openingAddedByAdmin = cell(
+        vendor.id,
+        type.id,
+        BagMovementType.ADMIN_TO_VENDOR_ADD,
+      );
+      const vendorSelfAdded = cell(
+        vendor.id,
+        type.id,
+        BagMovementType.VENDOR_SELF_ADD,
+      );
+      const returnedToFarmers = cell(
+        vendor.id,
+        type.id,
+        BagMovementType.VENDOR_TO_FARMER,
+      );
+      const sentToAdmin = cell(
+        vendor.id,
+        type.id,
+        BagMovementType.VENDOR_TO_ADMIN,
+      );
+      const currentWithVendor = Math.max(
+        receivedFromFarmers +
+          receivedFromAdmin +
+          openingAddedByAdmin +
+          vendorSelfAdded -
+          returnedToFarmers -
+          sentToAdmin,
+        0,
+      );
+
+      rows.push({
+        vendorName: vendor.name,
+        vendorPhone: vendor.phone,
+        goniTypeName: type.name,
+        receivedFromFarmers,
+        receivedFromAdmin,
+        openingAddedByAdmin,
+        vendorSelfAdded,
+        returnedToFarmers,
+        sentToAdmin,
+        currentWithVendor,
+      });
+    }
+  }
+
+  return rows;
+};
+
 const reportHandlers: Record<ReportKey, (query: any) => Promise<any[]>> = {
   bills: getBillsReport,
   payments: getPaymentsReport,
@@ -421,6 +521,7 @@ const reportHandlers: Record<ReportKey, (query: any) => Promise<any[]>> = {
   vendors: getVendorsReport,
   "quality-rates": getQualityRatesReport,
   "purchase-limits": getPurchaseLimitsReport,
+  "bag-inventory": getBagInventoryReport,
 };
 
 export const exportAdminReport = async (

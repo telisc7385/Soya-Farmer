@@ -260,6 +260,7 @@ export const getVendorList = async (
           isActive: true,
           createdAt: true,
           masterVendor: true,
+          assets: true,
         },
       }),
       prisma.user.count({ where }),
@@ -392,6 +393,7 @@ export const getVendorById = async (
         district: true,
         isActive: true,
         createdAt: true,
+        assets: true,
       },
     });
 
