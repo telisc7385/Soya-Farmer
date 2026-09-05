@@ -264,6 +264,40 @@ export const assignVendorDeductions = async (
   }
 };
 
+export const assignDeductionToAllVendors = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { masterId } = req.params;
+
+    const master = await prisma.deductionMaster.findUnique({
+      where: { id: masterId },
+      select: { id: true },
+    });
+    if (!master) throw new AppError("Deduction master not found", 404);
+
+    const vendors = await prisma.user.findMany({
+      where: { role: "VENDOR" },
+      select: { id: true },
+    });
+
+    await prisma.deductionAssignment.createMany({
+      data: vendors.map((vendor) => ({ vendorId: vendor.id, masterId })),
+      skipDuplicates: true,
+    });
+
+    successResponse(
+      res,
+      { masterId, vendorCount: vendors.length },
+      "Deduction master assigned to all vendors",
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
 const getAssignedDeductionMasters = async (vendorId: string) => {
   const masters = await prisma.deductionMaster.findMany({
     where: {

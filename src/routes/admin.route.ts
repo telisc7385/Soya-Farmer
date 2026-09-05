@@ -15,6 +15,7 @@ import {
   rejectBill,
 } from "../controllers/adminPayment.controller";
 import {
+  assignDeductionToAllVendors,
   assignVendorDeductions,
   createDeductionMaster,
   getAdminVendorDeductions,
@@ -193,6 +194,11 @@ router.patch(
 );
 
 router.get("/deductions", authMiddleware, listDeductionMasters);
+
+router.post(
+  "/deductions/:masterId/assign-all",
+  assignDeductionToAllVendors,
+);
 
 router.put(
   "/vendors/:vendorId/deductions",
