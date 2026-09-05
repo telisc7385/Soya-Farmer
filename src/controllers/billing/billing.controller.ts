@@ -16,23 +16,24 @@ import { saveUploadedFile } from "../../utils/upload";
 
 const getSeasonWindow = () => {
   const now = new Date();
-  const month = now.getMonth(); // 0-indexed: 0=Jan, 3=Apr
+  const month = now.getMonth(); // 0 = Jan, 8 = Sep, 9 = Oct
+
   let startYear: number;
   let endYear: number;
 
-  if (month >= 3) {
-    // Apr–Dec → current year's Apr 1 to next year's May 31
+  if (month >= 9) {
+    // Oct–Dec → current year's Oct 1 to next year's Oct 1
     startYear = now.getFullYear();
     endYear = now.getFullYear() + 1;
   } else {
-    // Jan–Mar → previous year's Apr 1 to current year's May 31
+    // Jan–Sep → previous year's Oct 1 to current year's Oct 1
     startYear = now.getFullYear() - 1;
     endYear = now.getFullYear();
   }
 
   return {
-    seasonStart: new Date(startYear, 3, 1), // April 1
-    seasonEnd: new Date(endYear, 5, 1), // June 1 (exclusive, so May 31 included)
+    seasonStart: new Date(startYear, 9, 1), // October 1
+    seasonEnd: new Date(endYear, 9, 1),     // October 1 (exclusive)
   };
 };
 
