@@ -141,6 +141,7 @@ model User {
   factoryRateDiff            Float    @default(0)
   masterVendor               Boolean  @default(false)
   grnNumber                  String?
+  assets                     String[]              @default([])
   createdAt                  DateTime @default(now())
   villageAdd                 String?
   taluka                     String?

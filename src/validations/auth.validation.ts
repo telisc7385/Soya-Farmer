@@ -15,6 +15,7 @@ export const registerSchema = Joi.object({
   role: Joi.string().valid("VENDOR").optional(),
   factoryRateDiff: Joi.number().optional(),
   masterVendor: Joi.boolean().optional(),
+  assets: Joi.array().items(Joi.string().trim()).optional(),
 });
 
 export const loginSchema = Joi.object({
@@ -36,6 +37,7 @@ export const updateVendorSchema = Joi.object({
   district: Joi.string().max(100).allow("", null).optional(),
   factoryRateDiff: Joi.number().optional(),
   masterVendor: Joi.boolean().optional(),
+  assets: Joi.array().items(Joi.string().trim()).optional(),
 }).min(1);
 
 export const adminResetPasswordSchema = Joi.object({

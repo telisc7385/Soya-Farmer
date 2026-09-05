@@ -63,6 +63,7 @@ export const register = async (
       factoryRateDiff,
       masterVendor = false,
       grnNumber,
+      assets = [],
     } = req.body;
 
     const existingUser = await prisma.user.findFirst({
@@ -89,6 +90,7 @@ export const register = async (
         factoryRateDiff,
         masterVendor,
         grnNumber,
+        assets,
         ...(vendorRate !== undefined ? { vendorRate } : {}),
       },
     });
@@ -123,6 +125,7 @@ export const updateVendor = async (
       factoryRateDiff,
       masterVendor = false,
       grnNumber,
+      assets,
     } = req.body;
 
     // Check if vendor exists
@@ -155,6 +158,7 @@ export const updateVendor = async (
         grnNumber,
         ...(hashedPassword !== undefined ? { password: hashedPassword } : {}),
         ...(vendorRate !== undefined ? { vendorRate } : {}),
+        ...(assets !== undefined ? { assets } : {}),
       },
     });
 

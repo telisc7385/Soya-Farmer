@@ -349,6 +349,18 @@ const getVendorsReport = async (query: any) => {
   }));
 };
 
+const getPurchaseLimitsReport = async () => {
+  const limits = await prisma.purchaseLimit.findMany({
+    orderBy: { createdAt: "desc" },
+  });
+
+  return limits.map((limit) => ({
+    createdAt: limit.createdAt,
+    value: limit.value,
+    note: limit.note,
+  }));
+};
+
 const reportHandlers: Record<ReportKey, (query: any) => Promise<any[]>> = {
   bills: getBillsReport,
   payments: getPaymentsReport,
@@ -357,6 +369,7 @@ const reportHandlers: Record<ReportKey, (query: any) => Promise<any[]>> = {
   farmers: getFarmersReport,
   vendors: getVendorsReport,
   "quality-rates": getQualityRatesReport,
+  "purchase-limits": getPurchaseLimitsReport,
 };
 
 export const exportAdminReport = async (

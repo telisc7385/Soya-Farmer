@@ -7,7 +7,8 @@ export type ReportKey =
   | "stocks"
   | "farmers"
   | "vendors"
-  | "quality-rates";
+  | "quality-rates"
+  | "purchase-limits";
 
 type ReportConfig<T> = {
   filenamePrefix: string;
@@ -562,11 +563,6 @@ export const vendorReportConfig: ReportConfig<any> = {
     { key: "taluka", header: "Taluka", value: (r) => r.taluka },
     { key: "district", header: "District", value: (r) => r.district },
     {
-      key: "purchaseLimitQtlPerHectare",
-      header: "Purchase Limit Qtl/Hectare",
-      value: (r) => r.purchaseLimitQtlPerHectare,
-    },
-    {
       key: "createdAt",
       header: "Created At",
       value: (r) => formatDate(r.createdAt),
@@ -641,6 +637,27 @@ export const qualityRateReportConfig: DynamicReportConfig<any> = {
   },
 };
 
+export const purchaseLimitReportConfig: ReportConfig<any> = {
+  filenamePrefix: "purchase-limits-report",
+  columns: [
+    {
+      key: "createdAt",
+      header: "Created At",
+      value: (r) => formatDate(r.createdAt),
+    },
+    { key: "value", header: "Value", value: (r) => r.value },
+    { key: "note", header: "Note", value: (r) => r.note },
+  ],
+  totalsRow: (rows) => {
+    if (!rows.length) return null;
+    return {
+      createdAt: "LATEST",
+      value: rows[0].value,
+      note: "Latest value in Qtl/Hectare",
+    };
+  },
+};
+
 export const reportConfigs: Record<ReportKey, ReportConfig<any> | DynamicReportConfig<any>> = {
   bills: billReportConfig,
   payments: paymentReportConfig,
@@ -649,4 +666,5 @@ export const reportConfigs: Record<ReportKey, ReportConfig<any> | DynamicReportC
   farmers: farmerReportConfig,
   vendors: vendorReportConfig,
   "quality-rates": qualityRateReportConfig,
+  "purchase-limits": purchaseLimitReportConfig,
 };
