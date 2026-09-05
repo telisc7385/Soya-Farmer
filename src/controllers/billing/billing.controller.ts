@@ -468,11 +468,10 @@ export const createDraftBill = async (
       !unit ||
       !rate ||
       !vehicleNumber ||
-      !vehicleType ||
-      !driverName
+      !vehicleType
     ) {
       throw new AppError(
-        "farmerId, quantity, unit, rate, vehicleNumber, vehicleType, driverName are required for creating a new bill",
+        "farmerId, quantity, unit, rate, vehicleNumber, vehicleType are required for creating a new bill",
         400,
       );
     }
