@@ -88,6 +88,26 @@ export const billReportConfig: ReportConfig<any> = {
       value: (r) => r.farmer?.district,
     },
     {
+      key: "farmerBankName",
+      header: "Farmer Bank Name",
+      value: (r) => r.farmerBankName,
+    },
+    {
+      key: "farmerBankHolder",
+      header: "Farmer Bank Holder",
+      value: (r) => r.farmerBankHolder,
+    },
+    {
+      key: "farmerBankAccount",
+      header: "Farmer Bank Account",
+      value: (r) => r.farmerBankAccount,
+    },
+    {
+      key: "farmerBankIfsc",
+      header: "Farmer Bank IFSC",
+      value: (r) => r.farmerBankIfsc,
+    },
+    {
       key: "primaryQuantity",
       header: "Quantity",
       value: (r) => r.primaryQuantity,
@@ -97,6 +117,21 @@ export const billReportConfig: ReportConfig<any> = {
     { key: "grossAmount", header: "Gross Amount", value: (r) => r.grossAmount },
     { key: "totalAmount", header: "Total Amount", value: (r) => r.totalAmount },
     { key: "netPayable", header: "Net Payable", value: (r) => r.netPayable },
+    {
+      key: "advanceAdjusted",
+      header: "Advance Adjusted",
+      value: (r) => r.advanceAdjusted,
+    },
+    {
+      key: "settledAmount",
+      header: "Settlement Paid",
+      value: (r) => r.settledAmount,
+    },
+    {
+      key: "afterLessAmount",
+      header: "After Less Amount",
+      value: (r) => r.afterLessAmount,
+    },
     {
       key: "vehicleNumber",
       header: "Vehicle Number",
@@ -109,6 +144,11 @@ export const billReportConfig: ReportConfig<any> = {
     { key: "remarkUrl", header: "Remark URL", value: (r) => r.remarkUrl },
     { key: "goniType", header: "Goni Type", value: (r) => r.goniType?.name },
     { key: "bagCount", header: "Bag Count", value: (r) => r.bagCount },
+    {
+      key: "bagCountByType",
+      header: "Bag Count By Type",
+      value: (r) => r.bagCountByType,
+    },
     { key: "goniWeight", header: "Bag Weight", value: (r) => r.goniWeight },
     {
       key: "labWeight",
@@ -134,6 +174,16 @@ export const billReportConfig: ReportConfig<any> = {
       key: "labDeductionAmount",
       header: "Lab Deduction Amount",
       value: (r) => r.labDeductionAmount,
+    },
+    {
+      key: "labDeductionInputs",
+      header: "Lab Deduction Input",
+      value: (r) => r.labDeductionInputs,
+    },
+    {
+      key: "labDeductionActuals",
+      header: "Lab Deduction Actual",
+      value: (r) => r.labDeductionActuals,
     },
     {
       key: "fixedDeductionAmount",
@@ -184,6 +234,9 @@ export const billReportConfig: ReportConfig<any> = {
       totalDeductionAmount: sum("totalDeductionAmount"),
       labDeductionAmount: sum("labDeductionAmount"),
       fixedDeductionAmount: sum("fixedDeductionAmount"),
+      advanceAdjusted: sum("advanceAdjusted"),
+      settledAmount: sum("settledAmount"),
+      afterLessAmount: sum("afterLessAmount"),
       paymentAmount: rows.reduce(
         (acc, row) => acc + (Number(row?.payment?.amount) || 0),
         0,

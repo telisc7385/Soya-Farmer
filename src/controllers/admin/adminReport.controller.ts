@@ -148,8 +148,12 @@ const getBillsReport = async (query: any) => {
     },
     orderBy: { createdAt: "desc" },
     include: {
-      farmer: true,
+      farmer: {
+        include: { banks: true },
+      },
       vendor: true,
+      advances: true,
+      settlements: true,
       gonis: {
         include: { goniType: true },
       },
@@ -160,9 +164,33 @@ const getBillsReport = async (query: any) => {
 
   return bills.map((bill) => {
     const calculationDetails = buildBillingCalculationDetails(bill);
+    const advanceAdjusted = (bill.advances || [])
+      .filter((a) => a.txnType === "ADJUSTMENT")
+      .reduce((sum, a) => sum + (a.amount || 0), 0);
+    const settledAmount = (bill.settlements || []).reduce(
+      (sum, s) => sum + (s.amount || 0),
+      0,
+    );
+    const afterLessAmount = Math.max(
+      (bill.totalAmount || 0) - advanceAdjusted - settledAmount,
+      0,
+    );
+    const labRows = (bill.deductions || []).filter((d) => {
+      const payload = d.payload as any;
+      return (
+        payload &&
+        typeof payload === "object" &&
+        Array.isArray(payload.variableDetails) &&
+        payload.variableDetails.length > 0
+      );
+    });
+    const bank = bill.farmer?.banks?.[0];
     return {
       ...bill,
       bagCount: bill.gonis.reduce((sum, row) => sum + row.bagCount, 0),
+      bagCountByType: bill.gonis
+        .map((row) => `${row.goniType.name}: ${row.bagCount}`)
+        .join(", "),
       goniType: {
         name: bill.gonis.map((row) => row.goniType.name).join(", "),
       },
@@ -178,6 +206,29 @@ const getBillsReport = async (query: any) => {
       netWeight: calculationDetails.finalNetPayableWeight,
       labDeductionAmount: calculationDetails.totalLabDeductionAmount,
       fixedDeductionAmount: calculationDetails.totalFixedDeductionAmount,
+      labDeductionInputs: labRows
+        .map((d) => {
+          const variableDetails = (d.payload as any).variableDetails;
+          return variableDetails
+            .map((v: any) => `${v.label}: ${v.custom}`)
+            .join(", ");
+        })
+        .join(" | "),
+      labDeductionActuals: labRows
+        .map((d) => {
+          const variableDetails = (d.payload as any).variableDetails;
+          return variableDetails
+            .map((v: any) => `${v.label}: ${v.actual}`)
+            .join(", ");
+        })
+        .join(" | "),
+      advanceAdjusted,
+      settledAmount,
+      afterLessAmount,
+      farmerBankName: bank?.bankName,
+      farmerBankAccount: bank?.accountNo,
+      farmerBankIfsc: bank?.ifsc,
+      farmerBankHolder: bank?.holderName,
     };
   });
 };
