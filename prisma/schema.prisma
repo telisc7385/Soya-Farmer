@@ -742,3 +742,16 @@ model AppSetting {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+// =====================
+// PURCHASE LIMIT HISTORY (ADMIN SETTING - APPEND ONLY)
+// =====================
+model PurchaseLimit {
+  id          String    @id @default(uuid())
+  value       Float
+  note        String?
+  createdAt   DateTime  @default(now())
+
+
+  @@index([createdAt])
+}

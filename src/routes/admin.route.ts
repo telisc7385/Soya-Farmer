@@ -90,14 +90,14 @@ import {
 } from "../controllers/inventoryLocation.controller";
 import {
   getPurchaseLimit,
-  updatePurchaseLimit,
+  createPurchaseLimit,
 } from "../controllers/admin/purchaseLimit.controller";
 import {
   createInventoryLocationSchema,
   listInventoryLocationQuerySchema,
   updateInventoryLocationSchema,
 } from "../validations/inventoryLocation.validation";
-import { updatePurchaseLimitSchema } from "../validations/purchaseLimit.validation";
+import { createPurchaseLimitSchema } from "../validations/purchaseLimit.validation";
 const router = Router();
 
 router.get("/payments", authMiddleware, authorize("ADMIN"), getPayments);
@@ -461,8 +461,8 @@ router.put(
   "/settings/purchase-limit",
   authMiddleware,
   authorize("ADMIN"),
-  validateRequest(updatePurchaseLimitSchema),
-  updatePurchaseLimit,
+  validateRequest(createPurchaseLimitSchema),
+  createPurchaseLimit,
 );
 
 export default router;

@@ -5,16 +5,15 @@ export const getPurchaseLimitQtlPerHectare = async (): Promise<number> => {
   const fallbackSafe = Number.isFinite(fallback) && fallback > 0 ? fallback : 12;
 
   try {
-    const admin = await prisma.user.findFirst({
-      where: { role: "ADMIN", isActive: true, purchaseLimitQtlPerHectare: { not: null } },
-      orderBy: { createdAt: "asc" },
-      select: { purchaseLimitQtlPerHectare: true },
+    const latest = await prisma.purchaseLimit.findFirst({
+      orderBy: { createdAt: "desc" },
+      select: { value: true },
     });
 
-    if (!admin?.purchaseLimitQtlPerHectare || admin.purchaseLimitQtlPerHectare <= 0) {
+    if (!latest || !latest.value || latest.value <= 0) {
       return fallbackSafe;
     }
-    return admin.purchaseLimitQtlPerHectare;
+    return latest.value;
   } catch {
     return fallbackSafe;
   }

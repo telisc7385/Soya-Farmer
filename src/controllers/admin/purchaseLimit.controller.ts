@@ -10,15 +10,22 @@ export const getPurchaseLimit = async (
   next: NextFunction,
 ) => {
   try {
-    const admin = await prisma.user.findFirst({
-      where: { role: "ADMIN" },
-      orderBy: { createdAt: "asc" },
-      select: { id: true, purchaseLimitQtlPerHectare: true },
-    });
-    if (!admin) throw new AppError("Admin not found", 404);
+    const [latest, history] = await Promise.all([
+      prisma.purchaseLimit.findFirst({
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.purchaseLimit.findMany({
+        orderBy: { createdAt: "desc" },
+      }),
+    ]);
+
     successResponse(
       res,
-      { adminId: admin.id, purchaseLimitQtlPerHectare: admin.purchaseLimitQtlPerHectare },
+      {
+        purchaseLimitQtlPerHectare: latest?.value ?? null,
+        updatedAt: latest?.createdAt ?? null,
+        history,
+      },
       "Purchase limit fetched",
     );
   } catch (error) {
@@ -26,7 +33,7 @@ export const getPurchaseLimit = async (
   }
 };
 
-export const updatePurchaseLimit = async (
+export const createPurchaseLimit = async (
   req: AuthRequest,
   res: Response,
   next: NextFunction,
@@ -34,19 +41,20 @@ export const updatePurchaseLimit = async (
   try {
     const adminId = req.user?.id;
     if (!adminId) throw new AppError("Unauthorized", 401);
-    const { value } = req.body;
+    const { value, note } = req.body;
     const parsed = Number(value);
     if (!Number.isFinite(parsed) || parsed <= 0) {
       throw new AppError("value must be a positive number", 400);
     }
 
-    const updated = await prisma.user.update({
-      where: { id: adminId },
-      data: { purchaseLimitQtlPerHectare: parsed },
-      select: { id: true, purchaseLimitQtlPerHectare: true },
+    const created = await prisma.purchaseLimit.create({
+      data: {
+        value: parsed,
+        note: note ?? null,
+      },
     });
 
-    successResponse(res, updated, "Purchase limit updated");
+    successResponse(res, created, "Purchase limit created");
   } catch (error) {
     next(error);
   }

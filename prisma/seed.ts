@@ -30,15 +30,18 @@ async function main() {
     console.log("Admin already exists");
   }
 
-  if (admin.purchaseLimitQtlPerHectare == null) {
-    admin = await prisma.user.update({
-      where: { id: admin.id },
-      data: { purchaseLimitQtlPerHectare: 12 },
+  const existingLimit = await prisma.purchaseLimit.findFirst({
+    orderBy: { createdAt: "desc" },
+  });
+
+  if (!existingLimit) {
+    await prisma.purchaseLimit.create({
+      data: { value: 12, note: "Initial seed value" },
     });
-    console.log("Seeded purchaseLimitQtlPerHectare=12 for admin");
+    console.log("Seeded PurchaseLimit=12 history record");
   } else {
     console.log(
-      `Skipped purchaseLimitQtlPerHectare seed. Existing value: ${admin.purchaseLimitQtlPerHectare}`,
+      `Skipped PurchaseLimit seed. Existing latest value: ${existingLimit.value}`,
     );
   }
 
