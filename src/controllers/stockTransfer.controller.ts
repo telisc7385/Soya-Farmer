@@ -128,12 +128,10 @@ export const createTransfer = async (
       },
       _sum: {
         weight: true,
-        bagCount: true,
       },
     });
 
     const availableWeight = availableStock._sum.weight || 0;
-    const availableBags = availableStock._sum.bagCount || 0;
 
     // Validate transfer doesn't exceed available stock
     if (
@@ -171,14 +169,8 @@ export const createTransfer = async (
       const currentType = goniTypeMap.get(item.goniTypeId)!;
       return currentType.isTracked ? sum + item.bagCount : sum;
     }, 0);
-    if (totalBagCount > availableBags) {
-      throw new AppError(
-        `Transfer tracked bag count (${totalBagCount}) exceeds available stock (${availableBags})`,
-        400,
-      );
-    }
 
-    // Apply tracked-bag availability check only for tracked types
+    // Apply tracked-bag availability check only for tracked types (bag ledger based)
     for (const item of transferItems) {
       const currentType = goniTypeMap.get(item.goniTypeId)!;
       if (!currentType.isTracked) continue;
