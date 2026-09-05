@@ -299,12 +299,14 @@ export const createDraftBill = async (
       billDate,
       quantity: rawQuantity,
       unit,
-      rate,
+      rate: rawRate,
       vehicleNumber,
       vehicleType,
       driverName,
       billLocation,
     } = req.body;
+
+    const rate = Number(rawRate);
 
     if (billId) {
       const existingBill = await ensureDraftBill(billId, vendorId);

@@ -1,8 +1,9 @@
 import { Request, Response, NextFunction } from "express";
+import { Prisma } from "@prisma/client";
 import { reportConfigs, ReportKey } from "../../utils/reportConfigs";
 import { AppError } from "../../core/appError";
 import prisma from "../../database/prisma";
-import { buildCsvFilename, toCsv } from "../../utils/csv";
+import { buildCsvFilename, toCsv, CsvColumn } from "../../utils/csv";
 import { buildBillingCalculationDetails } from "../../utils/billingCalculation";
 
 const parseStatusFilter = (status?: string) => {
@@ -43,26 +44,28 @@ const buildDateFilter = (startDate?: string, endDate?: string) => {
 };
 
 const getQualityRatesReport = async (query: any) => {
-  const createdAt = buildDateFilter(query.startDate, query.endDate);
-
-  const rates = await prisma.qualityRate.findMany({
-    where: {
-      ...(createdAt && { createdAt }),
-      ...(query.isActive !== undefined && {
-        isActive: String(query.isActive) === "true",
-      }),
-    },
-    orderBy: { createdAt: "asc" },
+  const vendors = await prisma.user.findMany({
+    where: { role: "VENDOR" },
+    select: { id: true, name: true, factoryRateDiff: true },
+    orderBy: { name: "asc" },
   });
 
-  let diff = 0;
-  if (query.vendorId) {
-    const vendor = await prisma.user.findUnique({
-      where: { id: String(query.vendorId) },
-      select: { factoryRateDiff: true, name: true },
-    });
-    if (vendor) diff = vendor.factoryRateDiff || 0;
-  }
+  // If no vendors exist, fall back to a single "Rate" column (base rate).
+  const baseOnly = vendors.length === 0;
+
+  const createdAt = buildDateFilter(query.startDate, query.endDate);
+
+  const rateQueryWhere: Prisma.QualityRateWhereInput = {
+    ...(createdAt && { createdAt }),
+    ...(query.isActive !== undefined && {
+      isActive: String(query.isActive) === "true",
+    }),
+  };
+
+  const rates = await prisma.qualityRate.findMany({
+    where: rateQueryWhere,
+    orderBy: { createdAt: "asc" },
+  });
 
   const startDate = query.startDate
     ? new Date(query.startDate + "T00:00:00")
@@ -89,7 +92,8 @@ const getQualityRatesReport = async (query: any) => {
 
   // Map date string -> rate value
   const pad = (n: number) => String(n).padStart(2, "0");
-  const toDateKey = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const toDateKey = (d: Date) =>
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
   const rateByDate = new Map<string, number>();
   for (const r of rates) {
     const key = toDateKey(r.createdAt);
@@ -98,11 +102,7 @@ const getQualityRatesReport = async (query: any) => {
 
   // Fill daily entries
   let currentRate = previousRate?.rate ?? (rates.length ? rates[0].rate : 0);
-  const dailyEntries: Array<{
-    rate: number;
-    date: string;
-    createdAt: Date;
-  }> = [];
+  const rows: Array<Record<string, any>> = [];
   const cursor = new Date(startDate);
   cursor.setHours(0, 0, 0, 0);
 
@@ -111,23 +111,21 @@ const getQualityRatesReport = async (query: any) => {
     if (rateByDate.has(key)) {
       currentRate = rateByDate.get(key)!;
     }
-    const day = cursor.getDate();
-    const month = cursor.getMonth() + 1;
-    const year = cursor.getFullYear();
-    dailyEntries.push({
-      rate: currentRate + diff,
-      date: `${day}/${month}/${year}`,
-      createdAt: new Date(cursor),
-    });
+    const row: Record<string, any> = {
+      date: `${cursor.getDate()}/${cursor.getMonth() + 1}/${cursor.getFullYear()}`,
+    };
+    if (baseOnly) {
+      row["Rate"] = currentRate;
+    } else {
+      for (const vendor of vendors) {
+        row[vendor.name] = currentRate + (vendor.factoryRateDiff || 0);
+      }
+    }
+    rows.push(row);
     cursor.setDate(cursor.getDate() + 1);
   }
 
-  const totalRate = dailyEntries.reduce((sum, e) => sum + e.rate, 0);
-  const avgRate = totalRate / dailyEntries.length;
-
-  return dailyEntries
-    .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-    .map((e) => ({ ...e, avgRateInRange: avgRate }));
+  return rows.reverse();
 };
 
 const getBillsReport = async (query: any) => {
@@ -375,7 +373,17 @@ export const exportAdminReport = async (
     const data = await reportHandlers[reportType](req.query);
     const totalsRow = config.totalsRow ? config.totalsRow(data) : null;
     const rows = totalsRow ? [...data, totalsRow] : data;
-    const csv = toCsv(config.columns, rows);
+
+    let columns: CsvColumn<any>[];
+    if ("columnsFn" in config && config.columnsFn) {
+      columns = config.columnsFn(rows);
+    } else if ("columns" in config) {
+      columns = config.columns;
+    } else {
+      throw new AppError("Invalid report type", 400);
+    }
+
+    const csv = toCsv(columns, rows);
     const filename = buildCsvFilename(config.filenamePrefix);
 
     res.setHeader("Content-Type", "text/csv");

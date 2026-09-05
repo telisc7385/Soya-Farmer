@@ -12,6 +12,14 @@ export type ReportKey =
 type ReportConfig<T> = {
   filenamePrefix: string;
   columns: CsvColumn<T>[];
+  columnsFn?: never;
+  totalsRow?: (rows: T[]) => T | null;
+};
+
+type DynamicReportConfig<T> = {
+  filenamePrefix: string;
+  columns?: never;
+  columnsFn: (rows: T[]) => CsvColumn<T>[];
   totalsRow?: (rows: T[]) => T | null;
 };
 
@@ -317,25 +325,38 @@ export const vendorReportConfig: ReportConfig<any> = {
   ],
 };
 
-export const qualityRateReportConfig: ReportConfig<any> = {
+export const qualityRateReportConfig: DynamicReportConfig<any> = {
   filenamePrefix: "quality-rates-report",
-  columns: [
-    { key: "createdAt", header: "Created At", value: (r) => r.date },
-    { key: "rate", header: "Rate", value: (r) => r.rate },
-  ],
+  columnsFn: (rows) => {
+    const keys = new Set<string>();
+    for (const row of rows) {
+      for (const key of Object.keys(row)) {
+        if (key !== "date") keys.add(key);
+      }
+    }
+    return [
+      { key: "date", header: "Date", value: (r) => r.date },
+      ...Array.from(keys).map((key) => ({
+        key,
+        header: key,
+        value: (r: any) => r[key],
+      })),
+    ];
+  },
   totalsRow: (rows) => {
     if (!rows.length) return null;
-    const sum = rows.reduce((acc, row) => acc + (Number(row?.rate) || 0), 0);
-    const avg = rows.length ? sum / rows.length : 0;
-    return {
-      date: "AVERAGE",
-      rate: avg,
-      avgRateInRange: avg,
-    };
+    const totals: Record<string, any> = { date: "AVERAGE" };
+    const sample = rows[0];
+    for (const key of Object.keys(sample)) {
+      if (key === "date") continue;
+      const sum = rows.reduce((acc, row) => acc + (Number(row[key]) || 0), 0);
+      totals[key] = rows.length ? sum / rows.length : 0;
+    }
+    return totals;
   },
 };
 
-export const reportConfigs: Record<ReportKey, ReportConfig<any>> = {
+export const reportConfigs: Record<ReportKey, ReportConfig<any> | DynamicReportConfig<any>> = {
   bills: billReportConfig,
   payments: paymentReportConfig,
   "stock-transfers": stockTransferReportConfig,
