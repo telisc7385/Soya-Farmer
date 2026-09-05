@@ -113,6 +113,7 @@ const getQualityRatesReport = async (query: any) => {
     }
     const row: Record<string, any> = {
       date: `${cursor.getDate()}/${cursor.getMonth() + 1}/${cursor.getFullYear()}`,
+      baseRate: currentRate,
     };
     if (baseOnly) {
       row["Rate"] = currentRate;
@@ -227,6 +228,7 @@ const getStockTransfersReport = async (query: any) => {
     orderBy: { createdAt: "desc" },
     include: {
       vendor: true,
+      toVendor: true,
       goniType: true,
       sourceLocation: true,
       destinationLocation: true,
