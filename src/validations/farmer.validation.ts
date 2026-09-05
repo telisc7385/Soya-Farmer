@@ -11,6 +11,7 @@ export const farmerListQuerySchema = Joi.object({
   villageAdd: Joi.string().allow("").optional(),
   startDate: Joi.date().iso().allow("").optional(),
   endDate: Joi.date().iso().allow("").optional(),
+  kycStatus: Joi.string().trim().allow("").optional(),
 }).unknown(true);
 
 export const createFarmerSchema = Joi.object({

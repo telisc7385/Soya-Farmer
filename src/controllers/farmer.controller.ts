@@ -746,9 +746,22 @@ export const getFarmers = async (
       villageAdd,
       startDate,
       endDate,
+      kycStatus,
     } = req.query;
     const take = Number(limit);
     const skip = (Number(page) - 1) * take;
+
+    const kycInput =
+      typeof kycStatus === "string" ? kycStatus.trim() : "";
+    const kycParts = kycInput
+      .split(",")
+      .map((s) => s.trim())
+      .filter(Boolean);
+    const kycFilter: any = !kycParts.length
+      ? { kycStatus: { in: ["VERIFIED"] } }
+      : kycParts.includes("all")
+        ? {}
+        : { kycStatus: { in: kycParts } };
 
     const start = startDate
       ? new Date(String(startDate) + "T00:00:00")
@@ -771,7 +784,7 @@ export const getFarmers = async (
 
     const farmers = await prisma.farmer.findMany({
       where: {
-        kycStatus: "VERIFIED",
+        ...kycFilter,
         ...(createdAt && { createdAt }),
         ...(vendorId && {
           vendors: {
@@ -859,7 +872,7 @@ export const getFarmers = async (
 
     const total = await prisma.farmer.count({
       where: {
-        kycStatus: "VERIFIED",
+        ...kycFilter,
         ...(createdAt && { createdAt }),
         ...(vendorId && {
           vendors: {
