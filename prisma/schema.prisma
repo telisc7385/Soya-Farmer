@@ -515,7 +515,7 @@ model QualityRate {
 model Stock {
   id         String       @id @default(uuid())
   vendorId   String
-  billId     String       @unique
+  billId     String?      @unique
   weight     Float
   unit       QuantityUnit
   bagCount   Int
@@ -525,7 +525,7 @@ model Stock {
   updatedAt  DateTime     @updatedAt
 
   vendor   User      @relation("VendorStock", fields: [vendorId], references: [id])
-  bill     Bill      @relation(fields: [billId], references: [id])
+  bill     Bill?     @relation(fields: [billId], references: [id])
   goniType GoniType? @relation("StockGoniType", fields: [goniTypeId], references: [id])
 }
 

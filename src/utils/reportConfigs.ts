@@ -475,6 +475,11 @@ export const stockReportConfig: ReportConfig<any> = {
   filenamePrefix: "stocks-report",
   columns: [
     { key: "billNo", header: "Bill No", value: (r) => r.bill?.billNo },
+    {
+      key: "source",
+      header: "Source",
+      value: (r) => (r.billId ? "BILL" : "OPENING"),
+    },
     { key: "vendorName", header: "Vendor Name", value: (r) => r.vendor?.name },
     {
       key: "vendorPhone",

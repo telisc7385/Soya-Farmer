@@ -3,6 +3,7 @@ import prisma from "../database/prisma";
 import { AuthRequest } from "../middleware/auth.middleware";
 import { AppError } from "../core/appError";
 import { createdResponse, successResponse } from "../utils/response";
+import { toQtl } from "../utils/quantity";
 import {
   getVendorBagLedgerSummary,
   getVendorReturnDueForFarmer,
@@ -271,10 +272,12 @@ export const adminOpeningBagsToVendor = async (
     if (!adminId) throw new AppError("Unauthorized", 401);
 
     const { vendorId } = req.params;
-    const { goniTypeId, bagCount, notes } = req.body as {
+    const { goniTypeId, bagCount, notes, weight, unit } = req.body as {
       goniTypeId: string;
       bagCount: number;
       notes?: string;
+      weight?: number;
+      unit?: "QTL" | "MT";
     };
 
     const [vendor, goniType, isTracked] = await Promise.all([
@@ -302,24 +305,52 @@ export const adminOpeningBagsToVendor = async (
       );
     }
 
-    const movement = await prisma.bagMovement.create({
-      data: {
-        vendorId,
-        goniTypeId,
-        bagCount,
-        movementType: "ADMIN_TO_VENDOR_ADD",
-        notes: notes?.trim()
-          ? notes
-          : `Opening stock issued to vendor ${vendor.name}`,
-        createdById: adminId,
-      },
-      include: {
-        vendor: { select: { id: true, name: true, phone: true } },
-        goniType: { select: { id: true, name: true } },
-      },
+    const stockWeightQtl =
+      typeof weight === "number" && Number.isFinite(weight) && weight > 0
+        ? toQtl(weight, unit ?? "QTL")
+        : null;
+
+    const result = await prisma.$transaction(async (tx) => {
+      const movement = await tx.bagMovement.create({
+        data: {
+          vendorId,
+          goniTypeId,
+          bagCount,
+          movementType: "ADMIN_TO_VENDOR_ADD",
+          notes: notes?.trim()
+            ? notes
+            : `Opening stock issued to vendor ${vendor.name}`,
+          createdById: adminId,
+        },
+        include: {
+          vendor: { select: { id: true, name: true, phone: true } },
+          goniType: { select: { id: true, name: true } },
+        },
+      });
+
+      let openingStock = null;
+      if (stockWeightQtl !== null) {
+        openingStock = await tx.stock.create({
+          data: {
+            vendorId,
+            billId: null,
+            weight: stockWeightQtl,
+            unit: "QTL",
+            bagCount,
+            goniTypeId,
+            status: "AVAILABLE",
+          },
+        });
+      }
+
+      return { movement, openingStock };
     });
 
-    createdResponse(res, movement, "Opening stock added to vendor");
+    createdResponse(
+      res,
+      result,
+      "Opening stock added to vendor",
+    );
   } catch (error) {
     next(error);
   }
