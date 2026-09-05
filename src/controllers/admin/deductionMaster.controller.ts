@@ -302,7 +302,7 @@ const getAssignedDeductionMasters = async (vendorId: string) => {
   const masters = await prisma.deductionMaster.findMany({
     where: {
       isActive: true,
-      assignments: { some: { vendorId } },
+      // assignments: { some: { vendorId } },
     },
     orderBy: { createdAt: "desc" },
     include: {
