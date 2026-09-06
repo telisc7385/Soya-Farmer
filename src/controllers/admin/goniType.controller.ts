@@ -12,25 +12,15 @@ export const createGoniType = async (
   try {
     if (!req.user) throw new AppError("Unauthorized", 401);
     const userId = req.user.id;
-    const { name, weightPerBag, isTracked = false, isLoose = false } = req.body;
+    const { name, weightPerBag, isTracked = true } = req.body;
 
-    const goniType = await prisma.$transaction(async (tx) => {
-      if (isTracked) {
-        await tx.goniType.updateMany({
-          where: { isTracked: true },
-          data: { isTracked: false },
-        });
-      }
-
-      return tx.goniType.create({
-        data: {
-          name,
-          weightPerBag: isLoose ? 0 : weightPerBag,
-          isTracked,
-          isLoose,
-          createdBy: userId,
-        },
-      });
+    const goniType = await prisma.goniType.create({
+      data: {
+        name,
+        weightPerBag,
+        isTracked,
+        createdBy: userId,
+      },
     });
 
     createdResponse(res, goniType, "Goni type created");
@@ -46,26 +36,16 @@ export const updateGoniType = async (
 ) => {
   try {
     const { goniTypeId } = req.params;
-    const { name, weightPerBag, isActive, isTracked, isLoose } = req.body;
+    const { name, weightPerBag, isActive, isTracked } = req.body;
 
-    const updated = await prisma.$transaction(async (tx) => {
-      if (isTracked === true) {
-        await tx.goniType.updateMany({
-          where: { isTracked: true, NOT: { id: goniTypeId } },
-          data: { isTracked: false },
-        });
-      }
-
-      return tx.goniType.update({
-        where: { id: goniTypeId },
-        data: {
-          name,
-          weightPerBag: isLoose ? 0 : weightPerBag,
-          isActive,
-          ...(typeof isTracked === "boolean" ? { isTracked } : {}),
-          ...(typeof isLoose === "boolean" ? { isLoose } : {}),
-        },
-      });
+    const updated = await prisma.goniType.update({
+      where: { id: goniTypeId },
+      data: {
+        name,
+        weightPerBag,
+        isActive,
+        ...(typeof isTracked === "boolean" ? { isTracked } : {}),
+      },
     });
 
     successResponse(res, updated, "Goni type updated");

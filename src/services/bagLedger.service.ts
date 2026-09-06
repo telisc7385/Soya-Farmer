@@ -1,5 +1,5 @@
 import prisma from "../database/prisma";
-import { BagMovementType } from "@prisma/client";
+import { BagMovementType, Prisma } from "@prisma/client";
 
 type CountByType = Record<string, number>;
 
@@ -49,15 +49,15 @@ const emptySummary: VendorBagSummary = {
   receivedFromAdminByAdmin: [],
 };
 
-export const getTrackedType = async (goniTypeId?: string) => {
+export const getLedgerTypes = async (goniTypeId?: string) => {
   if (goniTypeId) {
-    return prisma.goniType.findFirst({
+    return prisma.goniType.findMany({
       where: { id: goniTypeId, isTracked: true, isActive: true },
       select: { id: true, name: true },
     });
   }
 
-  return prisma.goniType.findFirst({
+  return prisma.goniType.findMany({
     where: { isTracked: true, isActive: true },
     select: { id: true, name: true },
     orderBy: { createdAt: "desc" },
@@ -68,113 +68,113 @@ export const getVendorBagLedgerSummary = async (
   vendorId: string,
   goniTypeId?: string,
 ): Promise<VendorBagSummary> => {
-  const trackedType = await getTrackedType(goniTypeId);
-  if (!trackedType) return emptySummary;
+  const trackedTypes = await getLedgerTypes(goniTypeId);
+  if (!trackedTypes.length) return emptySummary;
 
-  const trackedId = trackedType.id;
+  const trackedIds = trackedTypes.map((type) => type.id);
+
+  const inTypes = (where: Prisma.BagMovementWhereInput) => ({ vendorId, goniTypeId: { in: trackedIds }, ...where });
 
   const [
-    farmerToVendor,
-    adminToVendor,
-    vendorSelfAdd,
-    adminToVendorAdd,
-    vendorToFarmer,
-    vendorToAdmin,
+    farmerToVendorRows,
+    adminToVendorRows,
+    vendorSelfAddRows,
+    adminToVendorAddRows,
+    vendorToFarmerRows,
+    vendorToAdminRows,
   ] = await Promise.all([
-    prisma.bagMovement.aggregate({
-      where: {
-        vendorId,
-        goniTypeId: trackedId,
-        movementType: BagMovementType.FARMER_TO_VENDOR,
-      },
+    prisma.bagMovement.groupBy({
+      by: ["goniTypeId"],
+      where: inTypes({ movementType: BagMovementType.FARMER_TO_VENDOR }),
       _sum: { bagCount: true },
     }),
 
     prisma.bagMovement.findMany({
-      where: {
-        vendorId,
-        goniTypeId: trackedId,
-        movementType: BagMovementType.ADMIN_TO_VENDOR,
-      },
+      where: inTypes({ movementType: BagMovementType.ADMIN_TO_VENDOR }),
       select: {
         goniTypeId: true,
         bagCount: true,
       },
     }),
 
-    prisma.bagMovement.aggregate({
-      where: {
-        vendorId,
-        goniTypeId: trackedId,
-        movementType: BagMovementType.VENDOR_SELF_ADD,
-      },
+    prisma.bagMovement.groupBy({
+      by: ["goniTypeId"],
+      where: inTypes({ movementType: BagMovementType.VENDOR_SELF_ADD }),
       _sum: { bagCount: true },
     }),
 
-    prisma.bagMovement.aggregate({
-      where: {
-        vendorId,
-        goniTypeId: trackedId,
-        movementType: BagMovementType.ADMIN_TO_VENDOR_ADD,
-      },
+    prisma.bagMovement.groupBy({
+      by: ["goniTypeId"],
+      where: inTypes({ movementType: BagMovementType.ADMIN_TO_VENDOR_ADD }),
       _sum: { bagCount: true },
     }),
 
     prisma.bagMovement.findMany({
-      where: {
-        vendorId,
-        goniTypeId: trackedId,
-        movementType: BagMovementType.VENDOR_TO_FARMER,
-      },
+      where: inTypes({ movementType: BagMovementType.VENDOR_TO_FARMER }),
       select: {
+        goniTypeId: true,
         farmerId: true,
         bagCount: true,
       },
     }),
 
-    prisma.bagMovement.aggregate({
-      where: {
-        vendorId,
-        goniTypeId: trackedId,
-        movementType: BagMovementType.VENDOR_TO_ADMIN,
-      },
+    prisma.bagMovement.groupBy({
+      by: ["goniTypeId"],
+      where: inTypes({ movementType: BagMovementType.VENDOR_TO_ADMIN }),
       _sum: { bagCount: true },
     }),
   ]);
 
-  const receivedFarmer = farmerToVendor._sum.bagCount ?? 0;
-  const sentAdmin = vendorToAdmin._sum.bagCount ?? 0;
-  const receivedSelf = vendorSelfAdd._sum.bagCount ?? 0;
-  const receivedAdminAdd = adminToVendorAdd._sum.bagCount ?? 0;
+  const sumForType = (
+    rows: Array<{ goniTypeId: string; _sum?: { bagCount: number | null } | null }>,
+    typeId: string,
+  ) =>
+    rows.filter((row) => row.goniTypeId === typeId).reduce(
+      (sum, row) => sum + (row._sum?.bagCount ?? 0),
+      0,
+    );
 
-  // total admin -> vendor bags
-  const receivedAdmin = adminToVendor.reduce(
-    (sum, row) => sum + row.bagCount,
-    0,
-  );
+  const byType = trackedTypes.map((type) => {
+    const receivedFromFarmers = sumForType(farmerToVendorRows, type.id);
+    const sentToAdmin = sumForType(vendorToAdminRows, type.id);
+    const receivedFromVendorSelf = sumForType(vendorSelfAddRows, type.id);
+    const receivedAdminAdd = sumForType(adminToVendorAddRows, type.id);
+    const receivedFromAdmin = adminToVendorRows
+      .filter((row) => row.goniTypeId === type.id)
+      .reduce((sum, row) => sum + row.bagCount, 0);
+    const returnedToFarmers = vendorToFarmerRows
+      .filter((row) => row.goniTypeId === type.id)
+      .reduce((sum, row) => sum + row.bagCount, 0);
 
-  // vendor -> farmer tracking
+    return {
+      goniTypeId: type.id,
+      goniTypeName: type.name,
+      receivedFromFarmers,
+      sentToAdmin,
+      receivedFromAdmin,
+      receivedFromVendorSelf,
+      receivedAdminAdd,
+      returnedToFarmers,
+      currentWithVendor: Math.max(
+        receivedFromFarmers +
+          receivedFromAdmin +
+          receivedFromVendorSelf +
+          receivedAdminAdd -
+          sentToAdmin -
+          returnedToFarmers,
+        0,
+      ),
+    };
+  });
+
+  // vendor -> farmer tracking (across all tracked types)
   const returnedToFarmersByFarmerMap: Record<string, number> = {};
-  let returnedFarmer = 0;
 
-  for (const row of vendorToFarmer) {
-    returnedFarmer += row.bagCount;
-
+  for (const row of vendorToFarmerRows) {
     if (!row.farmerId) continue;
-
     returnedToFarmersByFarmerMap[row.farmerId] =
       (returnedToFarmersByFarmerMap[row.farmerId] ?? 0) + row.bagCount;
   }
-
-  const currentWithVendor = Math.max(
-    receivedFarmer +
-      receivedAdmin +
-      receivedSelf +
-      receivedAdminAdd -
-      sentAdmin -
-      returnedFarmer,
-    0,
-  );
 
   const farmerIds = Object.keys(returnedToFarmersByFarmerMap);
 
@@ -196,32 +196,20 @@ export const getVendorBagLedgerSummary = async (
 
   return {
     totals: {
-      receivedFromFarmers: receivedFarmer,
-      sentToAdmin: sentAdmin,
-      receivedFromAdmin: receivedAdmin,
-      receivedFromVendorSelf: receivedSelf,
-      receivedAdminAdd,
-      returnedToFarmers: returnedFarmer,
-      currentWithVendor,
+      receivedFromFarmers: byType.reduce((s, r) => s + r.receivedFromFarmers, 0),
+      sentToAdmin: byType.reduce((s, r) => s + r.sentToAdmin, 0),
+      receivedFromAdmin: byType.reduce((s, r) => s + r.receivedFromAdmin, 0),
+      receivedFromVendorSelf: byType.reduce((s, r) => s + r.receivedFromVendorSelf, 0),
+      receivedAdminAdd: byType.reduce((s, r) => s + r.receivedAdminAdd, 0),
+      returnedToFarmers: byType.reduce((s, r) => s + r.returnedToFarmers, 0),
+      currentWithVendor: byType.reduce((s, r) => s + r.currentWithVendor, 0),
     },
 
-    byType: [
-      {
-        goniTypeId: trackedId,
-        goniTypeName: trackedType.name,
-        receivedFromFarmers: receivedFarmer,
-        sentToAdmin: sentAdmin,
-        receivedFromAdmin: receivedAdmin,
-        receivedFromVendorSelf: receivedSelf,
-        receivedAdminAdd,
-        returnedToFarmers: returnedFarmer,
-        currentWithVendor,
-      },
-    ],
+    byType,
     returnedToFarmersByFarmer,
 
     // ADMIN -> VENDOR LIST (what you wanted)
-    receivedFromAdminByAdmin: adminToVendor,
+    receivedFromAdminByAdmin: adminToVendorRows,
   };
 };
 
@@ -247,8 +235,8 @@ export const getVendorReturnDueForFarmer = async (
   farmerId: string,
   goniTypeId?: string,
 ) => {
-  const trackedType = await getTrackedType(goniTypeId);
-  if (!trackedType) {
+  const trackedTypes = await getLedgerTypes(goniTypeId);
+  if (!trackedTypes.length) {
     return {
       goniTypeId: goniTypeId ?? "",
       goniTypeName: "",
@@ -258,14 +246,14 @@ export const getVendorReturnDueForFarmer = async (
     };
   }
 
-  const trackedId = trackedType.id;
+  const trackedIds = trackedTypes.map((type) => type.id);
 
   const [receivedAgg, returnedAgg] = await Promise.all([
     prisma.bagMovement.aggregate({
       where: {
         vendorId,
         farmerId,
-        goniTypeId: trackedId,
+        goniTypeId: { in: trackedIds },
         movementType: BagMovementType.FARMER_TO_VENDOR,
       },
       _sum: { bagCount: true },
@@ -274,7 +262,7 @@ export const getVendorReturnDueForFarmer = async (
       where: {
         vendorId,
         farmerId,
-        goniTypeId: trackedId,
+        goniTypeId: { in: trackedIds },
         movementType: BagMovementType.VENDOR_TO_FARMER,
       },
       _sum: { bagCount: true },
@@ -286,8 +274,8 @@ export const getVendorReturnDueForFarmer = async (
   const returnDue = Math.max(receivedFromFarmer - returnedToFarmer, 0);
 
   return {
-    goniTypeId: trackedId,
-    goniTypeName: trackedType.name,
+    goniTypeId: goniTypeId ?? "",
+    goniTypeName: goniTypeId ? trackedTypes[0].name : "All",
     receivedFromFarmer,
     returnedToFarmer,
     returnDue,

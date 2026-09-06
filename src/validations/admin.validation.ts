@@ -54,25 +54,15 @@ export const assignVendorDeductionsSchema = Joi.object({
 
 export const createGoniTypeSchema = Joi.object({
   name: Joi.string().trim().required(),
-  weightPerBag: Joi.number().min(0).optional().when("isLoose", {
-    is: true,
-    then: Joi.optional().default(0),
-    otherwise: Joi.required(),
-  }),
+  weightPerBag: Joi.number().positive().required(),
   isTracked: Joi.boolean().optional(),
-  isLoose: Joi.boolean().optional(),
 });
 
 export const updateGoniTypeSchema = Joi.object({
   name: Joi.string().trim().required(),
-  weightPerBag: Joi.number().min(0).optional().when("isLoose", {
-    is: true,
-    then: Joi.optional().default(0),
-    otherwise: Joi.required(),
-  }),
+  weightPerBag: Joi.number().positive().optional(),
   isActive: Joi.boolean().required(),
   isTracked: Joi.boolean().optional(),
-  isLoose: Joi.boolean().optional(),
 });
 
 export const saveQualityRateSchema = Joi.object({

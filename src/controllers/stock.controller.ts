@@ -114,6 +114,7 @@ export const getStockSummary = async (
 ) => {
   try {
     const vendorId = req?.user?.id as string;
+    const bagId = req.query.bagId as string | undefined;
 
     const [summary, totalStock, bagLedger] = await Promise.all([
       prisma.stock.groupBy({
@@ -134,7 +135,7 @@ export const getStockSummary = async (
         },
       }),
 
-      getVendorBagLedgerSummary(vendorId),
+      getVendorBagLedgerSummary(vendorId, bagId),
     ]);
 
     successResponse(
@@ -151,6 +152,7 @@ export const getStockSummary = async (
           totalAdminAdded: bagLedger.totals.receivedAdminAdd,
           totalRemainingWithVendor: bagLedger.totals.currentWithVendor,
         },
+        bagLedgerByType: bagLedger.byType,
       },
       "Stock summary fetched",
     );

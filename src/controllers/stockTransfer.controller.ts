@@ -241,9 +241,9 @@ export const createTransfer = async (
     }
     const isDirectVendorTransfer = routeKey === "VENDOR->VENDOR";
 
-    const transferNo = await generateTransferNo();
-
     const transfer = await prisma.$transaction(async (tx) => {
+      const transferNo = await generateTransferNo(tx);
+
       const createdTransfer = await tx.stockTransfer.create({
         data: {
           transferNo,
@@ -901,6 +901,9 @@ const processReceiveTransfer = async ({
     const sourceLocationId = updated.sourceLocationId;
     const receiveThappiCode = `${updated.transferNo}-RCV`;
     await prisma.$transaction(async (tx) => {
+      // Serialize concurrent receive thappi creation for the same transfer
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`thappi-recv:${updated.id}`}))`;
+
       const bagMap = new Map<string, number>();
       const items = await tx.stockTransferItem.findMany({
         where: { transferId: updated.id },
@@ -910,11 +913,20 @@ const processReceiveTransfer = async ({
         bagMap.set(item.goniTypeId, (bagMap.get(item.goniTypeId) ?? 0) + item.bagCount);
       }
       const thappiVendorId = updated.toVendorId ?? updated.vendorId;
+      const existingThappis = await tx.thappi.findMany({
+        where: { code: { startsWith: `${receiveThappiCode}-` } },
+        select: { code: true },
+      });
+      const maxSeq = existingThappis.reduce((max, t) => {
+        const seq = Number(t.code.slice(receiveThappiCode.length + 1));
+        return Number.isFinite(seq) && seq > max ? seq : max;
+      }, 0);
+      const receiveCode = `${receiveThappiCode}-${String(maxSeq + 1).padStart(6, "0")}`;
       const created = await tx.thappi.create({
         data: {
           vendorId: thappiVendorId,
           locationId: destLocationId,
-          code: `${receiveThappiCode}-${Date.now().toString().slice(-6)}`,
+          code: receiveCode,
           weightQtl: receivedWeightQtl,
           bagCount: receivedBagCount,
           status: "AVAILABLE",

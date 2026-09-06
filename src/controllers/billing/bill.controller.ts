@@ -45,7 +45,7 @@ const withGoniAmount = (
     ),
   );
   const payment = bill.payment ?? null;
-  const gonis = (bill.gonis ?? []).filter((row: any) => !row.goniType?.isLoose);
+  const gonis = bill.gonis ?? [];
   const bagCount = gonis.reduce(
     (sum: number, row: any) => sum + (row.bagCount ?? 0),
     0,

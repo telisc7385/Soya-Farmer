@@ -48,7 +48,6 @@ export const returnBagsToFarmer = async (
   next: NextFunction,
 ) => {
   try {
-    debugger;
     const vendorId = req.user?.id;
     if (!vendorId) throw new AppError("Unauthorized", 401);
 
@@ -84,53 +83,57 @@ export const returnBagsToFarmer = async (
       );
     }
 
-    const [availableBagsForSelectedFarmer, returnedBagsForSelectedFarmer] =
-      await Promise.all([
-        prisma.bagMovement.aggregate({
-          where: {
-            vendorId,
-            goniTypeId,
-            movementType: BagMovementType.FARMER_TO_VENDOR,
-            farmerId,
-          },
-          _sum: { bagCount: true },
-        }),
+    const movement = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`bags:${vendorId}:${farmerId}:${goniTypeId}`}))`;
 
-        prisma.bagMovement.aggregate({
-          where: {
-            vendorId,
-            goniTypeId,
-            movementType: BagMovementType.VENDOR_TO_FARMER,
-            farmerId,
-          },
-          _sum: { bagCount: true },
-        }),
-      ]);
+      const [availableBagsForSelectedFarmer, returnedBagsForSelectedFarmer] =
+        await Promise.all([
+          tx.bagMovement.aggregate({
+            where: {
+              vendorId,
+              goniTypeId,
+              movementType: BagMovementType.FARMER_TO_VENDOR,
+              farmerId,
+            },
+            _sum: { bagCount: true },
+          }),
 
-    const availableBags = availableBagsForSelectedFarmer._sum.bagCount || 0;
-    const returnedBags = returnedBagsForSelectedFarmer._sum.bagCount || 0;
+          tx.bagMovement.aggregate({
+            where: {
+              vendorId,
+              goniTypeId,
+              movementType: BagMovementType.VENDOR_TO_FARMER,
+              farmerId,
+            },
+            _sum: { bagCount: true },
+          }),
+        ]);
 
-    if (bagCount > availableBags - returnedBags) {
-      throw new AppError(
-        `Return bag count (${bagCount}) exceeds available ${goniType.name} bags (${availableBags - returnedBags})`,
-        400,
-      );
-    }
+      const availableBags = availableBagsForSelectedFarmer._sum.bagCount || 0;
+      const returnedBags = returnedBagsForSelectedFarmer._sum.bagCount || 0;
 
-    const movement = await prisma.bagMovement.create({
-      data: {
-        vendorId,
-        farmerId,
-        goniTypeId,
-        bagCount,
-        movementType: "VENDOR_TO_FARMER",
-        notes,
-        createdById: vendorId,
-      },
-      include: {
-        farmer: { select: { id: true, name: true, phone: true } },
-        goniType: { select: { id: true, name: true } },
-      },
+      if (bagCount > availableBags - returnedBags) {
+        throw new AppError(
+          `Return bag count (${bagCount}) exceeds available ${goniType.name} bags (${availableBags - returnedBags})`,
+          400,
+        );
+      }
+
+      return tx.bagMovement.create({
+        data: {
+          vendorId,
+          farmerId,
+          goniTypeId,
+          bagCount,
+          movementType: "VENDOR_TO_FARMER",
+          notes,
+          createdById: vendorId,
+        },
+        include: {
+          farmer: { select: { id: true, name: true, phone: true } },
+          goniType: { select: { id: true, name: true } },
+        },
+      });
     });
 
     createdResponse(res, movement, "Bags returned to farmer");
@@ -145,7 +148,6 @@ export const getVendorReturnDueToFarmer = async (
   next: NextFunction,
 ) => {
   try {
-    debugger;
     const vendorId = req.user?.id;
     if (!vendorId) throw new AppError("Unauthorized", 401);
 
@@ -208,52 +210,56 @@ export const adminReturnBagsToVendor = async (
       );
     }
 
-    const [availableBagsForSelectedVendor, returnedBagsForSelectedVendor] =
-      await Promise.all([
-        prisma.bagMovement.aggregate({
-          where: {
-            vendorId,
-            goniTypeId,
-            movementType: BagMovementType.VENDOR_TO_ADMIN,
-          },
-          _sum: { bagCount: true },
-        }),
+    const movement = await prisma.$transaction(async (tx) => {
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`bags:${vendorId}:${goniTypeId}`}))`;
 
-        prisma.bagMovement.aggregate({
-          where: {
-            vendorId,
-            goniTypeId,
-            movementType: BagMovementType.ADMIN_TO_VENDOR,
-          },
-          _sum: { bagCount: true },
-        }),
-      ]);
+      const [availableBagsForSelectedVendor, returnedBagsForSelectedVendor] =
+        await Promise.all([
+          tx.bagMovement.aggregate({
+            where: {
+              vendorId,
+              goniTypeId,
+              movementType: BagMovementType.VENDOR_TO_ADMIN,
+            },
+            _sum: { bagCount: true },
+          }),
 
-    const availableBags = availableBagsForSelectedVendor._sum.bagCount || 0;
-    const returnedBags = returnedBagsForSelectedVendor._sum.bagCount || 0;
+          tx.bagMovement.aggregate({
+            where: {
+              vendorId,
+              goniTypeId,
+              movementType: BagMovementType.ADMIN_TO_VENDOR,
+            },
+            _sum: { bagCount: true },
+          }),
+        ]);
 
-    if (bagCount > availableBags - returnedBags) {
-      throw new AppError(
-        `Return bag count (${bagCount}) exceeds available ${goniType.name} bags (${availableBags - returnedBags})`,
-        400,
-      );
-    }
+      const availableBags = availableBagsForSelectedVendor._sum.bagCount || 0;
+      const returnedBags = returnedBagsForSelectedVendor._sum.bagCount || 0;
 
-    const movement = await prisma.bagMovement.create({
-      data: {
-        vendorId,
-        goniTypeId,
-        bagCount,
-        movementType: "ADMIN_TO_VENDOR",
-        notes: notes?.trim()
-          ? notes
-          : `Returned against to vendor ${vendor.name} by admin`,
-        createdById: adminId,
-      },
-      include: {
-        vendor: { select: { id: true, name: true, phone: true } },
-        goniType: { select: { id: true, name: true } },
-      },
+      if (bagCount > availableBags - returnedBags) {
+        throw new AppError(
+          `Return bag count (${bagCount}) exceeds available ${goniType.name} bags (${availableBags - returnedBags})`,
+          400,
+        );
+      }
+
+      return tx.bagMovement.create({
+        data: {
+          vendorId,
+          goniTypeId,
+          bagCount,
+          movementType: "ADMIN_TO_VENDOR",
+          notes: notes?.trim()
+            ? notes
+            : `Returned against to vendor ${vendor.name} by admin`,
+          createdById: adminId,
+        },
+        include: {
+          vendor: { select: { id: true, name: true, phone: true } },
+          goniType: { select: { id: true, name: true } },
+        },
+      });
     });
 
     createdResponse(res, movement, "Bags returned to vendor");

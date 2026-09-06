@@ -858,7 +858,7 @@ export const applyGoniDeduction = async (
     >();
     for (const g of activeGonis) {
       const goniType = goniTypeMap.get(g.goniTypeId);
-      if (!goniType || goniType.isLoose) continue;
+      if (!goniType) continue;
 
       const multiplier = Math.min(
         3,
@@ -866,7 +866,7 @@ export const applyGoniDeduction = async (
       );
       if (multiplier > 1 && !goniType.isTracked) {
         throw new AppError(
-          `bagMultiplier (double/triple katta) is allowed only for the tracked Kaltani Katta type`,
+          `bagMultiplier (double/triple katta) is allowed only for tracked bag types (${goniType.name})`,
           400,
         );
       }
@@ -1035,7 +1035,6 @@ export const confirmDraft = async (
           goniType: {
             isTracked: true,
             isActive: true,
-            isLoose: false,
           },
         },
         select: {

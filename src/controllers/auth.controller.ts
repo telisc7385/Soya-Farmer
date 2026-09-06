@@ -273,9 +273,9 @@ export const getVendorList = async (
 
     const vendorIds = vendors.map((v) => v.id);
 
-    // Aggregate bag movements
+    // Aggregate bag movements (per vendor, per goni type)
     const bagData = await prisma.bagMovement.groupBy({
-      by: ["vendorId", "movementType"],
+      by: ["vendorId", "movementType", "goniTypeId"],
       where: {
         vendorId: { in: vendorIds },
       },
@@ -294,8 +294,27 @@ export const getVendorList = async (
       }
     > = {};
 
+    const bagByTypeMap: Record<
+      string,
+      Record<
+        string,
+        {
+          goniTypeId: string;
+          goniTypeName: string;
+          openingBagsAdded: number;
+          received: number;
+          returned: number;
+          remaining: number;
+        }
+      >
+    > = {};
+
+    const movementGoniTypeIds = new Set<string>();
+
     for (const item of bagData) {
       const key = item.vendorId;
+      if (!item.goniTypeId) continue;
+      movementGoniTypeIds.add(item.goniTypeId);
 
       if (!bagMap[key]) {
         bagMap[key] = {
@@ -304,34 +323,58 @@ export const getVendorList = async (
           totalReturned: 0,
         };
       }
+      if (!bagByTypeMap[key]) bagByTypeMap[key] = {};
+
+      const typeRow =
+        (bagByTypeMap[key][item.goniTypeId] as (typeof bagByTypeMap)[string][string]) ?? {
+          goniTypeId: item.goniTypeId,
+          goniTypeName: "",
+          openingBagsAdded: 0,
+          received: 0,
+          returned: 0,
+          remaining: 0,
+        };
+      bagByTypeMap[key][item.goniTypeId] = typeRow;
 
       const count = item._sum.bagCount || 0;
 
-      // ✅ Opening bags (ONLY this type)
+      // ✅ Opening bags
       if (item.movementType === BagMovementType.ADMIN_TO_VENDOR_ADD) {
         bagMap[key].openingBagsAdded += count;
         bagMap[key].totalReceived += count;
+        typeRow.openingBagsAdded += count;
+        typeRow.received += count;
       }
 
       // ✅ Other incoming
       else if (
         item.movementType === BagMovementType.ADMIN_TO_VENDOR ||
-        item.movementType === BagMovementType.FARMER_TO_VENDOR
+        item.movementType === BagMovementType.FARMER_TO_VENDOR ||
+        item.movementType === BagMovementType.VENDOR_SELF_ADD
       ) {
         bagMap[key].totalReceived += count;
+        typeRow.received += count;
       }
 
       // ❌ Outgoing
       else if (
         item.movementType === BagMovementType.VENDOR_TO_ADMIN ||
-        item.movementType === BagMovementType.VENDOR_TO_FARMER ||
-        item.movementType === BagMovementType.VENDOR_SELF_ADD
+        item.movementType === BagMovementType.VENDOR_TO_FARMER
       ) {
         bagMap[key].totalReturned += count;
+        typeRow.returned += count;
       }
+
+      typeRow.remaining = Math.max(typeRow.received - typeRow.returned, 0);
     }
 
-    console.log("Bag Map:", bagMap);
+    const movementGoniTypes = movementGoniTypeIds.size
+      ? await prisma.goniType.findMany({
+          where: { id: { in: Array.from(movementGoniTypeIds) } },
+          select: { id: true, name: true },
+        })
+      : [];
+    const goniTypeNameById = new Map(movementGoniTypes.map((g) => [g.id, g.name]));
 
     // Final response mapping
     const vendorsWithFactoryRate = vendors.map((vendor) => {
@@ -343,6 +386,11 @@ export const getVendorList = async (
 
       const remainingBags = stats.totalReceived - stats.totalReturned;
 
+      const bagByType = Object.values(bagByTypeMap[vendor.id] ?? {}).map((row) => ({
+        ...row,
+        goniTypeName: goniTypeNameById.get(row.goniTypeId) ?? "",
+      }));
+
       return {
         ...vendor,
         actualFactoryRate: qualityRatesResponse?.rate || 0,
@@ -353,6 +401,7 @@ export const getVendorList = async (
         totalReceived: stats.totalReceived,
         totalReturned: stats.totalReturned,
         remainingBags,
+        bagByType,
       };
     });
 
