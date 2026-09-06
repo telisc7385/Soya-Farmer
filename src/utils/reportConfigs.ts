@@ -25,9 +25,7 @@ type DynamicReportConfig<T> = {
   totalsRow?: (rows: T[]) => T | null;
 };
 
-export const billReportConfig: ReportConfig<any> = {
-  filenamePrefix: "bills-report",
-  columns: [
+const billReportStaticColumns: CsvColumn<any>[] = [
     { key: "billNo", header: "Bill No", value: (r) => r.billNo },
     {
       key: "vendorBillSeq",
@@ -145,11 +143,6 @@ export const billReportConfig: ReportConfig<any> = {
     { key: "remarkUrl", header: "Remark URL", value: (r) => r.remarkUrl },
     { key: "goniType", header: "Goni Type", value: (r) => r.goniType?.name },
     { key: "bagCount", header: "Bag Count", value: (r) => r.bagCount },
-    {
-      key: "bagCountByType",
-      header: "Bag Count By Type",
-      value: (r) => r.bagCountByType,
-    },
     { key: "goniWeight", header: "Bag Weight", value: (r) => r.goniWeight },
     {
       key: "labWeight",
@@ -175,16 +168,6 @@ export const billReportConfig: ReportConfig<any> = {
       key: "labDeductionAmount",
       header: "Lab Deduction Amount",
       value: (r) => r.labDeductionAmount,
-    },
-    {
-      key: "labDeductionInputs",
-      header: "Lab Deduction Input",
-      value: (r) => r.labDeductionInputs,
-    },
-    {
-      key: "labDeductionActuals",
-      header: "Lab Deduction Actual",
-      value: (r) => r.labDeductionActuals,
     },
     {
       key: "fixedDeductionAmount",
@@ -216,7 +199,70 @@ export const billReportConfig: ReportConfig<any> = {
       header: "Payment Reference",
       value: (r) => r.payment?.reference,
     },
-  ],
+];
+
+const buildBagTypeColumns = (rows: any[]): CsvColumn<any>[] => {
+  const typeKeys: string[] = [];
+  for (const row of rows) {
+    for (const type of Object.keys(row?.bagCounts ?? {})) {
+      if (!typeKeys.includes(type)) typeKeys.push(type);
+    }
+  }
+  return typeKeys.map((type) => ({
+    key: `bagCount_${type}`,
+    header: type,
+    value: (r: any) => r?.bagCounts?.[type] ?? 0,
+  }));
+};
+
+const buildLabInputColumns = (rows: any[]): CsvColumn<any>[] => {
+  const labels: string[] = [];
+  for (const row of rows) {
+    for (const label of [
+      ...Object.keys(row?.labCustomInputs ?? {}),
+      ...Object.keys(row?.labActualInputs ?? {}),
+    ]) {
+      if (!labels.includes(label)) labels.push(label);
+    }
+  }
+  const columns: CsvColumn<any>[] = [];
+  for (const label of labels) {
+    columns.push(
+      {
+        key: `labCustom_${label}`,
+        header: `${label} Custom`,
+        value: (r: any) => r?.labCustomInputs?.[label],
+      },
+      {
+        key: `labActual_${label}`,
+        header: `${label} Actual`,
+        value: (r: any) => r?.labActualInputs?.[label],
+      },
+    );
+  }
+  return columns;
+};
+
+export const billReportConfig: DynamicReportConfig<any> = {
+  filenamePrefix: "bills-report",
+  columnsFn: (rows) => {
+    const columns = [...billReportStaticColumns];
+    const bagCountIndex = columns.findIndex((c) => c.key === "bagCount");
+    if (bagCountIndex > -1) {
+      columns.splice(bagCountIndex + 1, 0, ...buildBagTypeColumns(rows));
+    }
+    const labDeductionAmountIndex = columns.findIndex(
+      (c) => c.key === "labDeductionAmount",
+    );
+    if (labDeductionAmountIndex > -1) {
+      columns.splice(
+        labDeductionAmountIndex + 1,
+        0,
+        ...buildLabInputColumns(rows),
+      );
+    }
+    return columns;
+  },
   totalsRow: (rows) => {
     if (!rows.length) return null;
     const sum = (key: string) =>
@@ -242,6 +288,12 @@ export const billReportConfig: ReportConfig<any> = {
         (acc, row) => acc + (Number(row?.payment?.amount) || 0),
         0,
       ),
+      bagCounts: rows.reduce<Record<string, number>>((acc, row) => {
+        for (const [type, count] of Object.entries(row?.bagCounts ?? {})) {
+          acc[type] = (acc[type] ?? 0) + (Number(count) || 0);
+        }
+        return acc;
+      }, {}),
     };
   },
 };

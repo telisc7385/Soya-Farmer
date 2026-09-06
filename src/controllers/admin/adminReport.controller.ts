@@ -184,13 +184,32 @@ const getBillsReport = async (query: any) => {
         payload.variableDetails.length > 0
       );
     });
+    const labInputAgg = labRows.reduce<{
+      custom: Record<string, number>;
+      actual: Record<string, number>;
+    }>(
+      (acc, d) => {
+        const variableDetails = (d.payload as any).variableDetails as any[];
+        for (const v of variableDetails ?? []) {
+          const label = v?.label ?? v?.code;
+          if (!label) continue;
+          acc.custom[label] =
+            (acc.custom[label] ?? 0) + (Number(v?.custom) || 0);
+          acc.actual[label] =
+            (acc.actual[label] ?? 0) + (Number(v?.actual) || 0);
+        }
+        return acc;
+      },
+      { custom: {}, actual: {} },
+    );
     const bank = bill.farmer?.banks?.[0];
     return {
       ...bill,
       bagCount: bill.gonis.reduce((sum, row) => sum + row.bagCount, 0),
-      bagCountByType: bill.gonis
-        .map((row) => `${row.goniType.name}: ${row.bagCount}`)
-        .join(", "),
+      bagCounts: bill.gonis.reduce<Record<string, number>>((acc, row) => {
+        acc[row.goniType.name] = (acc[row.goniType.name] ?? 0) + row.bagCount;
+        return acc;
+      }, {}),
       goniType: {
         name: bill.gonis.map((row) => row.goniType.name).join(", "),
       },
@@ -206,22 +225,8 @@ const getBillsReport = async (query: any) => {
       netWeight: calculationDetails.finalNetPayableWeight,
       labDeductionAmount: calculationDetails.totalLabDeductionAmount,
       fixedDeductionAmount: calculationDetails.totalFixedDeductionAmount,
-      labDeductionInputs: labRows
-        .map((d) => {
-          const variableDetails = (d.payload as any).variableDetails;
-          return variableDetails
-            .map((v: any) => `${v.label}: ${v.custom}`)
-            .join(", ");
-        })
-        .join(" | "),
-      labDeductionActuals: labRows
-        .map((d) => {
-          const variableDetails = (d.payload as any).variableDetails;
-          return variableDetails
-            .map((v: any) => `${v.label}: ${v.actual}`)
-            .join(", ");
-        })
-        .join(" | "),
+      labCustomInputs: labInputAgg.custom,
+      labActualInputs: labInputAgg.actual,
       advanceAdjusted,
       settledAmount,
       afterLessAmount,

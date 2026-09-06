@@ -123,12 +123,14 @@ export const getBills = async (
 
     // 📅 Date filter
     if (startDate && endDate) {
-      const start = new Date(startDate + "T00:00:00");
-      const end = new Date(endDate + "T23:59:59.999");
-      whereClause.createdAt = {
-        gte: start,
-        lte: end,
-      };
+      const start = new Date(String(startDate) + "T00:00:00");
+      const end = new Date(String(endDate) + "T23:59:59.999");
+      if (!isNaN(start.getTime()) && !isNaN(end.getTime())) {
+        whereClause.createdAt = {
+          gte: start,
+          lte: end,
+        };
+      }
     }
 
     if (typeof status === "string" && status.trim()) {
