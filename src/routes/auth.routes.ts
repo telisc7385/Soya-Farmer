@@ -3,8 +3,13 @@ import {
   adminResetPassword,
   getVendorById,
   getVendorList,
+  listAdmins,
+  listAdminPermissions,
   login,
   register,
+  registerAdmin,
+  updateAdmin,
+  updateAdminStatus,
   updateVendor,
   updateVendorStatus,
 } from "../controllers/auth.controller";
@@ -13,6 +18,8 @@ import {
   adminResetPasswordSchema,
   registerSchema,
   loginSchema,
+  registerAdminSchema,
+  updateAdminSchema,
   updateVendorSchema,
 } from "../validations/auth.validation";
 import { authMiddleware } from "../middleware/auth.middleware";
@@ -49,6 +56,42 @@ router.post(
   authorize("ADMIN"),
   validateRequest(adminResetPasswordSchema),
   adminResetPassword,
+);
+
+// =====================
+// ADMIN MANAGEMENT
+// =====================
+router.post(
+  "/admin/register",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateRequest(registerAdminSchema),
+  registerAdmin,
+);
+router.get(
+  "/admin/list",
+  authMiddleware,
+  authorize("ADMIN"),
+  listAdmins,
+);
+router.get(
+  "/admin/permissions",
+  authMiddleware,
+  authorize("ADMIN"),
+  listAdminPermissions,
+);
+router.put(
+  "/admin/:id",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateRequest(updateAdminSchema),
+  updateAdmin,
+);
+router.patch(
+  "/admin/:id/status",
+  authMiddleware,
+  authorize("ADMIN"),
+  updateAdminStatus,
 );
 
 export default router;

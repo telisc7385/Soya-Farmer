@@ -137,11 +137,13 @@ model User {
   password                   String
   role                       Role
   isActive                   Boolean  @default(true)
+  isMasterAdmin              Boolean  @default(false)
   vendorRate                 Float    @default(0)
   factoryRateDiff            Float    @default(0)
   masterVendor               Boolean  @default(false)
   grnNumber                  String?
   assets                     String[]              @default([])
+  access                     String[]              @default([])
   createdAt                  DateTime @default(now())
   villageAdd                 String?
   taluka                     String?
@@ -165,6 +167,7 @@ model User {
   thappis                   Thappi[]            @relation("VendorThappis")
   createdThappiMovements    ThappiMovement[]    @relation("CreatedThappiMovements")
   deductionAssignments      DeductionAssignment[] @relation("VendorDeductionAssignments")
+  activityLogs              ActivityLog[]       @relation("UserActivityLogs")
 }
 
 // =====================
@@ -387,6 +390,26 @@ model PaymentActivity {
 
   @@index([billId, createdAt])
   @@index([farmerId, createdAt])
+}
+
+// =====================
+// GENERIC ACTIVITY LOG (all modules: KYC, PAYMENT, BILL, FARMER, BAG, ...)
+// =====================
+model ActivityLog {
+  id          String   @id @default(uuid())
+  module      String   // "KYC" | "PAYMENT" | "BILL" | "FARMER" | "BAG" | ...
+  entityType  String   // "farmer" | "bill" | ...
+  entityId    String   // farmerId / billId / ...
+  action      String   // "VERIFIED" | "REJECTED" | ...
+  fromStatus  String?
+  toStatus    String
+  remark      String?
+  createdById String
+  createdAt   DateTime @default(now())
+
+  createdBy User @relation("UserActivityLogs", fields: [createdById], references: [id])
+
+  @@index([module, entityType, entityId, createdAt])
 }
 
 model FarmerAdvance {

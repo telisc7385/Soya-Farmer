@@ -1,4 +1,9 @@
 import Joi from "joi";
+import { ADMIN_PERMISSIONS } from "../constants/adminPermissions";
+
+export const adminAccessSchema = Joi.array()
+  .items(Joi.string().valid(...ADMIN_PERMISSIONS))
+  .optional();
 
 export const registerSchema = Joi.object({
   name: Joi.string().min(2).max(50).required(),
@@ -44,3 +49,23 @@ export const adminResetPasswordSchema = Joi.object({
   oldPassword: Joi.string().min(6).required(),
   newPassword: Joi.string().min(6).required(),
 });
+
+export const registerAdminSchema = Joi.object({
+  name: Joi.string().min(2).max(50).required(),
+  email: Joi.string().email().required(),
+  phone: Joi.string()
+    .pattern(/^[0-9]{10,15}$/)
+    .required(),
+  password: Joi.string().min(6).required(),
+  access: adminAccessSchema,
+});
+
+export const updateAdminSchema = Joi.object({
+  name: Joi.string().min(2).max(50).optional(),
+  email: Joi.string().email().optional(),
+  phone: Joi.string()
+    .pattern(/^[0-9]{10,15}$/)
+    .optional(),
+  password: Joi.string().min(6).optional(),
+  access: adminAccessSchema,
+}).min(1);

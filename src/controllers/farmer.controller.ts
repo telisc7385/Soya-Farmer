@@ -7,6 +7,7 @@ import { AuthRequest } from "../middleware/auth.middleware";
 import { checkFarmer } from "../repositories/checkFarmer.repository";
 import { saveUploadedFile } from "../utils/upload";
 import { roundTo } from "../utils/number";
+import { logActivity } from "../services/activityLog.service";
 
 const requireKycEditable = async (farmerId: string) => {
   const farmer = await prisma.farmer.findUnique({
@@ -156,6 +157,44 @@ export const getFarmerById = async (
   }
 };
 
+export const getFarmerKycHistory = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { farmerId } = req.params;
+
+    const farmer = await prisma.farmer.findFirst({
+      where: { id: farmerId },
+      select: { id: true },
+    });
+    if (!farmer) throw new AppError("Farmer not found", 404);
+
+    const logs = await prisma.activityLog.findMany({
+      where: { module: "KYC", entityType: "farmer", entityId: farmerId },
+      orderBy: { createdAt: "asc" },
+      include: {
+        createdBy: { select: { id: true, name: true } },
+      },
+    });
+
+    const history = logs.map((log) => ({
+      id: log.id,
+      action: log.action,
+      fromStatus: log.fromStatus,
+      toStatus: log.toStatus,
+      remark: log.remark,
+      createdAt: log.createdAt,
+      createdBy: log.createdBy,
+    }));
+
+    successResponse(res, history, "Farmer KYC history fetched");
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const updateFarmer = async (
   req: Request,
   res: Response,
@@ -221,16 +260,34 @@ export const verifyFarmerKyc = async (
     const reKycDate = new Date();
     reKycDate.setFullYear(reKycDate.getFullYear() + 2);
 
-    const updated = await prisma.farmer.update({
-      where: { id: farmerId },
-      data: {
-        kycStatus: "VERIFIED",
-        kycVerifiedAt: new Date(),
-        kycVerifiedById: adminId,
-        kycRejectionReason: null,
-        reKycDate,
-        reKycStatus: "NOT_REQUIRED",
-      },
+    const fromStatus = farmer.kycStatus;
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedFarmer = await tx.farmer.update({
+        where: { id: farmerId },
+        data: {
+          kycStatus: "VERIFIED",
+          kycVerifiedAt: new Date(),
+          kycVerifiedById: adminId,
+          kycRejectionReason: null,
+          reKycDate,
+          reKycStatus: "NOT_REQUIRED",
+        },
+      });
+
+      await tx.activityLog.create({
+        data: {
+          module: "KYC",
+          entityType: "farmer",
+          entityId: farmerId,
+          action: "VERIFIED",
+          fromStatus,
+          toStatus: "VERIFIED",
+          createdById: adminId,
+        },
+      });
+
+      return updatedFarmer;
     });
 
     successResponse(res, updated, "KYC verified successfully");
@@ -247,6 +304,7 @@ export const rejectFarmerKyc = async (
   try {
     const { farmerId } = req.params;
     const { reason } = req.body;
+    const adminId = req.user!.id;
 
     const farmer = await prisma.farmer.findUnique({
       where: { id: farmerId },
@@ -263,12 +321,32 @@ export const rejectFarmerKyc = async (
       );
     }
 
-    const updated = await prisma.farmer.update({
-      where: { id: farmerId },
-      data: {
-        kycStatus: "REJECTED",
-        kycRejectionReason: reason || "KYC documents did not meet requirements",
-      },
+    const fromStatus = farmer.kycStatus;
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const updatedFarmer = await tx.farmer.update({
+        where: { id: farmerId },
+        data: {
+          kycStatus: "REJECTED",
+          kycRejectionReason:
+            reason || "KYC documents did not meet requirements",
+        },
+      });
+
+      await tx.activityLog.create({
+        data: {
+          module: "KYC",
+          entityType: "farmer",
+          entityId: farmerId,
+          action: "REJECTED",
+          fromStatus,
+          toStatus: "REJECTED",
+          remark: reason || "KYC documents did not meet requirements",
+          createdById: adminId,
+        },
+      });
+
+      return updatedFarmer;
     });
 
     successResponse(res, updated, "KYC rejected");

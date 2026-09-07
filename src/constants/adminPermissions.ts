@@ -1,0 +1,17 @@
+export const ADMIN_PERMISSIONS = [
+  "VENDORS",
+  "FARMERS",
+  "BILLING",
+  "REPORTS",
+  "TODAYS_RATE",
+  "VENDOR_TRANSFER",
+  "STOCK_SUMMARY",
+  "BANK_MANAGEMENT",
+  "FORMULA_MANAGEMENT",
+  "GODOWN_MANAGEMENT",
+  "PURCHASE_LIMIT",
+  "BAG_MANAGEMENT",
+  "ADMIN_MANAGEMENT",
+] as const;
+
+export type AdminPermission = (typeof ADMIN_PERMISSIONS)[number];

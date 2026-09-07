@@ -6,6 +6,7 @@ import { createdResponse, successResponse } from "../utils/response";
 import { NextFunction, Request, Response } from "express";
 import { BagMovementType } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.middleware";
+import { ADMIN_PERMISSIONS } from "../constants/adminPermissions";
 
 export const login = async (
   req: Request,
@@ -491,6 +492,219 @@ export const adminResetPassword = async (
     });
 
     successResponse(res, null, "Admin password reset successfully");
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const registerAdmin = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { name, email, phone, password, access = [] } = req.body;
+
+    const existing = await prisma.user.findFirst({
+      where: { OR: [{ email }, { phone }] },
+      select: { id: true, email: true },
+    });
+
+    if (existing) {
+      const field = existing.email === email ? "Email" : "Phone";
+      throw new AppError(`${field} already registered`, 409);
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const admin = await prisma.user.create({
+      data: {
+        name,
+        email,
+        phone,
+        password: hashedPassword,
+        role: "ADMIN",
+        isMasterAdmin: false,
+        access,
+      },
+    });
+
+    const { password: _, ...safeAdmin } = admin;
+
+    createdResponse(res, safeAdmin, "Admin created successfully");
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const listAdmins = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const {
+      page = "1",
+      limit = "10",
+      search,
+      isActive,
+    } = req.query;
+
+    const take = Number(limit);
+    const skip = (Number(page) - 1) * take;
+
+    const where: any = { role: "ADMIN" };
+
+    if (search) {
+      where.OR = [
+        { name: { contains: String(search), mode: "insensitive" } },
+        { email: { contains: String(search), mode: "insensitive" } },
+        { phone: { contains: String(search), mode: "insensitive" } },
+      ];
+    }
+
+    if (isActive !== undefined) {
+      where.isActive = isActive === "true";
+    }
+
+    const [admins, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        skip,
+        take,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          phone: true,
+          isActive: true,
+          isMasterAdmin: true,
+          access: true,
+          createdAt: true,
+        },
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    successResponse(
+      res,
+      { admins, total, page: Number(page), limit: take },
+      "Admin list fetched successfully",
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateAdmin = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const adminId = req.user?.id;
+    if (!adminId) throw new AppError("Unauthorized", 401);
+
+    const { id } = req.params;
+    const { name, email, phone, password, isActive, access } = req.body;
+
+    if (id === adminId) {
+      throw new AppError("Cannot edit your own admin account here", 400);
+    }
+
+    const existing = await prisma.user.findFirst({
+      where: { id, role: "ADMIN" },
+      select: { id: true },
+    });
+    if (!existing) {
+      throw new AppError("Admin not found", 404);
+    }
+
+    let hashedPassword: string | undefined = undefined;
+    if (password) {
+      hashedPassword = await bcrypt.hash(password, 10);
+    }
+
+    const updated = await prisma.user.update({
+      where: { id },
+      data: {
+        name,
+        email,
+        phone,
+        ...(hashedPassword !== undefined ? { password: hashedPassword } : {}),
+        ...(isActive !== undefined ? { isActive } : {}),
+        ...(access !== undefined ? { access } : {}),
+      },
+    });
+
+    const { password: _, ...safeAdmin } = updated;
+
+    successResponse(res, safeAdmin, "Admin updated successfully");
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const listAdminPermissions = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const modules = ADMIN_PERMISSIONS.map((key) => ({
+      key,
+      label: key
+        .toLowerCase()
+        .split("_")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" "),
+    }));
+
+    successResponse(res, modules, "Admin modules list fetched");
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const updateAdminStatus = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const adminId = req.user?.id;
+    if (!adminId) throw new AppError("Unauthorized", 401);
+
+    const { id } = req.params;
+
+    if (id === adminId) {
+      throw new AppError("Cannot deactivate your own admin account", 400);
+    }
+
+    const existing = await prisma.user.findFirst({
+      where: { id, role: "ADMIN" },
+      select: { id: true, isActive: true, isMasterAdmin: true },
+    });
+    if (!existing) {
+      throw new AppError("Admin not found", 404);
+    }
+    if (existing.isMasterAdmin) {
+      throw new AppError("Cannot change the master admin status", 400);
+    }
+
+    const updated = await prisma.user.update({
+      where: { id },
+      data: { isActive: !existing.isActive },
+    });
+
+    const { password: _, ...safeAdmin } = updated;
+
+    successResponse(
+      res,
+      safeAdmin,
+      `Admin ${updated.isActive ? "activated" : "deactivated"} successfully`,
+    );
   } catch (error) {
     next(error);
   }
