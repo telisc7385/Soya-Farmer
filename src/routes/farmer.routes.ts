@@ -24,6 +24,11 @@ router.get(
   farmerControllers.getFarmers,
 );
 router.get("/list/non-kyc", authMiddleware, farmerControllers.getNonKycFarmers);
+router.get(
+  "/kyc-history/:farmerId",
+  authMiddleware,
+  farmerControllers.getFarmerKycHistory,
+);
 router.get("/:farmerId", authMiddleware, farmerControllers.getFarmerById);
 
 router.put(
