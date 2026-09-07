@@ -8,6 +8,7 @@ export interface AuthRequest extends Request {
     id: string;
     role: "ADMIN" | "VENDOR";
     isMasterAdmin?: boolean;
+    access?: string[];
   };
 }
 
@@ -36,6 +37,7 @@ export const authMiddleware = async (
         role: true,
         isActive: true,
         isMasterAdmin: true,
+        access: true,
       },
     });
 
@@ -55,6 +57,7 @@ export const authMiddleware = async (
       id: user.id,
       role: user.role,
       isMasterAdmin: user.isMasterAdmin,
+      access: user.access,
     };
 
     next();

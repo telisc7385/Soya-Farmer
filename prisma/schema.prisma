@@ -143,6 +143,7 @@ model User {
   masterVendor               Boolean  @default(false)
   grnNumber                  String?
   assets                     String[]              @default([])
+  access                     String[]              @default([])
   createdAt                  DateTime @default(now())
   villageAdd                 String?
   taluka                     String?

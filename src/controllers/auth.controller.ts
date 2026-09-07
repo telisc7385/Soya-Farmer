@@ -6,6 +6,7 @@ import { createdResponse, successResponse } from "../utils/response";
 import { NextFunction, Request, Response } from "express";
 import { BagMovementType } from "@prisma/client";
 import { AuthRequest } from "../middleware/auth.middleware";
+import { ADMIN_PERMISSIONS } from "../constants/adminPermissions";
 
 export const login = async (
   req: Request,
@@ -502,7 +503,7 @@ export const registerAdmin = async (
   next: NextFunction,
 ) => {
   try {
-    const { name, email, phone, password } = req.body;
+    const { name, email, phone, password, access = [] } = req.body;
 
     const existing = await prisma.user.findFirst({
       where: { OR: [{ email }, { phone }] },
@@ -524,6 +525,7 @@ export const registerAdmin = async (
         password: hashedPassword,
         role: "ADMIN",
         isMasterAdmin: false,
+        access,
       },
     });
 
@@ -578,6 +580,7 @@ export const listAdmins = async (
           phone: true,
           isActive: true,
           isMasterAdmin: true,
+          access: true,
           createdAt: true,
         },
       }),
@@ -604,7 +607,7 @@ export const updateAdmin = async (
     if (!adminId) throw new AppError("Unauthorized", 401);
 
     const { id } = req.params;
-    const { name, email, phone, password, isActive } = req.body;
+    const { name, email, phone, password, isActive, access } = req.body;
 
     if (id === adminId) {
       throw new AppError("Cannot edit your own admin account here", 400);
@@ -631,12 +634,34 @@ export const updateAdmin = async (
         phone,
         ...(hashedPassword !== undefined ? { password: hashedPassword } : {}),
         ...(isActive !== undefined ? { isActive } : {}),
+        ...(access !== undefined ? { access } : {}),
       },
     });
 
     const { password: _, ...safeAdmin } = updated;
 
     successResponse(res, safeAdmin, "Admin updated successfully");
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const listAdminPermissions = async (
+  _req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const modules = ADMIN_PERMISSIONS.map((key) => ({
+      key,
+      label: key
+        .toLowerCase()
+        .split("_")
+        .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+        .join(" "),
+    }));
+
+    successResponse(res, modules, "Admin modules list fetched");
   } catch (error) {
     next(error);
   }

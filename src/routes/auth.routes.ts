@@ -4,6 +4,7 @@ import {
   getVendorById,
   getVendorList,
   listAdmins,
+  listAdminPermissions,
   login,
   register,
   registerAdmin,
@@ -22,10 +23,7 @@ import {
   updateVendorSchema,
 } from "../validations/auth.validation";
 import { authMiddleware } from "../middleware/auth.middleware";
-import {
-  authorize,
-  requireMasterAdmin,
-} from "../middleware/role.middleware";
+import { authorize } from "../middleware/role.middleware";
 
 const router = Router();
 
@@ -61,32 +59,38 @@ router.post(
 );
 
 // =====================
-// MASTER ADMIN - ADMIN MANAGEMENT
+// ADMIN MANAGEMENT
 // =====================
 router.post(
   "/admin/register",
   authMiddleware,
-  requireMasterAdmin,
+  authorize("ADMIN"),
   validateRequest(registerAdminSchema),
   registerAdmin,
 );
 router.get(
   "/admin/list",
   authMiddleware,
-  requireMasterAdmin,
+  authorize("ADMIN"),
   listAdmins,
+);
+router.get(
+  "/admin/permissions",
+  authMiddleware,
+  authorize("ADMIN"),
+  listAdminPermissions,
 );
 router.put(
   "/admin/:id",
   authMiddleware,
-  requireMasterAdmin,
+  authorize("ADMIN"),
   validateRequest(updateAdminSchema),
   updateAdmin,
 );
 router.patch(
   "/admin/:id/status",
   authMiddleware,
-  requireMasterAdmin,
+  authorize("ADMIN"),
   updateAdminStatus,
 );
 
