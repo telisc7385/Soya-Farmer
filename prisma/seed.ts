@@ -3,8 +3,8 @@ import bcrypt from "bcrypt";
 import prisma from "../src/database/prisma";
 
 async function main() {
-  const email = "admin@gmail.com";
-  const password = "admin@123";
+  const email = "tulajabhawani@gmail.com";
+  const password = "masterAdmin@123";
 
   // check if admin already exists
   const existingAdmin = await prisma.user.findUnique({
@@ -21,13 +21,14 @@ async function main() {
         email,
         password: hashedPassword,
         role: "ADMIN",
+        isMasterAdmin: true,
         phone: "0000000000",
       },
     });
 
     console.log("Admin created successfully:", admin.email);
   } else {
-    console.log("Admin already exists");
+      console.log("Master Admin already exists");
   }
 
   const existingLimit = await prisma.purchaseLimit.findFirst({

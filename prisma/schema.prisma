@@ -137,6 +137,7 @@ model User {
   password                   String
   role                       Role
   isActive                   Boolean  @default(true)
+  isMasterAdmin              Boolean  @default(false)
   vendorRate                 Float    @default(0)
   factoryRateDiff            Float    @default(0)
   masterVendor               Boolean  @default(false)

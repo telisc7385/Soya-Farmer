@@ -15,3 +15,19 @@ export const authorize =
 
     next();
   };
+
+export const requireMasterAdmin = (
+  req: AuthRequest,
+  _res: Response,
+  next: NextFunction,
+) => {
+  if (!req.user) {
+    throw new AppError("Unauthorized", 401);
+  }
+
+  if (req.user.role !== "ADMIN" || !req.user.isMasterAdmin) {
+    throw new AppError("Master admin access required", 403);
+  }
+
+  next();
+};

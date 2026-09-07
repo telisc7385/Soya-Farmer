@@ -7,6 +7,7 @@ export interface AuthRequest extends Request {
   user?: {
     id: string;
     role: "ADMIN" | "VENDOR";
+    isMasterAdmin?: boolean;
   };
 }
 
@@ -34,6 +35,7 @@ export const authMiddleware = async (
         id: true,
         role: true,
         isActive: true,
+        isMasterAdmin: true,
       },
     });
 
@@ -52,6 +54,7 @@ export const authMiddleware = async (
     req.user = {
       id: user.id,
       role: user.role,
+      isMasterAdmin: user.isMasterAdmin,
     };
 
     next();
