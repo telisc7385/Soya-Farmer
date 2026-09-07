@@ -51,134 +51,159 @@ export const returnBagsToFarmer = async (
     const vendorId = req.user?.id;
     if (!vendorId) throw new AppError("Unauthorized", 401);
 
-    const { farmerId, goniTypeId, bagCount, notes } = req.body as {
+    const { farmerId, goniTypeId, bagCount, items, notes } = req.body as {
       farmerId: string;
-      goniTypeId: string;
-      bagCount: number;
+      goniTypeId?: string;
+      bagCount?: number;
+      items?: Array<{ goniTypeId: string; bagCount: number }>;
       notes?: string;
     };
 
-    const [farmer, goniType, isTracked] = await Promise.all([
-      prisma.farmer.findFirst({
-        where: { id: farmerId },
-        select: { id: true },
-      }),
-      prisma.goniType.findFirst({
-        where: { id: goniTypeId, isActive: true },
-        select: { id: true, name: true },
-      }),
-      isTrackedGoniType(goniTypeId),
-    ]);
+    // Normalize single-type request into bulk items
+    const returnItems: Array<{ goniTypeId: string; bagCount: number }> =
+      items && items.length
+        ? items
+        : [{ goniTypeId: goniTypeId as string, bagCount: bagCount as number }];
 
+    const farmer = await prisma.farmer.findFirst({
+      where: { id: farmerId },
+      select: { id: true },
+    });
     if (!farmer) {
       throw new AppError("Farmer not found", 404);
     }
-    if (!goniType) {
-      throw new AppError("Goni type not found or inactive", 404);
+
+    const typeCountMap = new Map<string, number>();
+    for (const item of returnItems) {
+      typeCountMap.set(item.goniTypeId, (typeCountMap.get(item.goniTypeId) ?? 0) + item.bagCount);
     }
-    if (!isTracked) {
+    const requestedTypeIds = Array.from(typeCountMap.keys());
+
+    const [goniTypes, trackedIds] = await Promise.all([
+      prisma.goniType.findMany({
+        where: { id: { in: requestedTypeIds }, isActive: true },
+        select: { id: true, name: true },
+      }),
+      prisma.goniType.findMany({
+        where: { id: { in: requestedTypeIds }, isTracked: true, isActive: true },
+        select: { id: true },
+      }),
+    ]);
+
+    if (goniTypes.length !== requestedTypeIds.length) {
+      throw new AppError("One or more goni types not found or inactive", 404);
+    }
+
+    const trackedIdSet = new Set(trackedIds.map((type) => type.id));
+    const nonTracked = requestedTypeIds.filter((id) => !trackedIdSet.has(id));
+    if (nonTracked.length) {
       throw new AppError(
         "Only tracked bag type is allowed for bag ledger flow",
         400,
       );
     }
 
-    const movement = await prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`bags:farmer:${farmerId}:${goniTypeId}`}))`;
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`bags:${vendorId}:${goniTypeId}`}))`;
-
-      const [
-        receivedFromFarmerAgg,
-        returnedToFarmerAgg,
-        vendorInAgg,
-        vendorOutAgg,
-      ] = await Promise.all([
-        tx.bagMovement.aggregate({
-          where: {
-            farmerId,
-            goniTypeId,
-            movementType: BagMovementType.FARMER_TO_VENDOR,
-          },
-          _sum: { bagCount: true },
-        }),
-
-        tx.bagMovement.aggregate({
-          where: {
-            farmerId,
-            goniTypeId,
-            movementType: BagMovementType.VENDOR_TO_FARMER,
-          },
-          _sum: { bagCount: true },
-        }),
-
-        tx.bagMovement.aggregate({
-          where: {
-            vendorId,
-            goniTypeId,
-            movementType: {
-              in: [
-                BagMovementType.FARMER_TO_VENDOR,
-                BagMovementType.ADMIN_TO_VENDOR,
-                BagMovementType.ADMIN_TO_VENDOR_ADD,
-                BagMovementType.VENDOR_SELF_ADD,
-              ],
-            },
-          },
-          _sum: { bagCount: true },
-        }),
-
-        tx.bagMovement.aggregate({
-          where: {
-            vendorId,
-            goniTypeId,
-            movementType: {
-              in: [
-                BagMovementType.VENDOR_TO_FARMER,
-                BagMovementType.VENDOR_TO_ADMIN,
-              ],
-            },
-          },
-          _sum: { bagCount: true },
-        }),
-      ]);
-
-      const farmerDue =
-        (receivedFromFarmerAgg._sum.bagCount ?? 0) -
-        (returnedToFarmerAgg._sum.bagCount ?? 0);
-      const vendorOnHand =
-        (vendorInAgg._sum.bagCount ?? 0) - (vendorOutAgg._sum.bagCount ?? 0);
-
-      if (bagCount > farmerDue) {
-        throw new AppError(
-          `Return bag count (${bagCount}) exceeds farmer's total available bags (${Math.max(farmerDue, 0)})`,
-          400,
-        );
-      }
-      if (bagCount > vendorOnHand) {
-        throw new AppError(
-          `Return bag count (${bagCount}) exceeds your available stock (${Math.max(vendorOnHand, 0)})`,
-          400,
-        );
+    const movements = await prisma.$transaction(async (tx) => {
+      for (const item of returnItems) {
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`bags:farmer:${farmerId}:${item.goniTypeId}`}))`;
+        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`bags:${vendorId}:${item.goniTypeId}`}))`;
       }
 
-      return tx.bagMovement.create({
-        data: {
-          vendorId,
-          farmerId,
-          goniTypeId,
-          bagCount,
-          movementType: "VENDOR_TO_FARMER",
-          notes,
-          createdById: vendorId,
-        },
-        include: {
-          farmer: { select: { id: true, name: true, phone: true } },
-          goniType: { select: { id: true, name: true } },
-        },
-      });
+      const [receivedRows, returnedRows, vendorInRows, vendorOutRows] =
+        await Promise.all([
+          tx.bagMovement.groupBy({
+            by: ["goniTypeId"],
+            where: {
+              farmerId,
+              goniTypeId: { in: requestedTypeIds },
+              movementType: BagMovementType.FARMER_TO_VENDOR,
+            },
+            _sum: { bagCount: true },
+          }),
+
+          tx.bagMovement.groupBy({
+            by: ["goniTypeId"],
+            where: {
+              farmerId,
+              goniTypeId: { in: requestedTypeIds },
+              movementType: BagMovementType.VENDOR_TO_FARMER,
+            },
+            _sum: { bagCount: true },
+          }),
+
+          tx.bagMovement.groupBy({
+            by: ["goniTypeId"],
+            where: {
+              vendorId,
+              goniTypeId: { in: requestedTypeIds },
+              movementType: {
+                in: [
+                  BagMovementType.FARMER_TO_VENDOR,
+                  BagMovementType.ADMIN_TO_VENDOR,
+                  BagMovementType.ADMIN_TO_VENDOR_ADD,
+                  BagMovementType.VENDOR_SELF_ADD,
+                ],
+              },
+            },
+            _sum: { bagCount: true },
+          }),
+
+          tx.bagMovement.groupBy({
+            by: ["goniTypeId"],
+            where: {
+              vendorId,
+              goniTypeId: { in: requestedTypeIds },
+              movementType: {
+                in: [
+                  BagMovementType.VENDOR_TO_FARMER,
+                  BagMovementType.VENDOR_TO_ADMIN,
+                ],
+              },
+            },
+            _sum: { bagCount: true },
+          }),
+        ]);
+
+      const received = new Map(receivedRows.map((r) => [r.goniTypeId, r._sum.bagCount ?? 0]));
+      const returned = new Map(returnedRows.map((r) => [r.goniTypeId, r._sum.bagCount ?? 0]));
+      const vendorIn = new Map(vendorInRows.map((r) => [r.goniTypeId, r._sum.bagCount ?? 0]));
+      const vendorOut = new Map(vendorOutRows.map((r) => [r.goniTypeId, r._sum.bagCount ?? 0]));
+
+      const errors: string[] = [];
+      for (const [typeId, bagCount] of typeCountMap.entries()) {
+        const farmerDue = (received.get(typeId) ?? 0) - (returned.get(typeId) ?? 0);
+        const vendorOnHand = (vendorIn.get(typeId) ?? 0) - (vendorOut.get(typeId) ?? 0);
+        const typeName = goniTypes.find((type) => type.id === typeId)?.name ?? typeId;
+
+        if (bagCount > farmerDue) {
+          errors.push(
+            `${typeName}: return count (${bagCount}) exceeds farmer's available (${Math.max(farmerDue, 0)})`,
+          );
+        }
+        if (bagCount > vendorOnHand) {
+          errors.push(
+            `${typeName}: return count (${bagCount}) exceeds your available stock (${Math.max(vendorOnHand, 0)})`,
+          );
+        }
+      }
+      if (errors.length) {
+        throw new AppError(`Cannot return bags: ${errors.join(". ")}`, 400);
+      }
+
+      const data = returnItems.map((item) => ({
+        vendorId,
+        farmerId,
+        goniTypeId: item.goniTypeId,
+        bagCount: item.bagCount,
+        movementType: BagMovementType.VENDOR_TO_FARMER,
+        notes,
+        createdById: vendorId,
+      }));
+
+      return tx.bagMovement.createMany({ data });
     });
 
-    createdResponse(res, movement, "Bags returned to farmer");
+    createdResponse(res, movements, "Bags returned to farmer");
   } catch (error) {
     next(error);
   }

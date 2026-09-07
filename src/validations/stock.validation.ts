@@ -94,11 +94,33 @@ export const receiveTransferSchema = Joi.object({
   receiveLocationText: Joi.string().trim().max(255).required(),
 });
 
-export const returnBagsToFarmerSchema = Joi.object({
-  farmerId: Joi.string().uuid().required(),
+export const returnBagsToFarmerItemsSchema = Joi.object({
   goniTypeId: Joi.string().uuid().required(),
   bagCount: Joi.number().integer().min(1).required(),
-  notes: Joi.string().max(500).optional(),
+});
+
+export const returnBagsToFarmerSchema = Joi.object({
+  farmerId: Joi.string().uuid().required(),
+  goniTypeId: Joi.string().uuid().optional(),
+  bagCount: Joi.number().integer().min(1).optional(),
+  items: Joi.array().items(returnBagsToFarmerItemsSchema).min(1).optional(),
+  notes: Joi.string().max(500).allow("", null).optional(),
+}).custom((value, helpers) => {
+  const hasSingle =
+    value.goniTypeId !== undefined && value.bagCount !== undefined;
+  const hasItems = Array.isArray(value.items) && value.items.length > 0;
+
+  if (hasSingle && hasItems) {
+    return helpers.error("any.invalid", {
+      message: "Provide either goniTypeId+bagCount or items, not both",
+    });
+  }
+  if (!hasSingle && !hasItems) {
+    return helpers.error("any.custom", {
+      message: "Provide goniTypeId+bagCount or items to return bags",
+    });
+  }
+  return value;
 });
 
 export const adminReturnBagsToVendorSchema = Joi.object({
