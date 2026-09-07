@@ -5,8 +5,8 @@ import { AppError } from "../core/appError";
 import { createdResponse, successResponse } from "../utils/response";
 import { toQtl } from "../utils/quantity";
 import {
+  getFarmerReturnDue,
   getVendorBagLedgerSummary,
-  getVendorReturnDueForFarmer,
   isTrackedGoniType,
 } from "../services/bagLedger.service";
 import { BagMovementType } from "@prisma/client";
@@ -58,9 +58,9 @@ export const returnBagsToFarmer = async (
       notes?: string;
     };
 
-    const [mapping, goniType, isTracked] = await Promise.all([
-      prisma.bill.findFirst({
-        where: { vendorId, farmerId },
+    const [farmer, goniType, isTracked] = await Promise.all([
+      prisma.farmer.findFirst({
+        where: { id: farmerId },
         select: { id: true },
       }),
       prisma.goniType.findFirst({
@@ -70,8 +70,8 @@ export const returnBagsToFarmer = async (
       isTrackedGoniType(goniTypeId),
     ]);
 
-    if (!mapping) {
-      throw new AppError("Create bill first", 400);
+    if (!farmer) {
+      throw new AppError("Farmer not found", 404);
     }
     if (!goniType) {
       throw new AppError("Goni type not found or inactive", 404);
@@ -84,37 +84,79 @@ export const returnBagsToFarmer = async (
     }
 
     const movement = await prisma.$transaction(async (tx) => {
-      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`bags:${vendorId}:${farmerId}:${goniTypeId}`}))`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`bags:farmer:${farmerId}:${goniTypeId}`}))`;
+      await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`bags:${vendorId}:${goniTypeId}`}))`;
 
-      const [availableBagsForSelectedFarmer, returnedBagsForSelectedFarmer] =
-        await Promise.all([
-          tx.bagMovement.aggregate({
-            where: {
-              vendorId,
-              goniTypeId,
-              movementType: BagMovementType.FARMER_TO_VENDOR,
-              farmerId,
+      const [
+        receivedFromFarmerAgg,
+        returnedToFarmerAgg,
+        vendorInAgg,
+        vendorOutAgg,
+      ] = await Promise.all([
+        tx.bagMovement.aggregate({
+          where: {
+            farmerId,
+            goniTypeId,
+            movementType: BagMovementType.FARMER_TO_VENDOR,
+          },
+          _sum: { bagCount: true },
+        }),
+
+        tx.bagMovement.aggregate({
+          where: {
+            farmerId,
+            goniTypeId,
+            movementType: BagMovementType.VENDOR_TO_FARMER,
+          },
+          _sum: { bagCount: true },
+        }),
+
+        tx.bagMovement.aggregate({
+          where: {
+            vendorId,
+            goniTypeId,
+            movementType: {
+              in: [
+                BagMovementType.FARMER_TO_VENDOR,
+                BagMovementType.ADMIN_TO_VENDOR,
+                BagMovementType.ADMIN_TO_VENDOR_ADD,
+                BagMovementType.VENDOR_SELF_ADD,
+              ],
             },
-            _sum: { bagCount: true },
-          }),
+          },
+          _sum: { bagCount: true },
+        }),
 
-          tx.bagMovement.aggregate({
-            where: {
-              vendorId,
-              goniTypeId,
-              movementType: BagMovementType.VENDOR_TO_FARMER,
-              farmerId,
+        tx.bagMovement.aggregate({
+          where: {
+            vendorId,
+            goniTypeId,
+            movementType: {
+              in: [
+                BagMovementType.VENDOR_TO_FARMER,
+                BagMovementType.VENDOR_TO_ADMIN,
+              ],
             },
-            _sum: { bagCount: true },
-          }),
-        ]);
+          },
+          _sum: { bagCount: true },
+        }),
+      ]);
 
-      const availableBags = availableBagsForSelectedFarmer._sum.bagCount || 0;
-      const returnedBags = returnedBagsForSelectedFarmer._sum.bagCount || 0;
+      const farmerDue =
+        (receivedFromFarmerAgg._sum.bagCount ?? 0) -
+        (returnedToFarmerAgg._sum.bagCount ?? 0);
+      const vendorOnHand =
+        (vendorInAgg._sum.bagCount ?? 0) - (vendorOutAgg._sum.bagCount ?? 0);
 
-      if (bagCount > availableBags - returnedBags) {
+      if (bagCount > farmerDue) {
         throw new AppError(
-          `Return bag count (${bagCount}) exceeds available ${goniType.name} bags (${availableBags - returnedBags})`,
+          `Return bag count (${bagCount}) exceeds farmer's total available bags (${Math.max(farmerDue, 0)})`,
+          400,
+        );
+      }
+      if (bagCount > vendorOnHand) {
+        throw new AppError(
+          `Return bag count (${bagCount}) exceeds your available stock (${Math.max(vendorOnHand, 0)})`,
           400,
         );
       }
@@ -148,22 +190,24 @@ export const getVendorReturnDueToFarmer = async (
   next: NextFunction,
 ) => {
   try {
-    const vendorId = req.user?.id;
-    if (!vendorId) throw new AppError("Unauthorized", 401);
-
     const { farmerId } = req.params;
 
-    const mapping = await prisma.vendorFarmer.findFirst({
-      where: { vendorId, farmerId, isActive: true },
+    const farmer = await prisma.farmer.findFirst({
+      where: { id: farmerId },
       select: { id: true },
     });
-    if (!mapping) {
-      throw new AppError("Farmer is not linked to this vendor", 400);
+    if (!farmer) {
+      throw new AppError("Farmer not found", 404);
     }
 
-    const summary = await getVendorReturnDueForFarmer(vendorId, farmerId);
+    const goniTypeId =
+      typeof req.query.goniTypeId === "string"
+        ? req.query.goniTypeId
+        : undefined;
 
-    successResponse(res, summary, "Vendor return due fetched");
+    const summary = await getFarmerReturnDue(farmerId, goniTypeId);
+
+    successResponse(res, summary, "Farmer bag return due fetched");
   } catch (error) {
     next(error);
   }

@@ -230,8 +230,7 @@ export const isTrackedGoniType = async (goniTypeId: string) => {
   return Boolean(goniType);
 };
 
-export const getVendorReturnDueForFarmer = async (
-  vendorId: string,
+export const getFarmerReturnDue = async (
   farmerId: string,
   goniTypeId?: string,
 ) => {
@@ -243,24 +242,26 @@ export const getVendorReturnDueForFarmer = async (
       receivedFromFarmer: 0,
       returnedToFarmer: 0,
       returnDue: 0,
+      total: 0,
+      byType: [],
     };
   }
 
   const trackedIds = trackedTypes.map((type) => type.id);
 
-  const [receivedAgg, returnedAgg] = await Promise.all([
-    prisma.bagMovement.aggregate({
+  const [receivedRows, returnedRows] = await Promise.all([
+    prisma.bagMovement.groupBy({
+      by: ["goniTypeId"],
       where: {
-        vendorId,
         farmerId,
         goniTypeId: { in: trackedIds },
         movementType: BagMovementType.FARMER_TO_VENDOR,
       },
       _sum: { bagCount: true },
     }),
-    prisma.bagMovement.aggregate({
+    prisma.bagMovement.groupBy({
+      by: ["goniTypeId"],
       where: {
-        vendorId,
         farmerId,
         goniTypeId: { in: trackedIds },
         movementType: BagMovementType.VENDOR_TO_FARMER,
@@ -269,15 +270,38 @@ export const getVendorReturnDueForFarmer = async (
     }),
   ]);
 
-  const receivedFromFarmer = receivedAgg._sum.bagCount ?? 0;
-  const returnedToFarmer = returnedAgg._sum.bagCount ?? 0;
-  const returnDue = Math.max(receivedFromFarmer - returnedToFarmer, 0);
+  const receivedMap = new Map(
+    receivedRows.map((row) => [row.goniTypeId, row._sum.bagCount ?? 0]),
+  );
+  const returnedMap = new Map(
+    returnedRows.map((row) => [row.goniTypeId, row._sum.bagCount ?? 0]),
+  );
+
+  const byType = trackedTypes.map((type) => {
+    const receivedFromFarmer = receivedMap.get(type.id) ?? 0;
+    const returnedToFarmer = returnedMap.get(type.id) ?? 0;
+    return {
+      goniTypeId: type.id,
+      goniTypeName: type.name,
+      receivedFromFarmer,
+      returnedToFarmer,
+      returnDue: Math.max(receivedFromFarmer - returnedToFarmer, 0),
+    };
+  });
+
+  const total = byType.reduce((sum, row) => sum + row.returnDue, 0);
+
+  if (goniTypeId) {
+    return byType[0];
+  }
 
   return {
-    goniTypeId: goniTypeId ?? "",
-    goniTypeName: goniTypeId ? trackedTypes[0].name : "All",
-    receivedFromFarmer,
-    returnedToFarmer,
-    returnDue,
+    goniTypeId: "",
+    goniTypeName: "All",
+    receivedFromFarmer: byType.reduce((s, row) => s + row.receivedFromFarmer, 0),
+    returnedToFarmer: byType.reduce((s, row) => s + row.returnedToFarmer, 0),
+    returnDue: total,
+    total,
+    byType,
   };
 };
