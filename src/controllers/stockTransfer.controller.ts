@@ -222,39 +222,38 @@ export const createTransfer = async (
       return currentType.isTracked ? sum + item.bagCount : sum;
     }, 0);
 
-    // Detailed availability validation
+    // Bag availability: tracked goni types validate against the bag ledger (single source of truth for physical bags)
     const shortageDetails: string[] = [];
+    const breakdown = await getAvailableStockBreakdown(
+      vendorId,
+      transferItems.map((item) => item.goniTypeId),
+    );
 
-    // Tracked-bag availability check (bag ledger based) for tracked types
     for (const item of transferItems) {
-      const currentType = goniTypeMap.get(item.goniTypeId)!;
-      if (!currentType.isTracked) continue;
-
-      const availableBagsByType = await getVendorCurrentBagsForType(
+      if (item.bagCount <= 0) continue;
+      const currentType = goniTypeMap.get(item.goniTypeId);
+      if (!currentType?.isTracked) continue;
+      const availableBags = await getVendorCurrentBagsForType(
         vendorId,
         item.goniTypeId,
       );
-
-      if (item.bagCount > availableBagsByType) {
+      if (item.bagCount > availableBags) {
         shortageDetails.push(
-          `${currentType.name}: need ${item.bagCount} bags, available ${availableBagsByType} bags`,
+          `${currentType.name}: need ${item.bagCount} bags, available ${availableBags} bags`,
         );
       }
     }
 
     // Weight check scoped to the requested goni types
-    if (typeof normalizedWeightQtl === "number") {
-      const breakdown = await getAvailableStockBreakdown(
-        vendorId,
-        transferItems.map((item) => item.goniTypeId),
+    if (
+      typeof normalizedWeightQtl === "number" &&
+      normalizedWeightQtl > breakdown.totalWeight
+    ) {
+      shortageDetails.push(
+        `Weight: need ${fmtQtl(normalizedWeightQtl)} QTL, available ${fmtQtl(
+          breakdown.totalWeight,
+        )} QTL`,
       );
-      if (normalizedWeightQtl > breakdown.totalWeight) {
-        shortageDetails.push(
-          `Weight: need ${fmtQtl(normalizedWeightQtl)} QTL, available ${fmtQtl(
-            breakdown.totalWeight,
-          )} QTL`,
-        );
-      }
     }
 
     if (shortageDetails.length) {
@@ -691,18 +690,22 @@ export const completeTransfer = async (
       throw new AppError("Transfer has no weight or bag count to process", 400);
     }
 
-    // Per-goni-type bag check
+    // Per-goni-type bag check (tracked types → bag ledger, single source of truth for physical bags; untracked → no bag verification)
     const shortageDetails: string[] = [];
     if (transfer.items.length > 0) {
       for (const item of transfer.items) {
         if (item.bagCount <= 0) continue;
-        const row = breakdown.rows.find(
-          (r) => r.goniTypeId === item.goniTypeId,
+        if (!(await isTrackedGoniType(item.goniTypeId))) continue;
+        const availableBags = await getVendorCurrentBagsForType(
+          transfer.vendorId,
+          item.goniTypeId,
         );
-        const availableBags = row?.bagCount ?? 0;
         if (item.bagCount > availableBags) {
+          const name =
+            breakdown.rows.find((r) => r.goniTypeId === item.goniTypeId)?.name ??
+            item.goniTypeId;
           shortageDetails.push(
-            `${row?.name ?? item.goniTypeId}: need ${item.bagCount} bags, available ${availableBags} bags`,
+            `${name}: need ${item.bagCount} bags, available ${availableBags} bags`,
           );
         }
       }
