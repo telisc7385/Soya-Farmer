@@ -224,10 +224,7 @@ export const createTransfer = async (
 
     // Bag availability: tracked goni types validate against the bag ledger (single source of truth for physical bags)
     const shortageDetails: string[] = [];
-    const breakdown = await getAvailableStockBreakdown(
-      vendorId,
-      transferItems.map((item) => item.goniTypeId),
-    );
+    const breakdown = await getAvailableStockBreakdown(vendorId, []);
 
     for (const item of transferItems) {
       if (item.bagCount <= 0) continue;
@@ -244,7 +241,7 @@ export const createTransfer = async (
       }
     }
 
-    // Weight check scoped to the requested goni types
+    // Weight check against total available produce stock
     if (
       typeof normalizedWeightQtl === "number" &&
       normalizedWeightQtl > breakdown.totalWeight
@@ -682,6 +679,7 @@ export const completeTransfer = async (
       transfer.vendorId,
       requestedTypeIds,
     );
+    const totalBreakdown = await getAvailableStockBreakdown(transfer.vendorId, []);
 
     let remainingWeight = dispatchWeightQtl;
     let remainingBags = dispatchBagCount;
@@ -709,17 +707,23 @@ export const completeTransfer = async (
           );
         }
       }
-    } else if (remainingBags > breakdown.totalBags) {
-      shortageDetails.push(
-        `Bags: need ${remainingBags}, available ${breakdown.totalBags}`,
+    } else if (transfer.goniTypeId && (await isTrackedGoniType(transfer.goniTypeId))) {
+      const availableBags = await getVendorCurrentBagsForType(
+        transfer.vendorId,
+        transfer.goniTypeId,
       );
+      if (remainingBags > availableBags) {
+        shortageDetails.push(
+          `Bags: need ${remainingBags}, available ${availableBags} bags`,
+        );
+      }
     }
 
-    // Weight check scoped to requested goni types
-    if (remainingWeight > breakdown.totalWeight) {
+    // Weight check against total available produce stock
+    if (remainingWeight > totalBreakdown.totalWeight) {
       shortageDetails.push(
         `Weight: need ${fmtQtl(remainingWeight)} QTL, available ${fmtQtl(
-          breakdown.totalWeight,
+          totalBreakdown.totalWeight,
         )} QTL`,
       );
     }
@@ -728,67 +732,32 @@ export const completeTransfer = async (
       throw buildInsufficientStockError(shortageDetails);
     }
 
-    const remainingBagsByType = new Map<string, number>();
-    if (transfer.items.length > 0) {
-      for (const item of transfer.items) {
-        remainingBagsByType.set(item.goniTypeId, item.bagCount);
-      }
-    }
-
     await prisma.$transaction(async (tx) => {
-      // Deduct from stocks using FIFO (scoped to the transfer's goni types)
-      for (const stock of breakdown.stocks) {
-        const bagsDone =
-          transfer.items.length > 0
-            ? Array.from(remainingBagsByType.values()).every((v) => v <= 0)
-            : remainingBags <= 0;
-        if (remainingWeight <= 0 && bagsDone) break;
+      // Deduct weight from all AVAILABLE stocks using FIFO (bags are ledger-accounted; Stock.bagCount is informational and left untouched)
+      for (const stock of totalBreakdown.stocks) {
+        if (remainingWeight <= 0) break;
 
         const deductWeight = Math.min(
           stock.weight,
           Math.max(remainingWeight, 0),
         );
-
-        let deductBags = 0;
-        if (transfer.items.length > 0) {
-          if (stock.goniTypeId && remainingBagsByType.has(stock.goniTypeId)) {
-            const remainingForType = remainingBagsByType.get(
-              stock.goniTypeId,
-            ) ?? 0;
-            deductBags = Math.min(
-              stock.bagCount,
-              Math.max(remainingForType, 0),
-            );
-            remainingBagsByType.set(
-              stock.goniTypeId,
-              remainingForType - deductBags,
-            );
-          }
-        } else {
-          deductBags = Math.min(stock.bagCount, Math.max(remainingBags, 0));
-        }
-
         const newWeight = stock.weight - deductWeight;
-        const newBags = stock.bagCount - deductBags;
 
-        if (newWeight <= 0 && newBags <= 0) {
+        if (newWeight <= 0) {
           // Fully transferred
           await tx.stock.update({
             where: { id: stock.id },
-            data: { status: "TRANSFERRED", weight: 0, bagCount: 0 },
+            data: { status: "TRANSFERRED", weight: 0 },
           });
         } else {
           // Partially transferred
           await tx.stock.update({
             where: { id: stock.id },
-            data: { weight: newWeight, bagCount: newBags },
+            data: { weight: newWeight },
           });
         }
 
         remainingWeight -= deductWeight;
-        if (transfer.items.length === 0) {
-          remainingBags -= deductBags;
-        }
       }
 
       // Update transfer status

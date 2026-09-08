@@ -122,7 +122,6 @@ export const getStockSummary = async (
         where: { vendorId },
         _sum: {
           weight: true,
-          bagCount: true,
         },
         _count: true,
       }),
@@ -131,7 +130,6 @@ export const getStockSummary = async (
         where: { vendorId, status: "AVAILABLE" },
         _sum: {
           weight: true,
-          bagCount: true,
         },
       }),
 
