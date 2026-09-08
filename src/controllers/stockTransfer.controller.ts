@@ -15,6 +15,82 @@ import {
   enqueueTransferProofGeneration,
   writeTransferProofPdf,
 } from "../services/transferProof.service";
+import { Stock } from "@prisma/client";
+
+// =====================
+// STOCK AVAILABILITY HELPERS
+// =====================
+
+type StockBreakdownRow = {
+  goniTypeId: string;
+  name: string;
+  bagCount: number;
+  weight: number;
+};
+
+type AvailableStockBreakdown = {
+  rows: StockBreakdownRow[];
+  stocks: Stock[];
+  totalWeight: number;
+  totalBags: number;
+};
+
+const getAvailableStockBreakdown = async (
+  vendorId: string,
+  typeIds: string[],
+): Promise<AvailableStockBreakdown> => {
+  const stocks = await prisma.stock.findMany({
+    where: {
+      vendorId,
+      status: "AVAILABLE",
+      ...(typeIds.length ? { goniTypeId: { in: typeIds } } : {}),
+    },
+    orderBy: { createdAt: "asc" },
+  });
+
+  let rows: StockBreakdownRow[] = [];
+  if (typeIds.length) {
+    const typeInfo = await prisma.goniType.findMany({
+      where: { id: { in: typeIds } },
+      select: { id: true, name: true },
+    });
+    const nameMap = new Map(typeInfo.map((t) => [t.id, t.name]));
+    rows = typeIds.map((id) => ({
+      goniTypeId: id,
+      name: nameMap.get(id) ?? id,
+      bagCount: 0,
+      weight: 0,
+    }));
+    const index = new Map(typeIds.map((id, i) => [id, i]));
+    for (const s of stocks) {
+      if (!s.goniTypeId) continue;
+      const i = index.get(s.goniTypeId);
+      if (i === undefined) continue;
+      rows[i].bagCount += s.bagCount;
+      rows[i].weight += s.weight;
+    }
+  }
+
+  const totalWeight = stocks.reduce((sum, s) => sum + s.weight, 0);
+  const totalBags = stocks.reduce((sum, s) => sum + s.bagCount, 0);
+
+  return { rows, stocks, totalWeight, totalBags };
+};
+
+const fmtQtl = (value: number): string => {
+  const rounded = Math.round(value * 100) / 100;
+  return Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(2);
+};
+
+const buildInsufficientStockError = (details: string[]): AppError => {
+  const summary = details.join("; ");
+  return new AppError(
+    `Insufficient stock available for this transfer: ${summary}`,
+    400,
+    true,
+    details,
+  );
+};
 
 // =====================
 // VENDOR TRANSFER OPERATIONS
@@ -120,30 +196,6 @@ export const createTransfer = async (
         ? toQtl(weight, unit ?? "QTL")
         : undefined;
 
-    // Get vendor's total available stock
-    const availableStock = await prisma.stock.aggregate({
-      where: {
-        vendorId,
-        status: "AVAILABLE",
-      },
-      _sum: {
-        weight: true,
-      },
-    });
-
-    const availableWeight = availableStock._sum.weight || 0;
-
-    // Validate transfer doesn't exceed available stock
-    if (
-      typeof normalizedWeightQtl === "number" &&
-      normalizedWeightQtl > availableWeight
-    ) {
-      throw new AppError(
-        `Transfer weight exceeds available stock (${availableWeight} QTL)`,
-        400,
-      );
-    }
-
     // Validate goni types
     const goniTypes = await prisma.goniType.findMany({
       where: {
@@ -170,7 +222,10 @@ export const createTransfer = async (
       return currentType.isTracked ? sum + item.bagCount : sum;
     }, 0);
 
-    // Apply tracked-bag availability check only for tracked types (bag ledger based)
+    // Detailed availability validation
+    const shortageDetails: string[] = [];
+
+    // Tracked-bag availability check (bag ledger based) for tracked types
     for (const item of transferItems) {
       const currentType = goniTypeMap.get(item.goniTypeId)!;
       if (!currentType.isTracked) continue;
@@ -181,11 +236,29 @@ export const createTransfer = async (
       );
 
       if (item.bagCount > availableBagsByType) {
-        throw new AppError(
-          `Transfer bag count (${item.bagCount}) exceeds available ${currentType.name} bags (${availableBagsByType})`,
-          400,
+        shortageDetails.push(
+          `${currentType.name}: need ${item.bagCount} bags, available ${availableBagsByType} bags`,
         );
       }
+    }
+
+    // Weight check scoped to the requested goni types
+    if (typeof normalizedWeightQtl === "number") {
+      const breakdown = await getAvailableStockBreakdown(
+        vendorId,
+        transferItems.map((item) => item.goniTypeId),
+      );
+      if (normalizedWeightQtl > breakdown.totalWeight) {
+        shortageDetails.push(
+          `Weight: need ${fmtQtl(normalizedWeightQtl)} QTL, available ${fmtQtl(
+            breakdown.totalWeight,
+          )} QTL`,
+        );
+      }
+    }
+
+    if (shortageDetails.length) {
+      throw buildInsufficientStockError(shortageDetails);
     }
 
     const [sourceLocation, destinationLocation] = await Promise.all([
@@ -599,14 +672,17 @@ export const completeTransfer = async (
     const dispatchBagCount =
       typeof bagCount === "number" ? bagCount : (transfer.bagCount ?? 0);
 
-    // Get vendor's available stocks ordered by createdAt (FIFO)
-    const availableStocks = await prisma.stock.findMany({
-      where: {
-        vendorId: transfer.vendorId,
-        status: "AVAILABLE",
-      },
-      orderBy: { createdAt: "asc" },
-    });
+    const requestedTypeIds =
+      transfer.items.length > 0
+        ? Array.from(new Set(transfer.items.map((i) => i.goniTypeId)))
+        : transfer.goniTypeId
+          ? [transfer.goniTypeId]
+          : [];
+
+    const breakdown = await getAvailableStockBreakdown(
+      transfer.vendorId,
+      requestedTypeIds,
+    );
 
     let remainingWeight = dispatchWeightQtl;
     let remainingBags = dispatchBagCount;
@@ -615,33 +691,79 @@ export const completeTransfer = async (
       throw new AppError("Transfer has no weight or bag count to process", 400);
     }
 
-    // Check if enough stock is available
-    const totalAvailableWeight = availableStocks.reduce(
-      (sum, s) => sum + s.weight,
-      0,
-    );
-    const totalAvailableBags = availableStocks.reduce(
-      (sum, s) => sum + s.bagCount,
-      0,
-    );
+    // Per-goni-type bag check
+    const shortageDetails: string[] = [];
+    if (transfer.items.length > 0) {
+      for (const item of transfer.items) {
+        if (item.bagCount <= 0) continue;
+        const row = breakdown.rows.find(
+          (r) => r.goniTypeId === item.goniTypeId,
+        );
+        const availableBags = row?.bagCount ?? 0;
+        if (item.bagCount > availableBags) {
+          shortageDetails.push(
+            `${row?.name ?? item.goniTypeId}: need ${item.bagCount} bags, available ${availableBags} bags`,
+          );
+        }
+      }
+    } else if (remainingBags > breakdown.totalBags) {
+      shortageDetails.push(
+        `Bags: need ${remainingBags}, available ${breakdown.totalBags}`,
+      );
+    }
 
-    if (
-      remainingWeight > totalAvailableWeight ||
-      remainingBags > totalAvailableBags
-    ) {
-      throw new AppError("Insufficient stock available for this transfer", 400);
+    // Weight check scoped to requested goni types
+    if (remainingWeight > breakdown.totalWeight) {
+      shortageDetails.push(
+        `Weight: need ${fmtQtl(remainingWeight)} QTL, available ${fmtQtl(
+          breakdown.totalWeight,
+        )} QTL`,
+      );
+    }
+
+    if (shortageDetails.length) {
+      throw buildInsufficientStockError(shortageDetails);
+    }
+
+    const remainingBagsByType = new Map<string, number>();
+    if (transfer.items.length > 0) {
+      for (const item of transfer.items) {
+        remainingBagsByType.set(item.goniTypeId, item.bagCount);
+      }
     }
 
     await prisma.$transaction(async (tx) => {
-      // Deduct from stocks using FIFO
-      for (const stock of availableStocks) {
-        if (remainingWeight <= 0 && remainingBags <= 0) break;
+      // Deduct from stocks using FIFO (scoped to the transfer's goni types)
+      for (const stock of breakdown.stocks) {
+        const bagsDone =
+          transfer.items.length > 0
+            ? Array.from(remainingBagsByType.values()).every((v) => v <= 0)
+            : remainingBags <= 0;
+        if (remainingWeight <= 0 && bagsDone) break;
 
         const deductWeight = Math.min(
           stock.weight,
           Math.max(remainingWeight, 0),
         );
-        const deductBags = Math.min(stock.bagCount, Math.max(remainingBags, 0));
+
+        let deductBags = 0;
+        if (transfer.items.length > 0) {
+          if (stock.goniTypeId && remainingBagsByType.has(stock.goniTypeId)) {
+            const remainingForType = remainingBagsByType.get(
+              stock.goniTypeId,
+            ) ?? 0;
+            deductBags = Math.min(
+              stock.bagCount,
+              Math.max(remainingForType, 0),
+            );
+            remainingBagsByType.set(
+              stock.goniTypeId,
+              remainingForType - deductBags,
+            );
+          }
+        } else {
+          deductBags = Math.min(stock.bagCount, Math.max(remainingBags, 0));
+        }
 
         const newWeight = stock.weight - deductWeight;
         const newBags = stock.bagCount - deductBags;
@@ -661,7 +783,9 @@ export const completeTransfer = async (
         }
 
         remainingWeight -= deductWeight;
-        remainingBags -= deductBags;
+        if (transfer.items.length === 0) {
+          remainingBags -= deductBags;
+        }
       }
 
       // Update transfer status
