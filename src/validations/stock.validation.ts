@@ -20,7 +20,6 @@ export const createTransferSchema = Joi.object({
     .optional(),
   sourceLocationId: Joi.string().uuid().required(),
   destinationLocationId: Joi.string().uuid().required(),
-  toVendorId: Joi.string().uuid().optional(),
   vehicalNumber: Joi.string().max(50).required(),
 })
   .custom((value, helpers) => {
@@ -66,7 +65,6 @@ export const listTransferQuerySchema = Joi.object({
       "CANCELLED",
     )
     .optional(),
-  type: Joi.string().valid("incoming", "outgoing").optional(),
   page: Joi.number().integer().min(1).optional(),
   limit: Joi.number().integer().min(1).max(100).optional(),
 });

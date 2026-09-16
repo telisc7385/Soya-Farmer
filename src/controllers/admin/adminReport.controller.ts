@@ -284,7 +284,6 @@ const getStockTransfersReport = async (query: any) => {
     orderBy: { createdAt: "desc" },
     include: {
       vendor: true,
-      toVendor: true,
       goniType: true,
       sourceLocation: true,
       destinationLocation: true,

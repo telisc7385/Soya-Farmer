@@ -10,11 +10,10 @@ import * as stockController from "../controllers/stock.controller";
 import * as transferController from "../controllers/stockTransfer.controller";
 import * as bagController from "../controllers/bag.controller";
 import * as thappiController from "../controllers/thappi.controller";
-import { listInventoryLocations } from "../controllers/inventoryLocation.controller";
+import { listInventoryLocations, getVendorAssignedLocations } from "../controllers/inventoryLocation.controller";
 import { listActiveQualityRates } from "../controllers/qualityRate.controller";
 import {
   createTransferSchema,
-  receiveTransferSchema,
   returnBagsToFarmerSchema,
   vendorAddOwnBagsSchema,
 } from "../validations/stock.validation";
@@ -46,15 +45,6 @@ router.get(
   authMiddleware,
   authorize("VENDOR"),
   transferController.getVendorTransfers,
-);
-
-// Vendor receives incoming transfer
-router.put(
-  "/transfers/:transferId/receive",
-  authMiddleware,
-  authorize("VENDOR"),
-  validateRequest(receiveTransferSchema),
-  transferController.vendorReceiveTransfer,
 );
 
 // Get quality-wise rates
@@ -179,6 +169,14 @@ router.get(
   validateQuery(listInventoryLocationQuerySchema),
   setDefaultLocationFilters,
   listInventoryLocations,
+);
+
+// Source locations for this vendor (assigned only)
+router.get(
+  "/locations/assigned",
+  authMiddleware,
+  authorize("VENDOR"),
+  getVendorAssignedLocations,
 );
 
 // Get stock by ID

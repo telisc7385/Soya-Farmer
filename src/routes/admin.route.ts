@@ -87,6 +87,10 @@ import {
   createInventoryLocation,
   listInventoryLocations,
   updateInventoryLocation,
+  getVendorLocations,
+  setVendorLocations,
+  getLocationVendors,
+  setLocationVendors,
 } from "../controllers/inventoryLocation.controller";
 import {
   getPurchaseLimit,
@@ -96,6 +100,8 @@ import {
   createInventoryLocationSchema,
   listInventoryLocationQuerySchema,
   updateInventoryLocationSchema,
+  assignVendorLocationsSchema,
+  assignLocationVendorsSchema,
 } from "../validations/inventoryLocation.validation";
 import { createPurchaseLimitSchema } from "../validations/purchaseLimit.validation";
 const router = Router();
@@ -423,6 +429,37 @@ router.put(
   authorize("ADMIN"),
   validateRequest(updateInventoryLocationSchema),
   updateInventoryLocation,
+);
+
+// Vendor <-> Location assignments (many-to-many)
+router.get(
+  "/vendors/:vendorId/locations",
+  authMiddleware,
+  authorize("ADMIN"),
+  getVendorLocations,
+);
+
+router.put(
+  "/vendors/:vendorId/locations",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateRequest(assignVendorLocationsSchema),
+  setVendorLocations,
+);
+
+router.get(
+  "/locations/:locationId/vendors",
+  authMiddleware,
+  authorize("ADMIN"),
+  getLocationVendors,
+);
+
+router.put(
+  "/locations/:locationId/vendors",
+  authMiddleware,
+  authorize("ADMIN"),
+  validateRequest(assignLocationVendorsSchema),
+  setLocationVendors,
 );
 
 // =====================

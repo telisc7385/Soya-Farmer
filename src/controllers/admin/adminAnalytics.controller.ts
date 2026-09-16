@@ -206,10 +206,10 @@ export const getLocationWiseStockSummary = async (
         receivedWeight: true,
         receivedBagCount: true,
         sourceLocation: {
-          select: { id: true, name: true, type: true },
+          select: { id: true, name: true },
         },
         destinationLocation: {
-          select: { id: true, name: true, type: true },
+          select: { id: true, name: true },
         },
       },
     });
@@ -217,7 +217,6 @@ export const getLocationWiseStockSummary = async (
     type LocAgg = {
       locationId: string;
       locationName: string;
-      locationType: string;
       inboundWeightQtl: number;
       inboundBags: number;
       outboundWeightQtl: number;
@@ -228,14 +227,12 @@ export const getLocationWiseStockSummary = async (
     const upsert = (
       locationId: string,
       locationName: string,
-      locationType: string,
     ) => {
       const existing = byLocation.get(locationId);
       if (existing) return existing;
       const created: LocAgg = {
         locationId,
         locationName,
-        locationType,
         inboundWeightQtl: 0,
         inboundBags: 0,
         outboundWeightQtl: 0,
@@ -255,7 +252,6 @@ export const getLocationWiseStockSummary = async (
         const row = upsert(
           transfer.sourceLocationId,
           transfer.sourceLocation.name,
-          transfer.sourceLocation.type,
         );
         row.outboundWeightQtl += outboundWeight;
         row.outboundBags += outboundBags;
@@ -265,7 +261,6 @@ export const getLocationWiseStockSummary = async (
         const row = upsert(
           transfer.destinationLocationId,
           transfer.destinationLocation.name,
-          transfer.destinationLocation.type,
         );
         row.inboundWeightQtl += inboundWeight;
         row.inboundBags += inboundBags;
@@ -351,8 +346,8 @@ export const getLocationLedger = async (
         receivedBagCount: true,
         weightShortage: true,
         bagShortage: true,
-        sourceLocation: { select: { id: true, name: true, type: true } },
-        destinationLocation: { select: { id: true, name: true, type: true } },
+        sourceLocation: { select: { id: true, name: true } },
+        destinationLocation: { select: { id: true, name: true } },
       },
     });
 

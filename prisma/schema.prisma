@@ -109,12 +109,6 @@ enum BagMovementType {
   ADMIN_TO_VENDOR_ADD
 }
 
-enum InventoryLocationType {
-  VENDOR
-  GODOWN
-  PLANT
-}
-
 enum ThappiStatus {
   AVAILABLE
   TRANSFERRED
@@ -156,7 +150,7 @@ model User {
   goniTypes                 GoniType[]          @relation("UserGoniTypes")
   stocks                    Stock[]             @relation("VendorStock")
   vendorTransfers           StockTransfer[]     @relation("VendorTransfers")
-  toVendorTransfers         StockTransfer[]     @relation("ToVendorTransfers")
+  vendorLocations           VendorLocation[]   @relation("VendorLocationVendor")
   vendorBagMoves            BagMovement[]       @relation("VendorBagMovements")
   createdBagMoves           BagMovement[]       @relation("CreatedBagMovements")
   kycVerifiedFarmers        Farmer[]            @relation("KycVerifiedBy")
@@ -558,7 +552,6 @@ model StockTransfer {
   id                    String              @id @default(uuid())
   transferNo            String              @unique
   vendorId              String
-  toVendorId            String?
   goniTypeId            String?
   vendorEnteredWeight   Float?
   vendorEnteredUnit     QuantityUnit?
@@ -594,7 +587,6 @@ model StockTransfer {
   completedAt           DateTime?
 
   vendor              User                  @relation("VendorTransfers", fields: [vendorId], references: [id])
-  toVendor            User?                 @relation("ToVendorTransfers", fields: [toVendorId], references: [id])
   goniType            GoniType?             @relation(fields: [goniTypeId], references: [id])
   sourceLocation      InventoryLocation?    @relation("SourceLocationTransfers", fields: [sourceLocationId], references: [id])
   destinationLocation InventoryLocation?    @relation("DestinationLocationTransfers", fields: [destinationLocationId], references: [id])
@@ -605,7 +597,6 @@ model StockTransfer {
 
   @@index([sourceLocationId])
   @@index([destinationLocationId])
-  @@index([toVendorId])
 }
 
 model StockTransferItem {
@@ -650,20 +641,34 @@ model InventoryLocation {
   id          String                @id @default(uuid())
   name        String
   code        String?               @unique
-  type        InventoryLocationType
   isActive    Boolean               @default(true)
   createdById String?
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @updatedAt
 
   createdBy          User?            @relation("CreatedInventoryLocations", fields: [createdById], references: [id])
+  vendorLocations    VendorLocation[]   @relation("VendorLocationLocation")
   outgoingTransfers  StockTransfer[]  @relation("SourceLocationTransfers")
   incomingTransfers  StockTransfer[]  @relation("DestinationLocationTransfers")
   thappis            Thappi[]
   thappiMovementFrom ThappiMovement[] @relation("ThappiMoveFromLocation")
   thappiMovementTo   ThappiMovement[] @relation("ThappiMoveToLocation")
 
-  @@index([type, isActive])
+  @@index([isActive])
+}
+
+model VendorLocation {
+  id         String   @id @default(uuid())
+  vendorId   String
+  locationId String
+  createdAt  DateTime @default(now())
+
+  vendor   User              @relation("VendorLocationVendor", fields: [vendorId], references: [id])
+  location InventoryLocation @relation("VendorLocationLocation", fields: [locationId], references: [id])
+
+  @@unique([vendorId, locationId])
+  @@index([vendorId])
+  @@index([locationId])
 }
 
 model Thappi {

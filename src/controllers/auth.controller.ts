@@ -262,6 +262,13 @@ export const getVendorList = async (
           createdAt: true,
           masterVendor: true,
           assets: true,
+          vendorLocations: {
+            select: {
+              location: {
+                select: { id: true, name: true, code: true, isActive: true },
+              },
+            },
+          },
         },
       }),
       prisma.user.count({ where }),
@@ -394,6 +401,8 @@ export const getVendorList = async (
 
       return {
         ...vendor,
+        locations: vendor.vendorLocations.map((vl) => vl.location),
+        vendorLocations: undefined,
         actualFactoryRate: qualityRatesResponse?.rate || 0,
         vendorRate: (qualityRatesResponse?.rate || 0) + vendor.factoryRateDiff,
 
@@ -444,12 +453,27 @@ export const getVendorById = async (
         isActive: true,
         createdAt: true,
         assets: true,
+        vendorLocations: {
+          select: {
+            location: {
+              select: { id: true, name: true, code: true, isActive: true },
+            },
+          },
+        },
       },
     });
 
     if (!vendor) throw new AppError("Vendor not found", 404);
 
-    successResponse(res, vendor, "Vendor fetched successfully");
+    successResponse(
+      res,
+      {
+        ...vendor,
+        locations: vendor.vendorLocations.map((vl) => vl.location),
+        vendorLocations: undefined,
+      },
+      "Vendor fetched successfully",
+    );
   } catch (error) {
     next(error);
   }

@@ -399,11 +399,6 @@ export const stockTransferReportConfig: ReportConfig<any> = {
       header: "Vendor Phone",
       value: (r) => r.vendor?.phone,
     },
-    {
-      key: "toVendorName",
-      header: "To Vendor Name",
-      value: (r) => r.toVendor?.name,
-    },
     { key: "goniType", header: "Goni Type", value: (r) => r.goniType?.name },
     {
       key: "vendorEnteredWeight",

@@ -1,20 +1,12 @@
-import { InventoryLocationType } from "@prisma/client";
 import { NextFunction, Request, Response } from "express";
 import prisma from "../database/prisma";
 import { AppError } from "../core/appError";
 import { createdResponse, successResponse } from "../utils/response";
 import { AuthRequest } from "../middleware/auth.middleware";
 
-const locationPrefixByType: Record<string, string> = {
-  VENDOR: "VND",
-  GODOWN: "GDN",
-  PLANT: "PLT",
-};
-
-const generateLocationCode = async (type: InventoryLocationType) => {
-  const prefix = locationPrefixByType[type] ?? "LOC";
-  const count = await prisma.inventoryLocation.count({ where: { type } });
-  return `${prefix}-${String(count + 1).padStart(4, "0")}`;
+const generateLocationCode = async () => {
+  const count = await prisma.inventoryLocation.count();
+  return `GDN-${String(count + 1).padStart(4, "0")}`;
 };
 
 export const createInventoryLocation = async (
@@ -23,16 +15,15 @@ export const createInventoryLocation = async (
   next: NextFunction,
 ) => {
   try {
-    const { name, type, isActive } = req.body;
+    const { name, isActive } = req.body;
     const createdById = req.user?.id;
 
-    const generatedCode = await generateLocationCode(type);
+    const generatedCode = await generateLocationCode();
 
     const location = await prisma.inventoryLocation.create({
       data: {
         name: name.trim(),
         code: generatedCode,
-        type,
         isActive: typeof isActive === "boolean" ? isActive : true,
         createdById,
       },
@@ -53,9 +44,8 @@ export const listInventoryLocations = async (
   next: NextFunction,
 ) => {
   try {
-    const { type, isActive, page = 1, limit = 20 } = req.query as any;
+    const { isActive, page = 1, limit = 20 } = req.query as any;
     const where: any = {};
-    if (type) where.type = type;
     if (isActive !== undefined) where.isActive = isActive === "true";
 
     const skip = (Number(page) - 1) * Number(limit);
@@ -66,6 +56,11 @@ export const listInventoryLocations = async (
         skip,
         take: Number(limit),
         orderBy: { createdAt: "desc" },
+        include: {
+          _count: {
+            select: { vendorLocations: true },
+          },
+        },
       }),
       prisma.inventoryLocation.count({ where }),
     ]);
@@ -95,7 +90,7 @@ export const updateInventoryLocation = async (
 ) => {
   try {
     const { locationId } = req.params;
-    const { name, code, type, isActive } = req.body;
+    const { name, code, isActive } = req.body;
 
     const existing = await prisma.inventoryLocation.findUnique({
       where: { id: locationId },
@@ -114,7 +109,6 @@ export const updateInventoryLocation = async (
             : typeof code === "string"
               ? code.trim()
               : undefined,
-        type,
         isActive,
       },
     });
@@ -124,6 +118,229 @@ export const updateInventoryLocation = async (
     if (error?.code === "P2002") {
       return next(new AppError("Location code already exists", 409));
     }
+    next(error);
+  }
+};
+
+// =====================
+// VENDOR LOCATION ASSIGNMENTS
+// =====================
+
+const parseAsLocations = (rows: Array<{ location: any }>) =>
+  rows.map((row) => row.location);
+
+/**
+ * Vendor app: locations assigned to the logged-in vendor (active only) - used as transfer source.
+ */
+export const getVendorAssignedLocations = async (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const vendorId = req.user?.id as string;
+
+    const rows = await prisma.vendorLocation.findMany({
+      where: {
+        vendorId,
+        location: { isActive: true },
+      },
+      select: {
+        location: true,
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    successResponse(
+      res,
+      parseAsLocations(rows),
+      "Assigned locations fetched",
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Admin: list all locations assigned to a vendor.
+ */
+export const getVendorLocations = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { vendorId } = req.params;
+
+    const vendor = await prisma.user.findUnique({
+      where: { id: vendorId, role: "VENDOR" },
+      select: { id: true },
+    });
+    if (!vendor) throw new AppError("Vendor not found", 404);
+
+    const rows = await prisma.vendorLocation.findMany({
+      where: { vendorId },
+      select: { location: true },
+      orderBy: { createdAt: "desc" },
+    });
+
+    successResponse(res, parseAsLocations(rows), "Vendor locations fetched");
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Admin: replace a vendor's assigned locations (multi-locations per vendor).
+ */
+export const setVendorLocations = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { vendorId } = req.params;
+    const { locationIds } = req.body as { locationIds: string[] };
+
+    const vendor = await prisma.user.findUnique({
+      where: { id: vendorId, role: "VENDOR" },
+      select: { id: true },
+    });
+    if (!vendor) throw new AppError("Vendor not found", 404);
+
+    const uniqueIds = Array.from(new Set(locationIds));
+    const locations = await prisma.inventoryLocation.findMany({
+      where: { id: { in: uniqueIds }, isActive: true },
+      select: { id: true },
+    });
+    if (locations.length !== uniqueIds.length) {
+      throw new AppError(
+        "One or more locations are invalid or inactive",
+        400,
+      );
+    }
+
+    await prisma.$transaction([
+      prisma.vendorLocation.deleteMany({ where: { vendorId } }),
+      ...(uniqueIds.length
+        ? [
+            prisma.vendorLocation.createMany({
+              data: uniqueIds.map((locationId) => ({ vendorId, locationId })),
+            }),
+          ]
+        : []),
+    ]);
+
+    const rows = await prisma.vendorLocation.findMany({
+      where: { vendorId },
+      select: { location: true },
+      orderBy: { createdAt: "desc" },
+    });
+
+    successResponse(
+      res,
+      parseAsLocations(rows),
+      "Vendor locations updated",
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Admin: list all vendors assigned to a location.
+ */
+export const getLocationVendors = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { locationId } = req.params;
+
+    const location = await prisma.inventoryLocation.findUnique({
+      where: { id: locationId },
+      select: { id: true },
+    });
+    if (!location) throw new AppError("Location not found", 404);
+
+    const rows = await prisma.vendorLocation.findMany({
+      where: { locationId },
+      select: {
+        vendor: {
+          select: { id: true, name: true, phone: true, isActive: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    successResponse(
+      res,
+      rows.map((row) => row.vendor),
+      "Location vendors fetched",
+    );
+  } catch (error) {
+    next(error);
+  }
+};
+
+/**
+ * Admin: replace the vendors assigned to a location (multi-vendors per location).
+ */
+export const setLocationVendors = async (
+  req: Request,
+  res: Response,
+  next: NextFunction,
+) => {
+  try {
+    const { locationId } = req.params;
+    const { vendorIds } = req.body as { vendorIds: string[] };
+
+    const location = await prisma.inventoryLocation.findUnique({
+      where: { id: locationId, isActive: true },
+      select: { id: true },
+    });
+    if (!location) throw new AppError("Location not found or inactive", 400);
+
+    const uniqueIds = Array.from(new Set(vendorIds));
+    const vendors = await prisma.user.findMany({
+      where: { id: { in: uniqueIds }, role: "VENDOR", isActive: true },
+      select: { id: true },
+    });
+    if (vendors.length !== uniqueIds.length) {
+      throw new AppError(
+        "One or more vendors are invalid or inactive",
+        400,
+      );
+    }
+
+    await prisma.$transaction([
+      prisma.vendorLocation.deleteMany({ where: { locationId } }),
+      ...(uniqueIds.length
+        ? [
+            prisma.vendorLocation.createMany({
+              data: uniqueIds.map((vendorId) => ({ vendorId, locationId })),
+            }),
+          ]
+        : []),
+    ]);
+
+    const rows = await prisma.vendorLocation.findMany({
+      where: { locationId },
+      select: {
+        vendor: {
+          select: { id: true, name: true, phone: true, isActive: true },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    });
+
+    successResponse(
+      res,
+      rows.map((row) => row.vendor),
+      "Location vendors updated",
+    );
+  } catch (error) {
     next(error);
   }
 };
