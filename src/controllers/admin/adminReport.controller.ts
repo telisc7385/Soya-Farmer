@@ -426,7 +426,7 @@ const getBagInventoryReport = async (query: any) => {
       orderBy: { name: "asc" },
     }),
     prisma.goniType.findMany({
-      where: { isTracked: true },
+      where: { isTracked: true, isVariant: true },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),

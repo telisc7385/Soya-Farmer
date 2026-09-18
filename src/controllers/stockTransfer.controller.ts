@@ -199,6 +199,7 @@ export const createTransfer = async (
       where: {
         id: { in: transferItems.map((item) => item.goniTypeId) },
         isActive: true,
+        isVariant: true,
       },
       select: { id: true, name: true, isTracked: true },
     });

@@ -90,30 +90,131 @@ async function main() {
     }
   }
 
-  // Seed goni types
-  const goniTypes = [
-    { name: "PP Bag", weightPerBag: 0.01, isTracked: true },
-    { name: "Kaltani Katta", weightPerBag: 0.05, isTracked: true },
+  // Seed bag families + weight variants (PP / Katta with gram weights)
+  const bagFamilies: Array<{
+    name: string;
+    defaultWeightPerBag: number;
+    variants: Array<{ name: string; weightPerBag: number }>;
+  }> = [
+    {
+      name: "PP Bag",
+      defaultWeightPerBag: 0.01,
+      variants: [
+        { name: "PP 400 gm", weightPerBag: 0.4 },
+        { name: "PP 600 gm", weightPerBag: 0.6 },
+        { name: "PP 700 gm", weightPerBag: 0.7 },
+      ],
+    },
+    {
+      name: "Kaltani Katta",
+      defaultWeightPerBag: 0.05,
+      variants: [
+        { name: "Kaltani 600 gm", weightPerBag: 0.6 },
+        { name: "Kaltani 1 kg", weightPerBag: 1 },
+        { name: "Kaltani 1.5 kg", weightPerBag: 1.5 },
+      ],
+    },
   ];
 
-  for (const goni of goniTypes) {
-    const existing = await prisma.goniType.findFirst({
-      where: { name: goni.name },
+  for (const family of bagFamilies) {
+    // Legacy flat rows have isVariant=false (migration default); they become families
+    const legacyFamily = await prisma.goniType.findFirst({
+      where: { name: family.name, isVariant: false },
+      select: { id: true },
     });
 
-    if (!existing) {
-      await prisma.goniType.create({
+    // Legacy flat rows become bag families (no weight, no tracking at family level)
+    let familyRow: { id: string };
+    if (legacyFamily) {
+      familyRow = await prisma.goniType.update({
+        where: { id: legacyFamily.id },
+        data: { isVariant: false, isTracked: false, weightPerBag: null },
+        select: { id: true },
+      });
+      console.log("Bag family converted:", family.name);
+    } else {
+      familyRow = await prisma.goniType.create({
         data: {
-          name: goni.name,
-          weightPerBag: goni.weightPerBag,
-          isTracked: goni.isTracked,
+          name: family.name,
+          weightPerBag: null,
+          isActive: true,
+          isTracked: false,
+          isVariant: false,
           createdBy: admin.id,
         },
+        select: { id: true },
       });
+      console.log("Bag family seeded:", family.name);
+    }
 
-      console.log("Goni type seeded:", goni.name);
-    } else {
-      console.log("Goni type already exists");
+    // Default variant keeps legacy balances alive (historical bills/ledgers point here)
+    const defaultVariantName = `${family.name} (Default)`;
+    let defaultVariant = await prisma.goniType.findFirst({
+      where: { parentId: familyRow.id, name: defaultVariantName },
+      select: { id: true },
+    });
+    if (!defaultVariant) {
+      defaultVariant = await prisma.goniType.create({
+        data: {
+          name: defaultVariantName,
+          weightPerBag: family.defaultWeightPerBag,
+          isActive: true,
+          isTracked: true,
+          isVariant: true,
+          parentId: familyRow.id,
+          createdBy: admin.id,
+        },
+        select: { id: true },
+      });
+      console.log("Default goni variant seeded:", defaultVariantName);
+    }
+
+    // Reparent any history still referencing the family onto the default variant
+    await prisma.billGoni.updateMany({
+      where: { goniTypeId: familyRow.id },
+      data: { goniTypeId: defaultVariant.id },
+    });
+    await prisma.bagMovement.updateMany({
+      where: { goniTypeId: familyRow.id },
+      data: { goniTypeId: defaultVariant.id },
+    });
+    await prisma.stock.updateMany({
+      where: { goniTypeId: familyRow.id },
+      data: { goniTypeId: defaultVariant.id },
+    });
+    await prisma.stockTransfer.updateMany({
+      where: { goniTypeId: familyRow.id },
+      data: { goniTypeId: defaultVariant.id },
+    });
+    await prisma.stockTransferItem.updateMany({
+      where: { goniTypeId: familyRow.id },
+      data: { goniTypeId: defaultVariant.id },
+    });
+    await prisma.thappiBagBreakdown.updateMany({
+      where: { goniTypeId: familyRow.id },
+      data: { goniTypeId: defaultVariant.id },
+    });
+
+    // Weight variants under the family (idempotent)
+    for (const variant of family.variants) {
+      const existingVariant = await prisma.goniType.findFirst({
+        where: { parentId: familyRow.id, name: variant.name },
+        select: { id: true },
+      });
+      if (!existingVariant) {
+        await prisma.goniType.create({
+          data: {
+            name: variant.name,
+            weightPerBag: variant.weightPerBag,
+            isActive: true,
+            isTracked: true,
+            isVariant: true,
+            parentId: familyRow.id,
+            createdBy: admin.id,
+          },
+        });
+        console.log("Goni variant seeded:", variant.name);
+      }
     }
   }
 }

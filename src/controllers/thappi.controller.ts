@@ -36,7 +36,11 @@ export const createThappi = async (
 
     const typeIds = [...new Set(bagBreakdown.map((b) => b.goniTypeId))];
     const types = await prisma.goniType.findMany({
-      where: { id: { in: typeIds }, isActive: true },
+      where: {
+        id: { in: typeIds },
+        isActive: true,
+        isVariant: true,
+      },
       select: { id: true },
     });
     if (types.length !== typeIds.length) {

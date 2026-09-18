@@ -52,13 +52,18 @@ const emptySummary: VendorBagSummary = {
 export const getLedgerTypes = async (goniTypeId?: string) => {
   if (goniTypeId) {
     return prisma.goniType.findMany({
-      where: { id: goniTypeId, isTracked: true, isActive: true },
+      where: {
+        id: goniTypeId,
+        isTracked: true,
+        isActive: true,
+        isVariant: true,
+      },
       select: { id: true, name: true },
     });
   }
 
   return prisma.goniType.findMany({
-    where: { isTracked: true, isActive: true },
+    where: { isTracked: true, isActive: true, isVariant: true },
     select: { id: true, name: true },
     orderBy: { createdAt: "desc" },
   });
@@ -224,7 +229,12 @@ export const getVendorCurrentBagsForType = async (
 
 export const isTrackedGoniType = async (goniTypeId: string) => {
   const goniType = await prisma.goniType.findFirst({
-    where: { id: goniTypeId, isTracked: true, isActive: true },
+    where: {
+      id: goniTypeId,
+      isTracked: true,
+      isActive: true,
+      isVariant: true,
+    },
     select: { id: true },
   });
   return Boolean(goniType);
