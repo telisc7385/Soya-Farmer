@@ -837,7 +837,11 @@ export const applyGoniDeduction = async (
       ),
     );
     const goniTypes = await prisma.goniType.findMany({
-      where: { id: { in: requestedTypeIds }, isActive: true },
+      where: {
+        id: { in: requestedTypeIds },
+        isActive: true,
+        isVariant: true,
+      },
     });
     const goniTypeMap = new Map(goniTypes.map((type) => [type.id, type]));
     const invalidTypeIds = requestedTypeIds.filter(
@@ -892,7 +896,7 @@ export const applyGoniDeduction = async (
     for (const group of groupsByKey.values()) {
       const goniType = goniTypeMap.get(group.goniTypeId)!;
       const effectiveBags = group.unitCount * group.multiplier;
-      const weightKg = effectiveBags * goniType.weightPerBag;
+      const weightKg = effectiveBags * (goniType.weightPerBag ?? 0);
 
       totalWeightKg += weightKg;
 

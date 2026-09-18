@@ -284,7 +284,6 @@ const getStockTransfersReport = async (query: any) => {
     orderBy: { createdAt: "desc" },
     include: {
       vendor: true,
-      toVendor: true,
       goniType: true,
       sourceLocation: true,
       destinationLocation: true,
@@ -427,7 +426,7 @@ const getBagInventoryReport = async (query: any) => {
       orderBy: { name: "asc" },
     }),
     prisma.goniType.findMany({
-      where: { isTracked: true },
+      where: { isTracked: true, isVariant: true },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
     }),

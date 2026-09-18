@@ -52,10 +52,19 @@ export const assignVendorDeductionsSchema = Joi.object({
   masterIds: Joi.array().items(Joi.string().uuid()).required(),
 });
 
-export const createGoniTypeSchema = Joi.object({
+export const goniVariantSeedSchema = Joi.object({
   name: Joi.string().trim().required(),
   weightPerBag: Joi.number().positive().required(),
   isTracked: Joi.boolean().optional(),
+});
+
+export const createGoniTypeSchema = Joi.object({
+  name: Joi.string().trim().required(),
+  weightPerBag: Joi.number().positive().optional(),
+  isTracked: Joi.boolean().optional(),
+  isVariant: Joi.boolean().optional(),
+  parentId: Joi.string().uuid().optional(),
+  variants: Joi.array().items(goniVariantSeedSchema).min(1).optional(),
 });
 
 export const updateGoniTypeSchema = Joi.object({
@@ -63,6 +72,8 @@ export const updateGoniTypeSchema = Joi.object({
   weightPerBag: Joi.number().positive().optional(),
   isActive: Joi.boolean().required(),
   isTracked: Joi.boolean().optional(),
+  isVariant: Joi.boolean().optional(),
+  parentId: Joi.string().uuid().allow(null).optional(),
 });
 
 export const saveQualityRateSchema = Joi.object({

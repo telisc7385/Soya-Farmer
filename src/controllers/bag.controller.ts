@@ -27,7 +27,12 @@ export const getVendorBagSummary = async (
 
     if (goniTypeId) {
       const goniType = await prisma.goniType.findFirst({
-        where: { id: goniTypeId, isActive: true, isTracked: true },
+        where: {
+          id: goniTypeId,
+          isActive: true,
+          isTracked: true,
+          isVariant: true,
+        },
         select: { id: true },
       });
       if (!goniType) {
@@ -81,11 +86,20 @@ export const returnBagsToFarmer = async (
 
     const [goniTypes, trackedIds] = await Promise.all([
       prisma.goniType.findMany({
-        where: { id: { in: requestedTypeIds }, isActive: true },
+        where: {
+          id: { in: requestedTypeIds },
+          isActive: true,
+          isVariant: true,
+        },
         select: { id: true, name: true },
       }),
       prisma.goniType.findMany({
-        where: { id: { in: requestedTypeIds }, isTracked: true, isActive: true },
+        where: {
+          id: { in: requestedTypeIds },
+          isTracked: true,
+          isActive: true,
+          isVariant: true,
+        },
         select: { id: true },
       }),
     ]);
@@ -260,7 +274,7 @@ export const adminReturnBagsToVendor = async (
         select: { id: true, name: true },
       }),
       prisma.goniType.findFirst({
-        where: { id: goniTypeId, isActive: true },
+        where: { id: goniTypeId, isActive: true, isVariant: true },
         select: { id: true, name: true },
       }),
       isTrackedGoniType(goniTypeId),
@@ -361,7 +375,7 @@ export const adminOpeningBagsToVendor = async (
         select: { id: true, name: true },
       }),
       prisma.goniType.findFirst({
-        where: { id: goniTypeId, isActive: true },
+        where: { id: goniTypeId, isActive: true, isVariant: true },
         select: { id: true, name: true },
       }),
       isTrackedGoniType(goniTypeId),
@@ -448,7 +462,7 @@ export const vendorAddOwnBags = async (
 
     const [goniType, isTracked] = await Promise.all([
       prisma.goniType.findFirst({
-        where: { id: goniTypeId, isActive: true },
+        where: { id: goniTypeId, isActive: true, isVariant: true },
         select: { id: true, name: true },
       }),
       isTrackedGoniType(goniTypeId),

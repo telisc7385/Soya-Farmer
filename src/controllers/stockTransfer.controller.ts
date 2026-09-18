@@ -114,7 +114,6 @@ export const createTransfer = async (
       goniTypeId,
       thappiIds,
       items,
-      toVendorId,
       sourceLocationId,
       destinationLocationId,
       vehicalNumber,
@@ -125,7 +124,6 @@ export const createTransfer = async (
       goniTypeId?: string;
       thappiIds?: string[];
       items?: Array<{ goniTypeId: string; bagCount: number }>;
-      toVendorId?: string;
       sourceLocationId: string;
       destinationLocationId: string;
       vehicalNumber: string;
@@ -201,6 +199,7 @@ export const createTransfer = async (
       where: {
         id: { in: transferItems.map((item) => item.goniTypeId) },
         isActive: true,
+        isVariant: true,
       },
       select: { id: true, name: true, isTracked: true },
     });
@@ -260,11 +259,11 @@ export const createTransfer = async (
     const [sourceLocation, destinationLocation] = await Promise.all([
       prisma.inventoryLocation.findFirst({
         where: { id: sourceLocationId, isActive: true },
-        select: { id: true, name: true, type: true },
+        select: { id: true, name: true },
       }),
       prisma.inventoryLocation.findFirst({
         where: { id: destinationLocationId, isActive: true },
-        select: { id: true, name: true, type: true },
+        select: { id: true, name: true },
       }),
     ]);
 
@@ -272,13 +271,12 @@ export const createTransfer = async (
       throw new AppError("Invalid or inactive source/destination location", 400);
     }
 
-    if (toVendorId) {
-      const toVendor = await prisma.user.findUnique({
-        where: { id: toVendorId, role: "VENDOR", isActive: true },
-        select: { id: true },
-      });
-      if (!toVendor) throw new AppError("Destination vendor not found or inactive", 400);
-      if (toVendorId === vendorId) throw new AppError("Cannot transfer to yourself", 400);
+    const sourceAssignment = await prisma.vendorLocation.findFirst({
+      where: { vendorId, locationId: sourceLocationId },
+      select: { id: true },
+    });
+    if (!sourceAssignment) {
+      throw new AppError("Source location is not assigned to you", 403);
     }
 
     if (sourceLocationId === destinationLocationId) {
@@ -288,28 +286,6 @@ export const createTransfer = async (
       );
     }
 
-    const allowedPairs = new Set([
-      "VENDOR->VENDOR",
-      "VENDOR->PLANT",
-      "VENDOR->GODOWN",
-      "GODOWN->PLANT",
-      "GODOWN->VENDOR",
-    ]);
-    const routeKey = `${sourceLocation.type}->${destinationLocation.type}`;
-    if (!allowedPairs.has(routeKey)) {
-      throw new AppError(
-        `Unsupported transfer route ${routeKey}. Allowed: Vendor->Vendor, Vendor->Plant, Vendor->Godown, Godown->Plant, Godown->Vendor`,
-        400,
-      );
-    }
-    if (routeKey === "VENDOR->VENDOR" && !toVendorId) {
-      throw new AppError("Destination vendor is required for vendor-to-vendor transfer", 400);
-    }
-    if (routeKey !== "VENDOR->VENDOR" && toVendorId) {
-      throw new AppError("Destination vendor is allowed only for vendor-to-vendor transfer", 400);
-    }
-    const isDirectVendorTransfer = routeKey === "VENDOR->VENDOR";
-
     const transfer = await prisma.$transaction(async (tx) => {
       const transferNo = await generateTransferNo(tx);
 
@@ -317,7 +293,6 @@ export const createTransfer = async (
         data: {
           transferNo,
           vendorId,
-          ...(toVendorId && { toVendorId }),
           goniTypeId:
             transferItems.length === 1 ? transferItems[0].goniTypeId : null,
           vendorEnteredWeight: weight,
@@ -328,13 +303,7 @@ export const createTransfer = async (
           sourceLocationId,
           destinationLocationId,
           vehicalNumber,
-          ...(isDirectVendorTransfer && {
-            dispatchedWeight: normalizedWeightQtl,
-            dispatchedBagCount: totalBagCount,
-            dispatchedAt: new Date(),
-            dispatchById: vendorId,
-          }),
-          status: isDirectVendorTransfer ? "DISPATCHED" : "PENDING",
+          status: "PENDING",
         },
       });
 
@@ -355,86 +324,6 @@ export const createTransfer = async (
             bagCount: t.bagCount,
           })),
         });
-      }
-
-      if (isDirectVendorTransfer) {
-        let remainingWeight = normalizedWeightQtl ?? 0;
-        let remainingBags = totalBagCount;
-        const stocks = await tx.stock.findMany({
-          where: { vendorId, status: "AVAILABLE" },
-          orderBy: { createdAt: "asc" },
-        });
-
-        for (const stock of stocks) {
-          if (remainingWeight <= 0 && remainingBags <= 0) break;
-
-          const deductWeight = Math.min(
-            stock.weight,
-            Math.max(remainingWeight, 0),
-          );
-          const deductBags = Math.min(stock.bagCount, Math.max(remainingBags, 0));
-          const newWeight = stock.weight - deductWeight;
-          const newBags = stock.bagCount - deductBags;
-
-          await tx.stock.update({
-            where: { id: stock.id },
-            data:
-              newWeight <= 0 && newBags <= 0
-                ? { status: "TRANSFERRED", weight: 0, bagCount: 0 }
-                : { weight: newWeight, bagCount: newBags },
-          });
-
-          remainingWeight -= deductWeight;
-          remainingBags -= deductBags;
-        }
-
-        if (thappiRows.length) {
-          await tx.thappi.updateMany({
-            where: {
-              id: { in: thappiRows.map((t) => t.id) },
-              status: "AVAILABLE",
-            },
-            data: { status: "TRANSFERRED" },
-          });
-          await tx.thappiMovement.createMany({
-            data: thappiRows.map((t) => ({
-              thappiId: t.id,
-              transferId: createdTransfer.id,
-              movementType: "TRANSFER_OUT",
-              weightQtl: t.weightQtl,
-              bagCount: t.bagCount,
-              fromLocationId: sourceLocationId,
-              toLocationId: destinationLocationId,
-              createdById: vendorId,
-            })),
-          });
-        }
-
-        const trackedTypes = await tx.goniType.findMany({
-          where: {
-            id: { in: transferItems.map((item) => item.goniTypeId) },
-            isActive: true,
-            isTracked: true,
-          },
-          select: { id: true },
-        });
-        const trackedTypeIds = new Set(trackedTypes.map((type) => type.id));
-        const trackedBagMovements = transferItems
-          .filter((item) => trackedTypeIds.has(item.goniTypeId))
-          .map((item) => ({
-            vendorId,
-            goniTypeId: item.goniTypeId,
-            transferId: createdTransfer.id,
-            bagCount: item.bagCount,
-            movementType: "VENDOR_TO_ADMIN" as const,
-            createdById: vendorId,
-          }));
-
-        if (trackedBagMovements.length) {
-          await tx.bagMovement.createMany({
-            data: trackedBagMovements,
-          });
-        }
       }
 
       return tx.stockTransfer.findUnique({
@@ -479,15 +368,9 @@ export const getVendorTransfers = async (
 ) => {
   try {
     const vendorId = req?.user?.id as string;
-    const { status, type, page = 1, limit = 20 } = req.query;
+    const { status, page = 1, limit = 20 } = req.query;
 
-    const vendorFilter: any[] = [{ vendorId }];
-    if (type !== "outgoing") vendorFilter.push({ toVendorId: vendorId });
-
-    const where: any =
-      type === "outgoing"
-        ? { vendorId }
-        : { OR: vendorFilter };
+    const where: any = { vendorId };
     if (status) where.status = status;
 
     const skip = (Number(page) - 1) * Number(limit);
@@ -512,9 +395,6 @@ export const getVendorTransfers = async (
           },
           sourceLocation: true,
           destinationLocation: true,
-          toVendor: {
-            select: { id: true, name: true, phone: true },
-          },
         },
       }),
       prisma.stockTransfer.count({ where }),
@@ -583,9 +463,6 @@ export const getAdminTransfers = async (
           },
           sourceLocation: true,
           destinationLocation: true,
-          toVendor: {
-            select: { id: true, name: true, phone: true },
-          },
         },
       }),
       prisma.stockTransfer.count({ where }),
@@ -1008,7 +885,7 @@ const processReceiveTransfer = async ({
       for (const item of items) {
         bagMap.set(item.goniTypeId, (bagMap.get(item.goniTypeId) ?? 0) + item.bagCount);
       }
-      const thappiVendorId = updated.toVendorId ?? updated.vendorId;
+      const thappiVendorId = updated.vendorId;
       const existingThappis = await tx.thappi.findMany({
         where: { code: { startsWith: `${receiveThappiCode}-` } },
         select: { code: true },
@@ -1050,34 +927,6 @@ const processReceiveTransfer = async ({
           createdById: userId,
         },
       });
-
-      if (updated.toVendorId && bagMap.size) {
-        const trackedTypes = await tx.goniType.findMany({
-          where: {
-            id: { in: Array.from(bagMap.keys()) },
-            isActive: true,
-            isTracked: true,
-          },
-          select: { id: true },
-        });
-        const trackedTypeIds = new Set(trackedTypes.map((type) => type.id));
-        const trackedBagMovements = Array.from(bagMap.entries())
-          .filter(([goniTypeId]) => trackedTypeIds.has(goniTypeId))
-          .map(([goniTypeId, bagCount]) => ({
-            vendorId: updated.toVendorId as string,
-            goniTypeId,
-            transferId: updated.id,
-            bagCount,
-            movementType: "ADMIN_TO_VENDOR" as const,
-            createdById: userId,
-          }));
-
-        if (trackedBagMovements.length) {
-          await tx.bagMovement.createMany({
-            data: trackedBagMovements,
-          });
-        }
-      }
     });
   }
 
@@ -1090,32 +939,6 @@ export const receiveTransfer = async (
   next: NextFunction,
 ) => {
   try {
-    const updated = await processReceiveTransfer({
-      transferId: req.params.transferId,
-      body: req.body as any,
-      userId: req.user?.id,
-    });
-    successResponse(res, updated, "Transfer received and verified");
-  } catch (error) {
-    next(error);
-  }
-};
-
-export const vendorReceiveTransfer = async (
-  req: AuthRequest,
-  res: Response,
-  next: NextFunction,
-) => {
-  try {
-    const transfer = await prisma.stockTransfer.findUnique({
-      where: { id: req.params.transferId },
-      select: { toVendorId: true, status: true },
-    });
-
-    if (!transfer) throw new AppError("Transfer not found", 404);
-    if (transfer.status !== "DISPATCHED") throw new AppError("Transfer is not in dispatched state", 400);
-    if (transfer.toVendorId !== req.user?.id) throw new AppError("This transfer is not addressed to you", 403);
-
     const updated = await processReceiveTransfer({
       transferId: req.params.transferId,
       body: req.body as any,
