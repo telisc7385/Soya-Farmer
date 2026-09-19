@@ -54,6 +54,7 @@ const billReportStaticColumns: CsvColumn<any>[] = [
       header: "Vendor Email",
       value: (r) => r.vendor?.email,
     },
+    { key: "centerName", header: "Center Name", value: (r) => r.centerName },
     { key: "farmerName", header: "Farmer Name", value: (r) => r.farmer?.name },
     {
       key: "farmerPhone",
@@ -343,6 +344,7 @@ export const paymentReportConfig: ReportConfig<any> = {
       header: "Vendor Email",
       value: (r) => r.bill?.vendor?.email,
     },
+    { key: "centerName", header: "Center Name", value: (r) => r.centerName },
     {
       key: "vendorIsActive",
       header: "Vendor Active",
@@ -394,12 +396,16 @@ export const stockTransferReportConfig: ReportConfig<any> = {
     },
     { key: "status", header: "Status", value: (r) => r.status },
     { key: "vendorName", header: "Vendor Name", value: (r) => r.vendor?.name },
-    {
-      key: "vendorPhone",
-      header: "Vendor Phone",
-      value: (r) => r.vendor?.phone,
+    { key: "centerName", header: "Center Name", value: (r) => r.centerName },
+{
+      key: "toVendorName",
+      header: "To Vendor Name",
+      value: (r) => r.toVendor?.name,
     },
     { key: "goniType", header: "Goni Type", value: (r) => r.goniType?.name },
+    { key: "moisture", header: "Moisture", value: (r) => r.moisture },
+    { key: "fm", header: "FM", value: (r) => r.fm },
+    { key: "damage", header: "Damage", value: (r) => r.damage },
     {
       key: "vendorEnteredWeight",
       header: "Vendor Entered Weight",
@@ -538,6 +544,7 @@ export const stockReportConfig: ReportConfig<any> = {
       header: "Vendor Email",
       value: (r) => r.vendor?.email,
     },
+    { key: "centerName", header: "Center Name", value: (r) => r.centerName },
     { key: "goniType", header: "Goni Type", value: (r) => r.goniType?.name },
     { key: "weight", header: "Weight", value: (r) => r.weight },
     { key: "unit", header: "Unit", value: (r) => r.unit },
@@ -776,6 +783,11 @@ export const bagInventoryReportConfig: ReportConfig<any> = {
       key: "vendorPhone",
       header: "Vendor Phone",
       value: (r) => r.vendorPhone,
+    },
+    {
+      key: "centerName",
+      header: "Center Name",
+      value: (r) => r.centerName,
     },
     {
       key: "goniTypeName",

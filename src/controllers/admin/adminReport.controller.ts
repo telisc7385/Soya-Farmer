@@ -43,6 +43,12 @@ const buildDateFilter = (startDate?: string, endDate?: string) => {
   return filter;
 };
 
+const vendorCenterNames = (vendor: any): string =>
+  (vendor?.vendorLocations || [])
+    .map((vl: any) => vl.location?.name)
+    .filter(Boolean)
+    .join(", ");
+
 const getQualityRatesReport = async (query: any) => {
   const vendors = await prisma.user.findMany({
     where: { role: "VENDOR" },
@@ -205,6 +211,7 @@ const getBillsReport = async (query: any) => {
     const bank = bill.farmer?.banks?.[0];
     return {
       ...bill,
+      centerName: bill.billLocation,
       bagCount: bill.gonis.reduce((sum, row) => sum + row.bagCount, 0),
       bagCounts: bill.gonis.reduce<Record<string, number>>((acc, row) => {
         acc[row.goniType.name] = (acc[row.goniType.name] ?? 0) + row.bagCount;
@@ -243,7 +250,7 @@ const getPaymentsReport = async (query: any) => {
   ensureAllowedStatus("payments", status, ["PENDING", "PAID", "FAILED"]);
   const createdAt = buildDateFilter(query.startDate, query.endDate);
 
-  return prisma.farmerPayment.findMany({
+  const payments = await prisma.farmerPayment.findMany({
     where: {
       ...(status.length > 0 && { status: { in: status as any } }),
       ...(query.farmerId && { farmerId: String(query.farmerId) }),
@@ -255,11 +262,20 @@ const getPaymentsReport = async (query: any) => {
       farmer: true,
       bill: {
         include: {
-          vendor: true,
+          vendor: {
+            include: {
+              vendorLocations: { include: { location: true } },
+            },
+          },
         },
       },
     },
   });
+
+  return payments.map((p) => ({
+    ...p,
+    centerName: vendorCenterNames(p.bill?.vendor),
+  }));
 };
 
 const getStockTransfersReport = async (query: any) => {
@@ -274,7 +290,7 @@ const getStockTransfersReport = async (query: any) => {
     "CANCELLED",
   ]);
 
-  return prisma.stockTransfer.findMany({
+  const transfers = await prisma.stockTransfer.findMany({
     where: {
       ...(createdAt && { createdAt }),
       ...(status.length > 0 && { status: { in: status as any } }),
@@ -283,11 +299,34 @@ const getStockTransfersReport = async (query: any) => {
     },
     orderBy: { createdAt: "desc" },
     include: {
-      vendor: true,
+      vendor: {
+        include: {
+          vendorLocations: { include: { location: true } },
+        },
+      },
       goniType: true,
       sourceLocation: true,
       destinationLocation: true,
+      thappis: {
+        include: { thappi: true },
+      },
     },
+  });
+
+  return transfers.map((transfer) => {
+    const thappis = (transfer.thappis || []).map((link) => link.thappi);
+    const avgOf = (key: "moisture" | "fm" | "damage") => {
+      if (thappis.length === 0) return null;
+      const sum = thappis.reduce((acc, t) => acc + (Number(t[key]) || 0), 0);
+      return Math.round((sum / thappis.length) * 100) / 100;
+    };
+    return {
+      ...transfer,
+      centerName: vendorCenterNames(transfer.vendor),
+      moisture: avgOf("moisture"),
+      fm: avgOf("fm"),
+      damage: avgOf("damage"),
+    };
   });
 };
 
@@ -296,7 +335,7 @@ const getStocksReport = async (query: any) => {
   const status = parseStatusFilter(query.status);
   ensureAllowedStatus("stocks", status, ["AVAILABLE", "TRANSFERRED"]);
 
-  return prisma.stock.findMany({
+  const stocks = await prisma.stock.findMany({
     where: {
       ...(createdAt && { createdAt }),
       ...(status.length > 0 && { status: { in: status as any } }),
@@ -305,11 +344,20 @@ const getStocksReport = async (query: any) => {
     },
     orderBy: { createdAt: "desc" },
     include: {
-      vendor: true,
+      vendor: {
+        include: {
+          vendorLocations: { include: { location: true } },
+        },
+      },
       goniType: true,
       bill: true,
     },
   });
+
+  return stocks.map((stock) => ({
+    ...stock,
+    centerName: vendorCenterNames(stock.vendor),
+  }));
 };
 
 const getFarmersReport = async (query: any) => {
@@ -422,7 +470,12 @@ const getBagInventoryReport = async (query: any) => {
   const [vendors, trackedTypes] = await Promise.all([
     prisma.user.findMany({
       where: { role: "VENDOR" },
-      select: { id: true, name: true, phone: true },
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        vendorLocations: { include: { location: true } },
+      },
       orderBy: { name: "asc" },
     }),
     prisma.goniType.findMany({
@@ -501,6 +554,7 @@ const getBagInventoryReport = async (query: any) => {
       rows.push({
         vendorName: vendor.name,
         vendorPhone: vendor.phone,
+        centerName: vendorCenterNames(vendor),
         goniTypeName: type.name,
         receivedFromFarmers,
         receivedFromAdmin,
