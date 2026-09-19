@@ -113,7 +113,7 @@ const billReportStaticColumns: CsvColumn<any>[] = [
       value: (r) => r.primaryQuantity,
     },
     { key: "primaryUnit", header: "Unit", value: (r) => r.primaryUnit },
-    { key: "ratePerUnit", header: "Rate/Unit", value: (r) => r.ratePerUnit },
+    { key: "actualRate", header: "Actual Rate", value: (r) => r.ratePerUnit },
     { key: "grossAmount", header: "Gross Amount", value: (r) => r.grossAmount },
     { key: "totalAmount", header: "Total Amount", value: (r) => r.totalAmount },
     { key: "netPayable", header: "Net Payable", value: (r) => r.netPayable },
